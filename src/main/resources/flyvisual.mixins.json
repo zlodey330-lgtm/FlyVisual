@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "com.flyvisual.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "SimpleOptionAccessor",
+    "OverlayTextureAccessor",
+    "GameRendererMixin",
+    "MouseMixin",
+    "EntityMixin",
+    "CameraMixin",
+    "InGameOverlayRendererMixin",
+    "HeldItemRendererMixin",
+    "BackgroundRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

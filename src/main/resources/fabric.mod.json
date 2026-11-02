@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "flyvisual",
+  "version": "${version}",
+  "name": "FlyVisual",
+  "description": "Visual client mod for Minecraft: HUD, themes, fullbright and more.",
+  "authors": ["Fly"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.flyvisual.FlyVisualClient"]
+  },
+  "mixins": ["flyvisual.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}
