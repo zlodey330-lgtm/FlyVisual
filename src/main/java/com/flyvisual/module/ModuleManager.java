@@ -2,7 +2,11 @@ package com.flyvisual.module;
 
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.module.impl.ArmorHudModule;
+import com.flyvisual.module.impl.BlockOutlineModule;
+import com.flyvisual.module.impl.CapesModule;
+import com.flyvisual.module.impl.CrosshairModule;
 import com.flyvisual.module.impl.CoordinatesModule;
+import com.flyvisual.module.impl.DamageParticlesModule;
 import com.flyvisual.module.impl.FpsModule;
 import com.flyvisual.module.impl.FogModule;
 import com.flyvisual.module.impl.FreeLookModule;
@@ -16,6 +20,8 @@ import com.flyvisual.module.impl.NoHurtCamModule;
 import com.flyvisual.module.impl.PingModule;
 import com.flyvisual.module.impl.PotionHudModule;
 import com.flyvisual.module.impl.TargetHudModule;
+import com.flyvisual.module.impl.TimeChangerModule;
+import com.flyvisual.module.impl.TotemAnimationModule;
 import com.flyvisual.module.impl.WatermarkModule;
 import com.flyvisual.module.impl.ZoomModule;
 import net.minecraft.client.MinecraftClient;
@@ -36,6 +42,10 @@ public final class ModuleManager {
 	private static FreeLookModule freeLook;
 	private static HandOffsetModule handOffset;
 	private static FogModule fog;
+	private static TimeChangerModule timeChanger;
+	private static TotemAnimationModule totem;
+	private static CrosshairModule crosshair;
+	private static CapesModule capes;
 
 	private ModuleManager() {
 	}
@@ -48,6 +58,10 @@ public final class ModuleManager {
 		freeLook = new FreeLookModule();
 		handOffset = new HandOffsetModule();
 		fog = new FogModule();
+		timeChanger = new TimeChangerModule();
+		totem = new TotemAnimationModule();
+		crosshair = new CrosshairModule();
+		capes = new CapesModule();
 
 		// Чтобы добавить новую функцию, создай класс и добавь его сюда.
 		// Порядок = порядок в меню.
@@ -66,8 +80,14 @@ public final class ModuleManager {
 		MODULES.add(freeLook);
 		MODULES.add(handOffset);
 		MODULES.add(new HitboxModule());
+		MODULES.add(new DamageParticlesModule());
 		MODULES.add(new HitColorModule());
 		MODULES.add(fog);
+		MODULES.add(timeChanger);
+		MODULES.add(new BlockOutlineModule());
+		MODULES.add(totem);
+		MODULES.add(crosshair);
+		MODULES.add(capes);
 
 		FlyConfig cfg = FlyConfig.get();
 		for (Module m : MODULES) {
@@ -108,6 +128,22 @@ public final class ModuleManager {
 		return fog;
 	}
 
+	public static TimeChangerModule timeChanger() {
+		return timeChanger;
+	}
+
+	public static TotemAnimationModule totem() {
+		return totem;
+	}
+
+	public static CrosshairModule crosshair() {
+		return crosshair;
+	}
+
+	public static CapesModule capes() {
+		return capes;
+	}
+
 	public static List<Module> all() {
 		return Collections.unmodifiableList(MODULES);
 	}
@@ -134,6 +170,8 @@ public final class ModuleManager {
 				}
 				hud.render(ctx, tickDelta);
 				ms.pop();
+			} else if (m.isEnabled()) {
+				m.renderOverlay(ctx, tickDelta);
 			}
 		}
 	}

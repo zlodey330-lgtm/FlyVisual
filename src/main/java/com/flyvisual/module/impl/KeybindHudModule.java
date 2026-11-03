@@ -35,10 +35,10 @@ public class KeybindHudModule extends HudModule {
 		drawKey(ctx, "S", x + step, y + step, KEY, o.backKey.isPressed());
 		drawKey(ctx, "D", x + 2 * step, y + step, KEY, o.rightKey.isPressed());
 
-		drawKey(ctx, "LMB", x, y + 2 * step, half, o.attackKey.isPressed());
-		drawKey(ctx, "RMB", x + half + GAP, y + 2 * step, half, o.useKey.isPressed());
+		drawKey(ctx, "ЛКМ", x, y + 2 * step, half, o.attackKey.isPressed());
+		drawKey(ctx, "ПКМ", x + half + GAP, y + 2 * step, half, o.useKey.isPressed());
 
-		drawKey(ctx, "SPACE", x, y + 3 * step, total, o.jumpKey.isPressed());
+		drawKey(ctx, "ПРОБЕЛ", x, y + 3 * step, total, o.jumpKey.isPressed());
 	}
 
 	private void drawKey(DrawContext ctx, String label, int kx, int ky, int kw, boolean down) {

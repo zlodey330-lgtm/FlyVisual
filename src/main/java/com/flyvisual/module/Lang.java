@@ -1,0 +1,124 @@
+package com.flyvisual.module;
+
+import java.util.Map;
+
+/**
+ * Русские названия. Внутри мода (и в конфиге) модули и настройки хранятся под английскими
+ * именами, чтобы сохранённые настройки не пропадали; на экране показывается перевод отсюда.
+ */
+public final class Lang {
+	private static final Map<String, String> MODULE_TITLES = Map.ofEntries(
+			Map.entry("Watermark", "Ватермарк"),
+			Map.entry("FPS", "FPS"),
+			Map.entry("Ping", "Пинг"),
+			Map.entry("Coordinates", "Координаты"),
+			Map.entry("Keybinds", "Клавиши"),
+			Map.entry("Armor HUD", "Броня"),
+			Map.entry("Potion Status", "Эффекты зелий"),
+			Map.entry("TargetHUD", "Таргет-HUD"),
+			Map.entry("Fullbright", "Полная яркость"),
+			Map.entry("NoHurtCam", "Без тряски"),
+			Map.entry("Lower Fire", "Низкий огонь"),
+			Map.entry("Zoom", "Зум"),
+			Map.entry("FreeLook", "Свободный обзор"),
+			Map.entry("Hand Offset", "Позиция руки"),
+			Map.entry("Hitboxes", "Хитбоксы"),
+			Map.entry("Damage Particles", "Частицы урона"),
+			Map.entry("Hitcolor", "Цвет удара"),
+			Map.entry("Fog", "Туман"),
+			Map.entry("Time Changer", "Время суток"),
+			Map.entry("Block Outline", "Обводка блока"),
+			Map.entry("Totem Animation", "Анимация тотема"),
+			Map.entry("Crosshair", "Прицел"),
+			Map.entry("Capes", "Плащи")
+	);
+
+	private static final Map<String, String> MODULE_DESCRIPTIONS = Map.ofEntries(
+			Map.entry("Watermark", "Логотип FlyVisual и твой ник"),
+			Map.entry("FPS", "Количество кадров в секунду"),
+			Map.entry("Ping", "Задержка до сервера"),
+			Map.entry("Coordinates", "Твои координаты XYZ"),
+			Map.entry("Keybinds", "Нажатые клавиши: WASD, мышь, пробел"),
+			Map.entry("Armor HUD", "Твоя броня и её прочность"),
+			Map.entry("Potion Status", "Активные эффекты зелий с иконками"),
+			Map.entry("TargetHUD", "Здоровье и броня цели, на которую смотришь"),
+			Map.entry("Fullbright", "Максимальная яркость везде"),
+			Map.entry("NoHurtCam", "Убирает тряску камеры при уроне"),
+			Map.entry("Lower Fire", "Опускает огонь на экране ниже"),
+			Map.entry("Zoom", "Держи C для зума, колёсико меняет силу"),
+			Map.entry("FreeLook", "Держи Left Alt, чтобы осмотреться на 360°"),
+			Map.entry("Hand Offset", "Сдвиг и размер предмета в руке"),
+			Map.entry("Hitboxes", "Цветные хитбоксы существ"),
+			Map.entry("Damage Particles", "Частицы при ударе по цели"),
+			Map.entry("Hitcolor", "Свой цвет вспышки при ударе"),
+			Map.entry("Fog", "Убрать или изменить туман"),
+			Map.entry("Time Changer", "Своё время суток, видно только тебе"),
+			Map.entry("Block Outline", "Свой цвет обводки блока"),
+			Map.entry("Totem Animation", "Уменьшить или скрыть анимацию тотема"),
+			Map.entry("Crosshair", "Свой прицел: форма, цвет, размер"),
+			Map.entry("Capes", "Свой плащ (видно только тебе, F5)")
+	);
+
+	private static final Map<String, String> SETTINGS = Map.ofEntries(
+			Map.entry("Opacity", "Прозрачность"),
+			Map.entry("Scale", "Размер"),
+			Map.entry("Accent bar", "Цветная полоска"),
+			Map.entry("Show nickname", "Показывать ник"),
+			Map.entry("Decimals", "Знаков после запятой"),
+			Map.entry("Show durability %", "Показывать прочность"),
+			Map.entry("Warn below %", "Предупреждать ниже %"),
+			Map.entry("Show timer", "Показывать таймер"),
+			Map.entry("Show names", "Показывать названия"),
+			Map.entry("Hold time (s)", "Время показа (с)"),
+			Map.entry("Players only", "Только игроки"),
+			Map.entry("Show armor", "Показывать броню"),
+			Map.entry("Brightness", "Яркость"),
+			Map.entry("Zoom level", "Сила зума"),
+			Map.entry("Max zoom", "Максимум зума"),
+			Map.entry("Scroll speed", "Скорость колёсика"),
+			Map.entry("Smooth zoom", "Плавный зум"),
+			Map.entry("Smoothness", "Плавность"),
+			Map.entry("Sensitivity", "Чувствительность"),
+			Map.entry("Third person", "Вид от 3-го лица"),
+			Map.entry("X (right)", "X (вправо)"),
+			Map.entry("Y (up)", "Y (вверх)"),
+			Map.entry("Z (closer)", "Z (ближе)"),
+			Map.entry("Color (hue)", "Цвет (оттенок)"),
+			Map.entry("Range", "Дальность"),
+			Map.entry("Strength", "Сила"),
+			Map.entry("Remove fog", "Убрать туман"),
+			Map.entry("Distance", "Дальность тумана"),
+			Map.entry("Type", "Тип частиц"),
+			Map.entry("Amount", "Количество"),
+			Map.entry("Spread", "Разлёт"),
+			Map.entry("Crits only", "Только криты"),
+			Map.entry("Time", "Время (часы)"),
+			Map.entry("Speed", "Скорость времени"),
+			Map.entry("Rainbow", "Радуга"),
+			Map.entry("Pulse", "Пульсация"),
+			Map.entry("Hide animation", "Скрыть анимацию"),
+			Map.entry("Size", "Размер"),
+			Map.entry("Style", "Форма"),
+			Map.entry("Thickness", "Толщина"),
+			Map.entry("Gap", "Зазор"),
+			Map.entry("Color", "Цвет"),
+			Map.entry("Outline", "Чёрная обводка"),
+			Map.entry("Highlight target", "Красный на цели"),
+			Map.entry("Cape", "Плащ")
+	);
+
+	private Lang() {
+	}
+
+	public static String module(String id) {
+		return MODULE_TITLES.getOrDefault(id, id);
+	}
+
+	public static String description(String id, String fallback) {
+		return MODULE_DESCRIPTIONS.getOrDefault(id, fallback);
+	}
+
+	public static String setting(String name) {
+		return SETTINGS.getOrDefault(name, name);
+	}
+}

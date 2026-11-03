@@ -25,6 +25,6 @@ public class PingModule extends HudModule {
 			}
 		}
 
-		drawPanel(ctx, ping >= 0 ? "Ping: " + ping + " ms" : "Ping: -");
+		drawPanel(ctx, ping >= 0 ? "Пинг: " + ping + " мс" : "Пинг: -");
 	}
 }

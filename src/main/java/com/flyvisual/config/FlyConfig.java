@@ -21,6 +21,15 @@ public class FlyConfig {
 	/** Акцентный цвет темы (RGB). По умолчанию красный. */
 	public int accentColor = 0xE53935;
 
+	/** Заменять ли ванильное главное меню меню FlyVisual. */
+	public boolean customTitleScreen = true;
+
+	/** Колыхание листвы и земли на фоне главного меню. */
+	public boolean titleWave = true;
+
+	/** Лучи, туман, листья и искры на фоне главного меню. */
+	public boolean titleParticles = true;
+
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
 

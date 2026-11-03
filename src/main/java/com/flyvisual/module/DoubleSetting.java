@@ -5,7 +5,8 @@ import com.flyvisual.config.FlyConfig;
 import java.util.Locale;
 
 /**
- * Настройка модуля: ползунок или переключатель Вкл/Выкл. Значение хранится в конфиге.
+ * Настройка модуля: ползунок, переключатель Вкл/Выкл или выбор из списка.
+ * Значение хранится в конфиге.
  */
 public class DoubleSetting {
 	private final String name;
@@ -14,19 +15,22 @@ public class DoubleSetting {
 	private final double max;
 	private final double step;
 	private final boolean toggle;
+	private final String[] labels;
 	private double value;
 
 	public DoubleSetting(String moduleName, String name, double def, double min, double max, double step) {
-		this(moduleName, name, def, min, max, step, false);
+		this(moduleName, name, def, min, max, step, false, null);
 	}
 
-	private DoubleSetting(String moduleName, String name, double def, double min, double max, double step, boolean toggle) {
+	private DoubleSetting(String moduleName, String name, double def, double min, double max, double step,
+						  boolean toggle, String[] labels) {
 		this.name = name;
 		this.key = moduleName + "." + name;
 		this.min = min;
 		this.max = max;
 		this.step = step;
 		this.toggle = toggle;
+		this.labels = labels;
 
 		Double saved = FlyConfig.get().settings.get(key);
 		this.value = normalize(saved != null ? saved : def);
@@ -34,7 +38,12 @@ public class DoubleSetting {
 
 	/** Переключатель Вкл/Выкл. */
 	public static DoubleSetting createToggle(String moduleName, String name, boolean def) {
-		return new DoubleSetting(moduleName, name, def ? 1.0 : 0.0, 0.0, 1.0, 1.0, true);
+		return new DoubleSetting(moduleName, name, def ? 1.0 : 0.0, 0.0, 1.0, 1.0, true, null);
+	}
+
+	/** Выбор из списка (например, тип частиц). */
+	public static DoubleSetting createChoice(String moduleName, String name, int defIndex, String... labels) {
+		return new DoubleSetting(moduleName, name, defIndex, 0.0, labels.length - 1, 1.0, false, labels);
 	}
 
 	private double normalize(double v) {
@@ -64,6 +73,10 @@ public class DoubleSetting {
 		return value;
 	}
 
+	public int getInt() {
+		return (int) Math.round(value);
+	}
+
 	public float getFloat() {
 		return (float) value;
 	}
@@ -84,7 +97,10 @@ public class DoubleSetting {
 	/** Значение для показа в меню. */
 	public String format() {
 		if (toggle) {
-			return getBool() ? "On" : "Off";
+			return getBool() ? "Вкл" : "Выкл";
+		}
+		if (labels != null) {
+			return labels[Math.max(0, Math.min(labels.length - 1, getInt()))];
 		}
 		int decimals = step >= 1.0 ? 0 : (step >= 0.1 ? 1 : 2);
 		return String.format(Locale.ROOT, "%." + decimals + "f", value);

@@ -3,6 +3,7 @@ package com.flyvisual.module;
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.hud.Notifications;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +53,13 @@ public abstract class Module {
 		return setting;
 	}
 
+	/** Добавляет выбор из списка (например, тип частиц). */
+	protected DoubleSetting addChoice(String settingName, int defIndex, String... labels) {
+		DoubleSetting setting = DoubleSetting.createChoice(name, settingName, defIndex, labels);
+		settings.add(setting);
+		return setting;
+	}
+
 	/** Включён ли модуль при первом запуске. */
 	protected boolean enabledByDefault() {
 		return false;
@@ -71,7 +79,7 @@ public abstract class Module {
 		}
 		FlyConfig.get().modules.put(name, value);
 		FlyConfig.save();
-		Notifications.push(name + (value ? " enabled" : " disabled"), value);
+		Notifications.push(Lang.module(name) + (value ? " включён" : " выключен"), value);
 	}
 
 	/** Загрузка состояния из конфига без уведомления. Работа начнётся в onTick. */
@@ -87,6 +95,10 @@ public abstract class Module {
 	}
 
 	public void onDisable() {
+	}
+
+	/** Рисование поверх экрана для модулей, которые не являются HudModule (например, прицел). */
+	public void renderOverlay(DrawContext ctx, float tickDelta) {
 	}
 
 	/** Вызывается каждый тик, пока модуль включён. */

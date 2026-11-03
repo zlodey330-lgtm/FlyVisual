@@ -3,120 +3,177 @@ package com.flyvisual.gui;
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.config.Theme;
 import com.flyvisual.module.DoubleSetting;
+import com.flyvisual.module.Lang;
 import com.flyvisual.module.Module;
 import com.flyvisual.module.ModuleManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Главное меню FlyVisual (Right Shift).
- * ЛКМ по модулю: включить/выключить. ПКМ (или стрелка): открыть настройки с ползунками.
- * Колесо мыши: прокрутка списка. Внизу: цвет темы и кнопка HUD-редактора.
+ * Главное меню FlyVisual (Right Shift). Широкая панель:
+ * слева сетка плиток-модулей, справа настройки выбранного модуля.
+ * ЛКМ по плитке: включить/выключить и выбрать. ПКМ: только выбрать. Колесо мыши: прокрутка сетки.
+ * Меню плавно открывается и закрывается, переключатели плавно двигаются.
  */
 public class FlyMenuScreen extends Screen {
-	private static final int PANEL_W = 270;
-	private static final int ROW_H = 20;
-	private static final int SET_H = 18;
-	private static final int PAD = 10;
-	private static final int HEADER_H = 28;
-	private static final int FOOTER_H = 46;
-	private static final int SWATCH = 14;
-	private static final int SWATCH_GAP = 6;
-	private static final int BTN_W = 70;
-	private static final int BTN_H = 14;
-	private static final int PILL_W = 28;
+	private static final int MAX_W = 500;
+	private static final int MAX_H = 262;
+	private static final int HEAD = 28;
+	private static final int FOOT = 16;
+	private static final int PAD = 8;
+	private static final int PANE_W = 164;
+	private static final int COLS = 3;
+	private static final int TILE_H = 34;
+	private static final int GAP = 6;
+	private static final int SW = 12;
+	private static final int SW_GAP = 5;
+	private static final int BTN_W = 86;
+	private static final int BTN_H = 16;
+	private static final int ROW_H = 24;
+	private static final float OPEN_TIME = 0.22f;
 
-	private record Row(Module module, DoubleSetting setting, int y, int h) {
-	}
+	private static final int COL_PANEL = 0xF0141416;
+	private static final int COL_TILE = 0xFF1C1C20;
+	private static final int COL_TILE_HOVER = 0xFF27272C;
+	private static final int COL_PANE = 0xFF18181C;
+	private static final int COL_OFF = 0xFF3A3A3E;
 
-	private Module expanded;
+	private Module selected;
 	private int scroll;
 	private DoubleSetting dragging;
 
+	/** Прогресс открытия 0..1 (линейный), из него считаются прозрачность и размер. */
+	private float open = 0.0f;
+	private boolean closing;
+	private long lastNanos = System.nanoTime();
+
+	private float alpha = 0.0f;
+	private float scale = 0.9f;
+	/** Дополнительный множитель прозрачности (для плавной смены панели настроек). */
+	private float extra = 1.0f;
+	private float paneAlpha = 1.0f;
+
+	private final Map<String, Float> anims = new HashMap<>();
+
 	public FlyMenuScreen() {
 		super(Text.literal("FlyVisual"));
+		List<Module> all = ModuleManager.all();
+		if (!all.isEmpty()) {
+			selected = all.get(0);
+		}
 	}
 
 	// ---------- Геометрия ----------
 
-	private int contentHeight() {
-		int h = 0;
-		for (Module m : ModuleManager.all()) {
-			h += ROW_H;
-			if (m == expanded) {
-				h += m.getSettings().size() * SET_H;
-			}
-		}
-		return h;
+	private int pw() {
+		return Math.min(width - 16, MAX_W);
 	}
 
-	private int panelH() {
-		return Math.min(HEADER_H + contentHeight() + FOOTER_H, height - 16);
-	}
-
-	private int viewH() {
-		return panelH() - HEADER_H - FOOTER_H;
-	}
-
-	private int maxScroll() {
-		return Math.max(0, contentHeight() - viewH());
+	private int ph() {
+		return Math.min(height - 16, MAX_H);
 	}
 
 	private int left() {
-		return (width - PANEL_W) / 2;
+		return (width - pw()) / 2;
 	}
 
 	private int top() {
-		return (height - panelH()) / 2;
+		return (height - ph()) / 2;
 	}
 
-	private int listTop() {
-		return top() + HEADER_H;
+	private int right() {
+		return left() + pw();
 	}
 
-	private int listBottom() {
-		return top() + panelH() - FOOTER_H;
+	private int bottom() {
+		return top() + ph();
 	}
 
-	private int sliderX1() {
-		return left() + 112;
+	private int gx1() {
+		return left() + PAD;
 	}
 
-	private int sliderX2() {
-		return left() + PANEL_W - PAD - 34;
+	private int gx2() {
+		return right() - PAD - PANE_W - PAD;
 	}
 
-	private int swatchX(int index) {
-		return left() + PAD + index * (SWATCH + SWATCH_GAP);
+	private int gy1() {
+		return top() + HEAD;
+	}
+
+	private int gy2() {
+		return bottom() - FOOT;
+	}
+
+	private int px1() {
+		return right() - PAD - PANE_W;
+	}
+
+	private int px2() {
+		return right() - PAD;
+	}
+
+	private int tileW() {
+		return (gx2() - gx1() - GAP * (COLS - 1)) / COLS;
+	}
+
+	private int rows() {
+		int n = ModuleManager.all().size();
+		return (n + COLS - 1) / COLS;
+	}
+
+	private int contentH() {
+		return rows() * (TILE_H + GAP) - GAP;
+	}
+
+	private int viewH() {
+		return gy2() - gy1();
+	}
+
+	private int maxScroll() {
+		return Math.max(0, contentH() - viewH());
+	}
+
+	private int tileX(int i) {
+		return gx1() + (i % COLS) * (tileW() + GAP);
+	}
+
+	private int tileY(int i) {
+		return gy1() + (i / COLS) * (TILE_H + GAP) - scroll;
+	}
+
+	private int btnX() {
+		return right() - PAD - BTN_W;
+	}
+
+	private int btnY() {
+		return top() + 6;
+	}
+
+	private int swatchX(int i) {
+		int n = Theme.PRESETS.length;
+		return btnX() - 12 - (n * (SW + SW_GAP) - SW_GAP) + i * (SW + SW_GAP);
 	}
 
 	private int swatchY() {
-		return listBottom() + 22;
+		return top() + 8;
 	}
 
-	private int buttonX() {
-		return left() + PANEL_W - PAD - BTN_W;
+	private int settingsTop() {
+		return gy1() + 48;
 	}
 
-	private List<Row> rows() {
-		List<Row> out = new ArrayList<>();
-		int y = listTop() - scroll;
-		for (Module m : ModuleManager.all()) {
-			out.add(new Row(m, null, y, ROW_H));
-			y += ROW_H;
-			if (m == expanded) {
-				for (DoubleSetting s : m.getSettings()) {
-					out.add(new Row(m, s, y, SET_H));
-					y += SET_H;
-				}
-			}
-		}
-		return out;
+	private int rowY(int k) {
+		return settingsTop() + k * ROW_H;
 	}
 
 	@Override
@@ -124,193 +181,311 @@ public class FlyMenuScreen extends Screen {
 		return false;
 	}
 
+	// ---------- Цвета и анимации ----------
+
+	private static float clamp01(float v) {
+		return Math.max(0.0f, Math.min(1.0f, v));
+	}
+
+	private static int mulA(int argb, float m) {
+		int a = Math.round(((argb >>> 24) & 0xFF) * clamp01(m));
+		return (a << 24) | (argb & 0xFFFFFF);
+	}
+
+	private static int lerp(int c1, int c2, float t) {
+		t = clamp01(t);
+		int a = Math.round(((c1 >>> 24) & 0xFF) * (1 - t) + ((c2 >>> 24) & 0xFF) * t);
+		int r = Math.round(((c1 >> 16) & 0xFF) * (1 - t) + ((c2 >> 16) & 0xFF) * t);
+		int g = Math.round(((c1 >> 8) & 0xFF) * (1 - t) + ((c2 >> 8) & 0xFF) * t);
+		int b = Math.round((c1 & 0xFF) * (1 - t) + (c2 & 0xFF) * t);
+		return (a << 24) | (r << 16) | (g << 8) | b;
+	}
+
+	/** Цвет с учётом общей прозрачности меню. */
+	private int col(int argb) {
+		return mulA(argb, alpha * extra);
+	}
+
+	private void rect(DrawContext ctx, int x1, int y1, int x2, int y2, int argb) {
+		ctx.fill(x1, y1, x2, y2, col(argb));
+	}
+
+	private void outline(DrawContext ctx, int x1, int y1, int x2, int y2, int argb) {
+		rect(ctx, x1, y1, x2, y1 + 1, argb);
+		rect(ctx, x1, y2 - 1, x2, y2, argb);
+		rect(ctx, x1, y1, x1 + 1, y2, argb);
+		rect(ctx, x2 - 1, y1, x2, y2, argb);
+	}
+
+	private void text(DrawContext ctx, String s, int x, int y, int argb) {
+		int c = col(argb);
+		// Ванильный шрифт считает почти прозрачный цвет непрозрачным, поэтому такой текст не рисуем
+		if (((c >>> 24) & 0xFF) < 12) return;
+		ctx.drawText(textRenderer, s, x, y, c, true);
+	}
+
+	private void textRight(DrawContext ctx, String s, int xRight, int y, int argb) {
+		text(ctx, s, xRight - textRenderer.getWidth(s), y, argb);
+	}
+
+	/** Плавно двигает значение к цели; вызывается раз за кадр на каждый ключ. */
+	private float animate(String key, float target, float dt, float speed) {
+		float v = anims.getOrDefault(key, target);
+		v += (target - v) * (1.0f - (float) Math.exp(-speed * dt));
+		if (Math.abs(target - v) < 0.002f) v = target;
+		anims.put(key, v);
+		return v;
+	}
+
+	/** Обрезка по области с учётом масштаба анимации открытия. */
+	private void scissor(DrawContext ctx, int x1, int y1, int x2, int y2) {
+		float cx = left() + pw() / 2.0f;
+		float cy = top() + ph() / 2.0f;
+		int a = Math.round(cx + (x1 - cx) * scale);
+		int b = Math.round(cy + (y1 - cy) * scale);
+		int c = Math.round(cx + (x2 - cx) * scale);
+		int d = Math.round(cy + (y2 - cy) * scale);
+		ctx.enableScissor(a, b, c, d);
+	}
+
+	private void select(Module m) {
+		if (selected != m) {
+			selected = m;
+			paneAlpha = 0.0f;
+		}
+	}
+
 	// ---------- Отрисовка ----------
 
 	@Override
 	public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+		long now = System.nanoTime();
+		float dt = Math.min((now - lastNanos) / 1.0e9f, 0.05f);
+		lastNanos = now;
+
+		open = clamp01(open + (closing ? -dt : dt) / OPEN_TIME);
+		if (closing && open <= 0.0f) {
+			super.close();
+			return;
+		}
+		float inv = 1.0f - open;
+		alpha = 1.0f - inv * inv * inv;
+		scale = 0.9f + 0.1f * alpha;
+		paneAlpha += (1.0f - paneAlpha) * (1.0f - (float) Math.exp(-16.0f * dt));
 		scroll = Math.max(0, Math.min(scroll, maxScroll()));
+		extra = 1.0f;
 
-		ctx.fill(0, 0, width, height, 0x88000000);
+		ctx.fill(0, 0, width, height, mulA(0x99000000, alpha));
 
+		MatrixStack ms = ctx.getMatrices();
+		ms.push();
+		float cx = left() + pw() / 2.0f;
+		float cy = top() + ph() / 2.0f;
+		ms.translate(cx, cy, 0.0f);
+		ms.scale(scale, scale, 1.0f);
+		ms.translate(-cx, -cy, 0.0f);
+
+		drawFrame(ctx, mouseX, mouseY);
+		String hoverDesc = drawTiles(ctx, mouseX, mouseY, dt);
+		drawPane(ctx, mouseX, mouseY, dt);
+		drawFooter(ctx, hoverDesc);
+
+		ms.pop();
+		super.render(ctx, mouseX, mouseY, delta);
+	}
+
+	private void drawFrame(DrawContext ctx, int mouseX, int mouseY) {
 		int l = left();
 		int t = top();
-		int r = l + PANEL_W;
-		int b = t + panelH();
+		int r = right();
+		int b = bottom();
 
-		ctx.fill(l, t, r, b, 0xF0141416);
-		ctx.fill(l, t, r, t + 2, Theme.accent());
+		rect(ctx, l, t, r, b, COL_PANEL);
+		rect(ctx, l, t, r, t + 2, Theme.accent());
+		rect(ctx, l, t + HEAD - 1, r, t + HEAD, 0x22FFFFFF);
 
-		// Заголовок
 		int flyW = textRenderer.getWidth("Fly");
-		ctx.drawText(textRenderer, "Fly", l + PAD, t + 11, Theme.accent(), true);
-		ctx.drawText(textRenderer, "Visual", l + PAD + flyW, t + 11, Theme.TEXT, true);
+		text(ctx, "Fly", l + PAD, t + 11, Theme.accent());
+		text(ctx, "Visual", l + PAD + flyW, t + 11, Theme.TEXT);
 
-		// Список модулей (с обрезкой по области списка)
-		String hoverDesc = null;
-		int lt = listTop();
-		int lb = listBottom();
-		ctx.enableScissor(l, lt, r, lb);
-		for (Row row : rows()) {
-			if (row.y() + row.h() <= lt || row.y() >= lb) continue;
-
-			boolean hover = mouseX >= l && mouseX < r
-					&& mouseY >= Math.max(row.y(), lt) && mouseY < Math.min(row.y() + row.h(), lb);
-
-			if (row.setting() == null) {
-				drawModuleRow(ctx, row.module(), row.y(), hover, l, r);
-				if (hover) {
-					hoverDesc = row.module().getDescription();
-				}
-			} else {
-				drawSettingRow(ctx, row.setting(), row.y(), l, r);
-			}
-		}
-		ctx.disableScissor();
-
-		if (hoverDesc != null) {
-			int w = textRenderer.getWidth(hoverDesc);
-			ctx.drawText(textRenderer, hoverDesc, r - PAD - w, t + 11, Theme.TEXT_DIM, true);
-		}
-
-		// Полоса прокрутки
-		if (maxScroll() > 0) {
-			int barH = Math.max(12, viewH() * viewH() / contentHeight());
-			int barY = lt + (viewH() - barH) * scroll / maxScroll();
-			ctx.fill(r - 3, barY, r - 1, barY + barH, 0x60FFFFFF);
-		}
-
-		// Нижняя часть
-		ctx.fill(l, lb, r, lb + 1, 0x30FFFFFF);
-		ctx.drawText(textRenderer, "Theme color", l + PAD, lb + 8, Theme.TEXT_DIM, true);
-		String hint = "RMB: settings";
-		ctx.drawText(textRenderer, hint, r - PAD - textRenderer.getWidth(hint), lb + 8, Theme.TEXT_DIM, true);
-
+		// Цвета темы
 		for (int i = 0; i < Theme.PRESETS.length; i++) {
 			int sx = swatchX(i);
 			int sy = swatchY();
 			if (Theme.PRESETS[i] == FlyConfig.get().accentColor) {
-				ctx.fill(sx - 2, sy - 2, sx + SWATCH + 2, sy + SWATCH + 2, 0xFFFFFFFF);
+				rect(ctx, sx - 2, sy - 2, sx + SW + 2, sy + SW + 2, 0xFFFFFFFF);
 			}
-			ctx.fill(sx, sy, sx + SWATCH, sy + SWATCH, 0xFF000000 | Theme.PRESETS[i]);
+			rect(ctx, sx, sy, sx + SW, sy + SW, 0xFF000000 | Theme.PRESETS[i]);
 		}
 
 		// Кнопка HUD-редактора
-		int bx = buttonX();
-		int by = swatchY();
-		boolean btnHover = mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H;
-		ctx.fill(bx, by, bx + BTN_W, by + BTN_H, btnHover ? 0xFF3A3A3E : 0xFF2A2A2E);
-		ctx.fill(bx, by + BTN_H - 1, bx + BTN_W, by + BTN_H, Theme.accent());
-		String label = "HUD Editor";
-		ctx.drawText(textRenderer, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 3, Theme.TEXT, true);
-
-		super.render(ctx, mouseX, mouseY, delta);
+		int bx = btnX();
+		int by = btnY();
+		boolean hover = mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H;
+		rect(ctx, bx, by, bx + BTN_W, by + BTN_H, hover ? 0xFF3A3A3E : 0xFF2A2A2E);
+		rect(ctx, bx, by + BTN_H - 1, bx + BTN_W, by + BTN_H, Theme.accent());
+		String label = "Редактор HUD";
+		text(ctx, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 4, Theme.TEXT);
 	}
 
-	private void drawModuleRow(DrawContext ctx, Module m, int ry, boolean hover, int l, int r) {
-		if (hover) {
-			ctx.fill(l, ry, r, ry + ROW_H, 0x30FFFFFF);
-		}
-		ctx.drawText(textRenderer, m.getName(), l + PAD, ry + 6, Theme.TEXT, true);
+	/** Рисует сетку плиток. Возвращает описание модуля под курсором (или null). */
+	private String drawTiles(DrawContext ctx, int mouseX, int mouseY, float dt) {
+		List<Module> mods = ModuleManager.all();
+		String hoverDesc = null;
+		int gy1 = gy1();
+		int gy2 = gy2();
+		int tw = tileW();
 
-		int ph = 12;
-		int px = r - PAD - PILL_W;
-		int py = ry + 4;
-		ctx.fill(px, py, px + PILL_W, py + ph, m.isEnabled() ? Theme.accent() : 0xFF3A3A3E);
-		int knob = ph - 2;
-		int kx = m.isEnabled() ? px + PILL_W - knob - 1 : px + 1;
-		ctx.fill(kx, py + 1, kx + knob, py + 1 + knob, 0xFFFFFFFF);
+		scissor(ctx, gx1() - 2, gy1, gx2() + 2, gy2);
+		for (int i = 0; i < mods.size(); i++) {
+			Module m = mods.get(i);
+			int tx = tileX(i);
+			int ty = tileY(i);
+			if (ty + TILE_H <= gy1 || ty >= gy2) continue;
 
-		if (!m.getSettings().isEmpty()) {
-			String arrow = m == expanded ? "v" : ">";
-			ctx.drawText(textRenderer, arrow, px - 12, ry + 6, Theme.TEXT_DIM, true);
-		}
-	}
+			boolean hover = mouseX >= tx && mouseX < tx + tw
+					&& mouseY >= Math.max(ty, gy1) && mouseY < Math.min(ty + TILE_H, gy2);
+			float en = animate(m.getName() + "#e", m.isEnabled() ? 1.0f : 0.0f, dt, 14.0f);
+			float hv = animate(m.getName() + "#h", hover ? 1.0f : 0.0f, dt, 18.0f);
 
-	private void drawSettingRow(DrawContext ctx, DoubleSetting s, int ry, int l, int r) {
-		ctx.drawText(textRenderer, s.getName(), l + PAD + 8, ry + 5, Theme.TEXT_DIM, true);
+			rect(ctx, tx, ty, tx + tw, ty + TILE_H, lerp(COL_TILE, COL_TILE_HOVER, hv));
+			rect(ctx, tx, ty, tx + 2, ty + TILE_H, lerp(COL_OFF, Theme.accent(), en));
+			if (m == selected) {
+				outline(ctx, tx, ty, tx + tw, ty + TILE_H, Theme.accent());
+			}
 
-		// Переключатель Вкл/Выкл
-		if (s.isToggle()) {
-			int ph = 12;
-			int px = r - PAD - PILL_W;
-			int py = ry + (SET_H - ph) / 2;
-			ctx.fill(px, py, px + PILL_W, py + ph, s.getBool() ? Theme.accent() : 0xFF3A3A3E);
+			String title = textRenderer.trimToWidth(Lang.module(m.getName()), tw - 14);
+			text(ctx, title, tx + 8, ty + 6, lerp(0xFFB8B8B8, Theme.TEXT, en));
+
+			// Переключатель
+			int pw = 24;
+			int ph = 10;
+			int px = tx + 8;
+			int py = ty + 19;
+			rect(ctx, px, py, px + pw, py + ph, lerp(COL_OFF, Theme.accent(), en));
 			int knob = ph - 2;
-			int kx = s.getBool() ? px + PILL_W - knob - 1 : px + 1;
-			ctx.fill(kx, py + 1, kx + knob, py + 1 + knob, 0xFFFFFFFF);
+			int kx = px + 1 + Math.round((pw - knob - 2) * en);
+			rect(ctx, kx, py + 1, kx + knob, py + 1 + knob, 0xFFFFFFFF);
+
+			text(ctx, m.isEnabled() ? "Вкл" : "Выкл", px + pw + 6, py + 1, Theme.TEXT_DIM);
+
+			if (hover) {
+				hoverDesc = Lang.description(m.getName(), m.getDescription());
+			}
+		}
+		ctx.disableScissor();
+
+		// Полоса прокрутки
+		if (maxScroll() > 0) {
+			int vh = viewH();
+			int barH = Math.max(12, vh * vh / contentH());
+			int barY = gy1 + (vh - barH) * scroll / maxScroll();
+			rect(ctx, gx2() + 3, barY, gx2() + 5, barY + barH, 0x60FFFFFF);
+		}
+		return hoverDesc;
+	}
+
+	private void drawPane(DrawContext ctx, int mouseX, int mouseY, float dt) {
+		int px1 = px1();
+		int px2 = px2();
+		int gy1 = gy1();
+		int gy2 = gy2();
+
+		rect(ctx, px1, gy1, px2, gy2, COL_PANE);
+		if (selected == null) {
+			String hint = "Выбери модуль";
+			text(ctx, hint, px1 + (PANE_W - textRenderer.getWidth(hint)) / 2, gy1 + 20, Theme.TEXT_DIM);
 			return;
 		}
 
-		int x1 = sliderX1();
-		int x2 = sliderX2();
-		int cy = ry + SET_H / 2;
-		ctx.fill(x1, cy - 1, x2, cy + 1, 0xFF3A3A3E);
+		extra = paneAlpha;
 
-		double frac = (s.get() - s.getMin()) / (s.getMax() - s.getMin());
-		int fx = x1 + (int) Math.round(frac * (x2 - x1));
-		ctx.fill(x1, cy - 1, fx, cy + 1, Theme.accent());
-		ctx.fill(fx - 2, cy - 4, fx + 2, cy + 4, 0xFFFFFFFF);
+		text(ctx, textRenderer.trimToWidth(Lang.module(selected.getName()), PANE_W - 16), px1 + 8, gy1 + 8, Theme.accent());
 
-		String value = s.format();
-		ctx.drawText(textRenderer, value, r - PAD - textRenderer.getWidth(value), ry + 5, Theme.TEXT, true);
+		String desc = Lang.description(selected.getName(), selected.getDescription());
+		List<OrderedText> lines = textRenderer.wrapLines(Text.literal(desc), PANE_W - 16);
+		for (int i = 0; i < Math.min(2, lines.size()); i++) {
+			int c = col(Theme.TEXT_DIM);
+			if (((c >>> 24) & 0xFF) >= 12) {
+				ctx.drawText(textRenderer, lines.get(i), px1 + 8, gy1 + 22 + i * 10, c, true);
+			}
+		}
+		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, 0x22FFFFFF);
+
+		List<DoubleSetting> settings = selected.getSettings();
+		if (settings.isEmpty()) {
+			text(ctx, "Настроек нет, только вкл/выкл", px1 + 8, settingsTop() + 4, Theme.TEXT_DIM);
+			extra = 1.0f;
+			return;
+		}
+
+		scissor(ctx, px1, gy1, px2, gy2);
+		for (int k = 0; k < settings.size(); k++) {
+			DoubleSetting s = settings.get(k);
+			int ry = rowY(k);
+			if (ry + ROW_H > gy2) break;
+
+			String label = Lang.setting(s.getName());
+			if (s.isToggle()) {
+				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
+				text(ctx, label, px1 + 8, ry + 8, Theme.TEXT);
+
+				int pw = 26;
+				int ph = 12;
+				int px = px2 - 8 - pw;
+				int py = ry + 6;
+				rect(ctx, px, py, px + pw, py + ph, lerp(COL_OFF, Theme.accent(), on));
+				int knob = ph - 2;
+				int kx = px + 1 + Math.round((pw - knob - 2) * on);
+				rect(ctx, kx, py + 1, kx + knob, py + 1 + knob, 0xFFFFFFFF);
+			} else {
+				text(ctx, label, px1 + 8, ry + 3, Theme.TEXT);
+				textRight(ctx, s.format(), px2 - 8, ry + 3, Theme.TEXT_DIM);
+
+				int x1 = px1 + 8;
+				int x2 = px2 - 8;
+				int cy = ry + 17;
+				double frac = (s.get() - s.getMin()) / (s.getMax() - s.getMin());
+				int fx = x1 + (int) Math.round(frac * (x2 - x1));
+				rect(ctx, x1, cy - 1, x2, cy + 1, COL_OFF);
+				rect(ctx, x1, cy - 1, fx, cy + 1, Theme.accent());
+				rect(ctx, fx - 2, cy - 4, fx + 2, cy + 4, 0xFFFFFFFF);
+			}
+		}
+		ctx.disableScissor();
+		extra = 1.0f;
 	}
 
-	// ---------- Мышь ----------
+	private void drawFooter(DrawContext ctx, String hoverDesc) {
+		int fy = bottom() - FOOT + 4;
+		if (hoverDesc != null) {
+			text(ctx, hoverDesc, left() + PAD, fy, Theme.TEXT);
+		} else {
+			text(ctx, "ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
+					left() + PAD, fy, Theme.TEXT_DIM);
+		}
+	}
+
+	// ---------- Ввод ----------
 
 	private void dragTo(double mouseX) {
 		if (dragging == null) return;
-		double t = (mouseX - sliderX1()) / (double) (sliderX2() - sliderX1());
-		t = Math.max(0.0, Math.min(1.0, t));
+		double x1 = px1() + 8;
+		double x2 = px2() - 8;
+		double t = Math.max(0.0, Math.min(1.0, (mouseX - x1) / (x2 - x1)));
 		dragging.set(dragging.getMin() + t * (dragging.getMax() - dragging.getMin()));
 	}
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
-		int l = left();
-		int r = l + PANEL_W;
-
-		if ((button == 0 || button == 1)
-				&& mouseX >= l && mouseX < r && mouseY >= listTop() && mouseY < listBottom()) {
-			for (Row row : rows()) {
-				if (mouseY < row.y() || mouseY >= row.y() + row.h()) continue;
-
-				if (row.setting() != null) {
-					if (row.setting().isToggle()) {
-						if (button == 0) {
-							row.setting().flip();
-							FlyConfig.save();
-						}
-						return true;
-					}
-					if (button == 0 && mouseX >= sliderX1() - 4 && mouseX <= sliderX2() + 4) {
-						dragging = row.setting();
-						dragTo(mouseX);
-					}
-					return true;
-				}
-
-				Module m = row.module();
-				boolean hasSettings = !m.getSettings().isEmpty();
-				int px = r - PAD - PILL_W;
-				boolean onArrow = hasSettings && mouseX >= px - 16 && mouseX < px - 2;
-
-				if (button == 1 || onArrow) {
-					if (hasSettings) {
-						expanded = (expanded == m) ? null : m;
-					}
-				} else {
-					m.toggle();
-				}
-				return true;
-			}
-		}
+		if (closing || open < 0.6f) return true;
 
 		if (button == 0) {
 			// Цвет темы
 			for (int i = 0; i < Theme.PRESETS.length; i++) {
 				int sx = swatchX(i);
 				int sy = swatchY();
-				if (mouseX >= sx && mouseX < sx + SWATCH && mouseY >= sy && mouseY < sy + SWATCH) {
+				if (mouseX >= sx && mouseX < sx + SW && mouseY >= sy && mouseY < sy + SW) {
 					FlyConfig.get().accentColor = Theme.PRESETS[i];
 					FlyConfig.save();
 					return true;
@@ -318,11 +493,48 @@ public class FlyMenuScreen extends Screen {
 			}
 
 			// HUD-редактор
-			int bx = buttonX();
-			int by = swatchY();
+			int bx = btnX();
+			int by = btnY();
 			if (mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H) {
 				MinecraftClient.getInstance().setScreen(new HudEditorScreen());
 				return true;
+			}
+		}
+
+		// Плитки модулей
+		if ((button == 0 || button == 1) && mouseY >= gy1() && mouseY < gy2()) {
+			List<Module> mods = ModuleManager.all();
+			int tw = tileW();
+			for (int i = 0; i < mods.size(); i++) {
+				int tx = tileX(i);
+				int ty = tileY(i);
+				if (mouseX >= tx && mouseX < tx + tw && mouseY >= ty && mouseY < ty + TILE_H) {
+					if (button == 0) {
+						mods.get(i).toggle();
+					}
+					select(mods.get(i));
+					return true;
+				}
+			}
+		}
+
+		// Настройки выбранного модуля
+		if (button == 0 && selected != null && mouseX >= px1() && mouseX < px2()) {
+			List<DoubleSetting> settings = selected.getSettings();
+			for (int k = 0; k < settings.size(); k++) {
+				int ry = rowY(k);
+				if (ry + ROW_H > gy2()) break;
+				if (mouseY >= ry && mouseY < ry + ROW_H) {
+					DoubleSetting s = settings.get(k);
+					if (s.isToggle()) {
+						s.flip();
+						FlyConfig.save();
+					} else {
+						dragging = s;
+						dragTo(mouseX);
+					}
+					return true;
+				}
 			}
 		}
 		return super.mouseClicked(mouseX, mouseY, button);
@@ -349,7 +561,25 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
-		scroll = Math.max(0, Math.min(maxScroll(), scroll - (int) Math.round(amount * 14)));
-		return true;
+		if (mouseX >= gx1() && mouseX < gx2() + 6 && mouseY >= gy1() && mouseY < gy2()) {
+			scroll = Math.max(0, Math.min(maxScroll(), scroll - (int) Math.round(amount * 16)));
+			return true;
+		}
+		return super.mouseScrolled(mouseX, mouseY, amount);
+	}
+
+	@Override
+	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+		if (keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) {
+			close();
+			return true;
+		}
+		return super.keyPressed(keyCode, scanCode, modifiers);
+	}
+
+	/** Закрытие с анимацией: сам экран закроется, когда меню полностью растворится. */
+	@Override
+	public void close() {
+		closing = true;
 	}
 }

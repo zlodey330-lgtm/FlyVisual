@@ -16,7 +16,7 @@ import java.util.Locale;
 
 /** Показывает здоровье, броню и расстояние до существа, на которое ты смотришь. */
 public class TargetHudModule extends HudModule {
-	private static final int W = 124;
+	private static final int W = 140;
 	private static final int H = 38;
 
 	private final DoubleSetting holdTime = addSetting("Hold time (s)", 3.0, 0.0, 10.0, 0.5);
@@ -54,7 +54,7 @@ public class TargetHudModule extends HudModule {
 		boolean preview = mc.currentScreen instanceof HudEditorScreen;
 		if (target == null && !preview) return;
 
-		String name = target != null ? target.getName().getString() : "Target preview";
+		String name = target != null ? target.getName().getString() : "Цель (пример)";
 		float hp = target != null ? target.getHealth() : 20.0f;
 		float max = target != null ? Math.max(1.0f, target.getMaxHealth()) : 20.0f;
 		float frac = Math.max(0.0f, Math.min(1.0f, hp / max));
@@ -74,9 +74,9 @@ public class TargetHudModule extends HudModule {
 		ctx.fill(bx, by, bx + Math.round(bw * frac), by + 6, barColor);
 
 		float dist = target != null ? mc.player.distanceTo(target) : 3.0f;
-		StringBuilder info = new StringBuilder(String.format(Locale.ROOT, "%.1f HP  %.1fm", hp, dist));
+		StringBuilder info = new StringBuilder(String.format(Locale.ROOT, "%.1f ХП  %.1f м", hp, dist));
 		if (showArmor.getBool()) {
-			info.append("  AR ").append(target != null ? target.getArmor() : 20);
+			info.append("  Бр ").append(target != null ? target.getArmor() : 20);
 		}
 		ctx.drawText(tr, info.toString(), x + 8, y + 27, Theme.TEXT_DIM, true);
 	}

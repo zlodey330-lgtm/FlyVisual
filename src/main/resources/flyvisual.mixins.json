@@ -5,6 +5,10 @@
   "client": [
     "SimpleOptionAccessor",
     "OverlayTextureAccessor",
+    "MinecraftClientMixin",
+    "ClientWorldPropertiesMixin",
+    "InGameHudMixin",
+    "AbstractClientPlayerEntityMixin",
     "GameRendererMixin",
     "MouseMixin",
     "EntityMixin",

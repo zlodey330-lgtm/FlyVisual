@@ -51,7 +51,7 @@ public class HudEditorScreen extends Screen {
 	public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
 		ctx.fill(0, 0, width, height, 0x40000000);
 
-		String hint = "Drag modules to move them. ESC to go back.";
+		String hint = "Перетаскивай модули мышкой. ESC: назад в меню.";
 		ctx.drawText(textRenderer, hint, (width - textRenderer.getWidth(hint)) / 2, height / 2, Theme.TEXT, true);
 
 		for (HudModule hud : hudModules()) {
