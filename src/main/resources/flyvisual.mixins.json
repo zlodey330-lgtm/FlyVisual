@@ -15,7 +15,10 @@
     "CameraMixin",
     "InGameOverlayRendererMixin",
     "HeldItemRendererMixin",
-    "BackgroundRendererMixin"
+    "BackgroundRendererMixin",
+    "ClientWorldMixin",
+    "ParticleManagerMixin",
+    "DeathScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 0

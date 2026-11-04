@@ -30,7 +30,16 @@ public final class Lang {
 			Map.entry("Block Outline", "Обводка блока"),
 			Map.entry("Totem Animation", "Анимация тотема"),
 			Map.entry("Crosshair", "Прицел"),
-			Map.entry("Capes", "Плащи")
+			Map.entry("Capes", "Плащи"),
+			Map.entry("Aura", "Аура"),
+			Map.entry("Trail", "Шлейф"),
+			Map.entry("Sky", "Небо"),
+			Map.entry("Custom Chat", "Свой чат"),
+			Map.entry("Durability Warning", "Предупреждение о прочности"),
+			Map.entry("Server IP", "Адрес сервера"),
+			Map.entry("Item Highlight", "Подсветка предметов"),
+			Map.entry("Death Screen", "Экран смерти"),
+			Map.entry("Pet", "Питомец")
 	);
 
 	private static final Map<String, String> MODULE_DESCRIPTIONS = Map.ofEntries(
@@ -56,7 +65,16 @@ public final class Lang {
 			Map.entry("Block Outline", "Свой цвет обводки блока"),
 			Map.entry("Totem Animation", "Уменьшить или скрыть анимацию тотема"),
 			Map.entry("Crosshair", "Свой прицел: форма, цвет, размер"),
-			Map.entry("Capes", "Свой плащ (видно только тебе, F5)")
+			Map.entry("Capes", "Свой плащ (видно только тебе, F5)"),
+			Map.entry("Aura", "Частицы вокруг тебя (видно только тебе)"),
+			Map.entry("Trail", "Шлейф частиц за тобой при движении"),
+			Map.entry("Sky", "Плавно меняющийся цвет неба и облаков"),
+			Map.entry("Custom Chat", "Прозрачность и размер чата"),
+			Map.entry("Durability Warning", "Уведомление, когда броня почти сломана"),
+			Map.entry("Server IP", "Адрес сервера, на котором ты играешь"),
+			Map.entry("Item Highlight", "Подсветка ценных выпавших предметов, элитры красным"),
+			Map.entry("Death Screen", "Кто убил и на каких координатах"),
+			Map.entry("Pet", "Компаньон ходит или летает рядом (видно только тебе)")
 	);
 
 	private static final Map<String, String> SETTINGS = Map.ofEntries(
@@ -104,7 +122,30 @@ public final class Lang {
 			Map.entry("Color", "Цвет"),
 			Map.entry("Outline", "Чёрная обводка"),
 			Map.entry("Highlight target", "Красный на цели"),
-			Map.entry("Cape", "Плащ")
+			Map.entry("Cape", "Плащ"),
+			Map.entry("Pattern", "Узор"),
+			Map.entry("Show in first person", "Показывать от 1-го лица"),
+			Map.entry("Particle size", "Размер частиц"),
+			Map.entry("Height", "Высота"),
+			Map.entry("Radius", "Радиус"),
+			Map.entry("Sky style", "Стиль неба"),
+			Map.entry("Intensity", "Сила"),
+			Map.entry("Sky speed", "Скорость смены"),
+			Map.entry("Tint clouds", "Красить облака"),
+			Map.entry("Text opacity", "Прозрачность текста"),
+			Map.entry("Background opacity", "Прозрачность фона"),
+			Map.entry("Chat scale", "Размер чата"),
+			Map.entry("Include held item", "Учитывать предмет в руке"),
+			Map.entry("Hide vanilla crit", "Убрать обычный крит"),
+			Map.entry("Mode", "Режим"),
+			Map.entry("Elytra color (hue)", "Цвет элитр"),
+			Map.entry("Other color (hue)", "Цвет других"),
+			Map.entry("Beam", "Луч"),
+			Map.entry("Red vignette", "Красные края"),
+			Map.entry("Write coords in chat", "Координаты в чат"),
+			Map.entry("Side", "Сторона"),
+			Map.entry("Pet distance", "Расстояние до питомца"),
+			Map.entry("Baby", "Малыш")
 	);
 
 	private Lang() {

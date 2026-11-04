@@ -2,9 +2,16 @@ package com.flyvisual.module;
 
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.module.impl.ArmorHudModule;
+import com.flyvisual.module.impl.AuraModule;
 import com.flyvisual.module.impl.BlockOutlineModule;
 import com.flyvisual.module.impl.CapesModule;
 import com.flyvisual.module.impl.CrosshairModule;
+import com.flyvisual.module.impl.CustomChatModule;
+import com.flyvisual.module.impl.DeathScreenModule;
+import com.flyvisual.module.impl.ItemHighlightModule;
+import com.flyvisual.module.impl.PetModule;
+import com.flyvisual.module.impl.DurabilityWarningModule;
+import com.flyvisual.module.impl.ServerIpModule;
 import com.flyvisual.module.impl.CoordinatesModule;
 import com.flyvisual.module.impl.DamageParticlesModule;
 import com.flyvisual.module.impl.FpsModule;
@@ -19,9 +26,11 @@ import com.flyvisual.module.impl.LowerFireModule;
 import com.flyvisual.module.impl.NoHurtCamModule;
 import com.flyvisual.module.impl.PingModule;
 import com.flyvisual.module.impl.PotionHudModule;
+import com.flyvisual.module.impl.SkyModule;
 import com.flyvisual.module.impl.TargetHudModule;
 import com.flyvisual.module.impl.TimeChangerModule;
 import com.flyvisual.module.impl.TotemAnimationModule;
+import com.flyvisual.module.impl.TrailModule;
 import com.flyvisual.module.impl.WatermarkModule;
 import com.flyvisual.module.impl.ZoomModule;
 import net.minecraft.client.MinecraftClient;
@@ -46,6 +55,11 @@ public final class ModuleManager {
 	private static TotemAnimationModule totem;
 	private static CrosshairModule crosshair;
 	private static CapesModule capes;
+	private static SkyModule sky;
+	private static DamageParticlesModule damageParticles;
+	private static CustomChatModule customChat;
+	private static PetModule pet;
+	private static DeathScreenModule deathScreen;
 
 	private ModuleManager() {
 	}
@@ -62,6 +76,11 @@ public final class ModuleManager {
 		totem = new TotemAnimationModule();
 		crosshair = new CrosshairModule();
 		capes = new CapesModule();
+		sky = new SkyModule();
+		damageParticles = new DamageParticlesModule();
+		customChat = new CustomChatModule();
+		pet = new PetModule();
+		deathScreen = new DeathScreenModule();
 
 		// Чтобы добавить новую функцию, создай класс и добавь его сюда.
 		// Порядок = порядок в меню.
@@ -80,7 +99,7 @@ public final class ModuleManager {
 		MODULES.add(freeLook);
 		MODULES.add(handOffset);
 		MODULES.add(new HitboxModule());
-		MODULES.add(new DamageParticlesModule());
+		MODULES.add(damageParticles);
 		MODULES.add(new HitColorModule());
 		MODULES.add(fog);
 		MODULES.add(timeChanger);
@@ -88,6 +107,15 @@ public final class ModuleManager {
 		MODULES.add(totem);
 		MODULES.add(crosshair);
 		MODULES.add(capes);
+		MODULES.add(new AuraModule());
+		MODULES.add(new TrailModule());
+		MODULES.add(sky);
+		MODULES.add(customChat);
+		MODULES.add(new DurabilityWarningModule());
+		MODULES.add(new ServerIpModule());
+		MODULES.add(new ItemHighlightModule());
+		MODULES.add(deathScreen);
+		MODULES.add(pet);
 
 		FlyConfig cfg = FlyConfig.get();
 		for (Module m : MODULES) {
@@ -144,6 +172,22 @@ public final class ModuleManager {
 		return capes;
 	}
 
+	public static DamageParticlesModule damageParticles() {
+		return damageParticles;
+	}
+
+	public static PetModule pet() {
+		return pet;
+	}
+
+	public static DeathScreenModule deathScreen() {
+		return deathScreen;
+	}
+
+	public static SkyModule sky() {
+		return sky;
+	}
+
 	public static List<Module> all() {
 		return Collections.unmodifiableList(MODULES);
 	}
@@ -180,6 +224,9 @@ public final class ModuleManager {
 	public static void shutdown() {
 		if (fullbright != null) {
 			fullbright.restore();
+		}
+		if (customChat != null) {
+			customChat.restore();
 		}
 	}
 }

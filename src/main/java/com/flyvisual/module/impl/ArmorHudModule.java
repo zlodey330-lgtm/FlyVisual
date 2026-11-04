@@ -10,7 +10,7 @@ import net.minecraft.item.ItemStack;
 
 /** Броня на тебе: иконки с процентом прочности. Цифры становятся оранжевыми при низкой прочности. */
 public class ArmorHudModule extends HudModule {
-	private static final int SLOT = 20;
+	private static final int SLOT = 30;
 
 	private final DoubleSetting showPercent;
 	private final DoubleSetting warnBelow;
@@ -38,7 +38,8 @@ public class ArmorHudModule extends HudModule {
 		// Слоты брони: 3 = шлем, 0 = ботинки. Рисуем слева направо от шлема к ботинкам.
 		for (int i = 0; i < 4; i++) {
 			ItemStack stack = mc.player.getInventory().getArmorStack(3 - i);
-			int ix = x + i * SLOT;
+			int cellX = x + i * SLOT;
+			int ix = cellX + (SLOT - 16) / 2;
 			if (stack.isEmpty()) continue;
 
 			ctx.drawItem(stack, ix, y);
@@ -47,7 +48,7 @@ public class ArmorHudModule extends HudModule {
 				int percent = 100 - stack.getDamage() * 100 / stack.getMaxDamage();
 				int color = percent <= warnBelow.get() ? 0xFFFFAA00 : Theme.TEXT;
 				String text = percent + "%";
-				ctx.drawText(tr, text, ix + (16 - tr.getWidth(text)) / 2, y + 18, color, true);
+				ctx.drawText(tr, text, cellX + (SLOT - tr.getWidth(text)) / 2, y + 18, color, true);
 			}
 		}
 	}

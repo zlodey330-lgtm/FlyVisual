@@ -24,10 +24,15 @@ public class FreeLookModule extends Module {
 
 	private final DoubleSetting sensitivity = addSetting("Sensitivity", 1.0, 0.2, 2.0, 0.1);
 	private final DoubleSetting thirdPerson = addToggle("Third person", true);
+	private final DoubleSetting smoothness = addSetting("Smoothness", 60.0, 0.0, 95.0, 5.0);
 
 	private boolean active;
+	/** Куда повёрнута мышь (цель) и что реально видит камера (сглаженное). */
 	private float yaw;
 	private float pitch;
+	private float shownYaw;
+	private float shownPitch;
+	private long lastFrame = System.nanoTime();
 	private Perspective savedPerspective;
 
 	public FreeLookModule() {
@@ -43,12 +48,28 @@ public class FreeLookModule extends Module {
 		return active;
 	}
 
+	/** Камера берёт сначала yaw: здесь за кадр сдвигаем показанные углы к цели. */
 	public float getYaw() {
-		return yaw;
+		long now = System.nanoTime();
+		float dt = Math.min((now - lastFrame) / 1.0e9f, 0.1f);
+		lastFrame = now;
+
+		float s = smoothness.getFloat() / 100.0f;
+		if (s <= 0.001f) {
+			shownYaw = yaw;
+			shownPitch = pitch;
+		} else {
+			// Чем больше плавность, тем медленнее камера догоняет мышь
+			float rate = 40.0f - 36.0f * s;
+			float k = 1.0f - (float) Math.exp(-rate * dt);
+			shownYaw += (yaw - shownYaw) * k;
+			shownPitch += (pitch - shownPitch) * k;
+		}
+		return shownYaw;
 	}
 
 	public float getPitch() {
-		return pitch;
+		return shownPitch;
 	}
 
 	/** Поворот камеры от движения мыши (ванильный коэффициент 0.15 умножается на Sensitivity). */
@@ -81,6 +102,9 @@ public class FreeLookModule extends Module {
 		active = true;
 		yaw = client.player.getYaw();
 		pitch = client.player.getPitch();
+		shownYaw = yaw;
+		shownPitch = pitch;
+		lastFrame = System.nanoTime();
 
 		// В режиме от первого лица камера внутри головы, поэтому при желании переключаемся на вид сзади
 		Perspective current = client.options.getPerspective();

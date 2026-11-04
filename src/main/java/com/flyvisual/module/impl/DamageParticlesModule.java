@@ -32,6 +32,7 @@ public class DamageParticlesModule extends Module {
 	private final DoubleSetting amount = addSetting("Amount", 12.0, 1.0, 50.0, 1.0);
 	private final DoubleSetting spread = addSetting("Spread", 0.5, 0.1, 1.5, 0.1);
 	private final DoubleSetting critsOnly = addToggle("Crits only", false);
+	private final DoubleSetting hideVanilla = addToggle("Hide vanilla crit", true);
 
 	public DamageParticlesModule() {
 		super("Damage Particles", "Particles when you hit a target");
@@ -42,6 +43,11 @@ public class DamageParticlesModule extends Module {
 			}
 			return ActionResult.PASS;
 		});
+	}
+
+	/** Нужно ли прятать обычные частицы крита и зачарованного удара (их заменяют наши). */
+	public boolean hidesVanilla() {
+		return isEnabled() && hideVanilla.getBool();
 	}
 
 	private void onAttack(PlayerEntity player, Entity target) {
@@ -74,9 +80,9 @@ public class DamageParticlesModule extends Module {
 			double py = cy + (random.nextDouble() - 0.5) * 0.4;
 			double pz = cz + (random.nextDouble() - 0.5) * width;
 
-			double vx = random.nextGaussian() * power * 0.2;
-			double vy = Math.abs(random.nextGaussian()) * power * 0.15 + 0.05;
-			double vz = random.nextGaussian() * power * 0.2;
+			double vx = random.nextGaussian() * power * 0.25;
+			double vy = Math.abs(random.nextGaussian()) * power * 0.2 + 0.08;
+			double vz = random.nextGaussian() * power * 0.25;
 
 			mc.world.addParticle(effect, px, py, pz, vx, vy, vz);
 		}

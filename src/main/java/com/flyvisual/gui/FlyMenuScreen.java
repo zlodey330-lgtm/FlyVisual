@@ -6,6 +6,7 @@ import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Lang;
 import com.flyvisual.module.Module;
 import com.flyvisual.module.ModuleManager;
+import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -14,6 +15,7 @@ import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
+import java.awt.Color;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,18 @@ public class FlyMenuScreen extends Screen {
 	private Module selected;
 	private int scroll;
 	private DoubleSetting dragging;
+
+	// Выбор любого цвета темы
+	private static final int PICK_W = 128;
+	private static final int SV_W = 112;
+	private static final int SV_H = 70;
+	private static final int HUE_H = 10;
+	private boolean pickerOpen;
+	private boolean dragSv;
+	private boolean dragHue;
+	private float pickH;
+	private float pickS;
+	private float pickV;
 
 	/** Прогресс открытия 0..1 (линейный), из него считаются прозрачность и размер. */
 	private float open = 0.0f;
@@ -160,12 +174,64 @@ public class FlyMenuScreen extends Screen {
 	}
 
 	private int swatchX(int i) {
-		int n = Theme.PRESETS.length;
+		int n = Theme.PRESETS.length + 1;
 		return btnX() - 12 - (n * (SW + SW_GAP) - SW_GAP) + i * (SW + SW_GAP);
 	}
 
 	private int swatchY() {
 		return top() + 8;
+	}
+
+	private int pickX() {
+		return right() - PAD - PICK_W;
+	}
+
+	private int pickY() {
+		return top() + HEAD + 2;
+	}
+
+	private int pickHeight() {
+		return 8 + SV_H + 6 + HUE_H + 8 + 12 + 6;
+	}
+
+	private int svX() {
+		return pickX() + (PICK_W - SV_W) / 2;
+	}
+
+	private int svY() {
+		return pickY() + 8;
+	}
+
+	private int hueY() {
+		return svY() + SV_H + 6;
+	}
+
+	private void openPicker() {
+		int rgb = FlyConfig.get().accentColor;
+		float[] hsb = Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null);
+		pickH = hsb[0];
+		pickS = hsb[1];
+		pickV = hsb[2];
+		pickerOpen = true;
+	}
+
+	private void applyPicker() {
+		FlyConfig.get().accentColor = Color.HSBtoRGB(pickH, pickS, pickV) & 0xFFFFFF;
+	}
+
+	private void dragPicker(double mx, double my) {
+		if (dragSv) {
+			pickS = (float) Math.max(0.0, Math.min(1.0, (mx - svX()) / (double) (SV_W - 1)));
+			pickV = 1.0f - (float) Math.max(0.0, Math.min(1.0, (my - svY()) / (double) (SV_H - 1)));
+			applyPicker();
+		} else if (dragHue) {
+			pickH = (float) Math.max(0.0, Math.min(0.999, (mx - svX()) / (double) (SV_W - 1)));
+			applyPicker();
+		}
+	}
+
+	private boolean inPicker(double mx, double my) {
+		return mx >= pickX() && mx < pickX() + PICK_W && my >= pickY() && my < pickY() + pickHeight();
 	}
 
 	private int settingsTop() {
@@ -208,6 +274,22 @@ public class FlyMenuScreen extends Screen {
 
 	private void rect(DrawContext ctx, int x1, int y1, int x2, int y2, int argb) {
 		ctx.fill(x1, y1, x2, y2, col(argb));
+	}
+
+	/** Закруглённый прямоугольник с учётом прозрачности меню. */
+	private void rr(DrawContext ctx, int x, int y, int w, int h, int r, int argb) {
+		UiShapes.roundRect(ctx, x, y, w, h, r, col(argb));
+	}
+
+	/** Круглый переключатель: серый выключен, горит цветом темы включён. Без надписей. */
+	private void pill(DrawContext ctx, int px, int py, int pw, int ph, float on) {
+		if (on > 0.03f) {
+			rr(ctx, px - 2, py - 2, pw + 4, ph + 4, ph / 2 + 2, mulA(Theme.accent(), 0.28f * on));
+		}
+		rr(ctx, px, py, pw, ph, ph / 2, lerp(COL_OFF, Theme.accent(), on));
+		int knob = ph - 4;
+		int kx = px + 2 + Math.round((pw - knob - 4) * on);
+		rr(ctx, kx, py + 2, knob, knob, knob / 2, lerp(0xFFB0B0B0, 0xFFFFFFFF, on));
 	}
 
 	private void outline(DrawContext ctx, int x1, int y1, int x2, int y2, int argb) {
@@ -289,6 +371,7 @@ public class FlyMenuScreen extends Screen {
 		String hoverDesc = drawTiles(ctx, mouseX, mouseY, dt);
 		drawPane(ctx, mouseX, mouseY, dt);
 		drawFooter(ctx, hoverDesc);
+		drawPicker(ctx);
 
 		ms.pop();
 		super.render(ctx, mouseX, mouseY, delta);
@@ -300,30 +383,43 @@ public class FlyMenuScreen extends Screen {
 		int r = right();
 		int b = bottom();
 
-		rect(ctx, l, t, r, b, COL_PANEL);
-		rect(ctx, l, t, r, t + 2, Theme.accent());
+		rr(ctx, l, t, r - l, b - t, 8, COL_PANEL);
+		rr(ctx, l + 8, t, r - l - 16, 2, 1, Theme.accent());
 		rect(ctx, l, t + HEAD - 1, r, t + HEAD, 0x22FFFFFF);
 
 		int flyW = textRenderer.getWidth("Fly");
 		text(ctx, "Fly", l + PAD, t + 11, Theme.accent());
 		text(ctx, "Visual", l + PAD + flyW, t + 11, Theme.TEXT);
 
-		// Цвета темы
-		for (int i = 0; i < Theme.PRESETS.length; i++) {
+		// Цвета темы + свой цвет (радужный квадрат)
+		int cur = FlyConfig.get().accentColor;
+		boolean preset = false;
+		for (int c : Theme.PRESETS) {
+			if (c == cur) preset = true;
+		}
+		int n = Theme.PRESETS.length;
+		for (int i = 0; i <= n; i++) {
 			int sx = swatchX(i);
 			int sy = swatchY();
-			if (Theme.PRESETS[i] == FlyConfig.get().accentColor) {
-				rect(ctx, sx - 2, sy - 2, sx + SW + 2, sy + SW + 2, 0xFFFFFFFF);
+			boolean custom = i == n;
+			boolean sel = custom ? (!preset || pickerOpen) : Theme.PRESETS[i] == cur;
+			if (sel) {
+				rr(ctx, sx - 2, sy - 2, SW + 4, SW + 4, 5, 0xFFFFFFFF);
 			}
-			rect(ctx, sx, sy, sx + SW, sy + SW, 0xFF000000 | Theme.PRESETS[i]);
+			if (custom) {
+				for (int xx = 0; xx < SW; xx++) {
+					rect(ctx, sx + xx, sy + 1, sx + xx + 1, sy + SW - 1, 0xFF000000 | ColorUtil.hsv(xx / (float) SW * 360.0f, 0.85f, 1.0f));
+				}
+			} else {
+				rr(ctx, sx, sy, SW, SW, 4, 0xFF000000 | Theme.PRESETS[i]);
+			}
 		}
 
 		// Кнопка HUD-редактора
 		int bx = btnX();
 		int by = btnY();
 		boolean hover = mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H;
-		rect(ctx, bx, by, bx + BTN_W, by + BTN_H, hover ? 0xFF3A3A3E : 0xFF2A2A2E);
-		rect(ctx, bx, by + BTN_H - 1, bx + BTN_W, by + BTN_H, Theme.accent());
+		rr(ctx, bx, by, BTN_W, BTN_H, 6, hover ? 0xFF3A3A3E : 0xFF2A2A2E);
 		String label = "Редактор HUD";
 		text(ctx, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 4, Theme.TEXT);
 	}
@@ -348,26 +444,16 @@ public class FlyMenuScreen extends Screen {
 			float en = animate(m.getName() + "#e", m.isEnabled() ? 1.0f : 0.0f, dt, 14.0f);
 			float hv = animate(m.getName() + "#h", hover ? 1.0f : 0.0f, dt, 18.0f);
 
-			rect(ctx, tx, ty, tx + tw, ty + TILE_H, lerp(COL_TILE, COL_TILE_HOVER, hv));
-			rect(ctx, tx, ty, tx + 2, ty + TILE_H, lerp(COL_OFF, Theme.accent(), en));
 			if (m == selected) {
-				outline(ctx, tx, ty, tx + tw, ty + TILE_H, Theme.accent());
+				rr(ctx, tx - 1, ty - 1, tw + 2, TILE_H + 2, 7, Theme.accent());
 			}
+			rr(ctx, tx, ty, tw, TILE_H, 6, lerp(COL_TILE, COL_TILE_HOVER, hv));
 
 			String title = textRenderer.trimToWidth(Lang.module(m.getName()), tw - 14);
 			text(ctx, title, tx + 8, ty + 6, lerp(0xFFB8B8B8, Theme.TEXT, en));
 
 			// Переключатель
-			int pw = 24;
-			int ph = 10;
-			int px = tx + 8;
-			int py = ty + 19;
-			rect(ctx, px, py, px + pw, py + ph, lerp(COL_OFF, Theme.accent(), en));
-			int knob = ph - 2;
-			int kx = px + 1 + Math.round((pw - knob - 2) * en);
-			rect(ctx, kx, py + 1, kx + knob, py + 1 + knob, 0xFFFFFFFF);
-
-			text(ctx, m.isEnabled() ? "Вкл" : "Выкл", px + pw + 6, py + 1, Theme.TEXT_DIM);
+			pill(ctx, tx + 8, ty + 19, 26, 12, en);
 
 			if (hover) {
 				hoverDesc = Lang.description(m.getName(), m.getDescription());
@@ -391,7 +477,7 @@ public class FlyMenuScreen extends Screen {
 		int gy1 = gy1();
 		int gy2 = gy2();
 
-		rect(ctx, px1, gy1, px2, gy2, COL_PANE);
+		rr(ctx, px1, gy1, px2 - px1, gy2 - gy1, 6, COL_PANE);
 		if (selected == null) {
 			String hint = "Выбери модуль";
 			text(ctx, hint, px1 + (PANE_W - textRenderer.getWidth(hint)) / 2, gy1 + 20, Theme.TEXT_DIM);
@@ -430,14 +516,7 @@ public class FlyMenuScreen extends Screen {
 				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
 				text(ctx, label, px1 + 8, ry + 8, Theme.TEXT);
 
-				int pw = 26;
-				int ph = 12;
-				int px = px2 - 8 - pw;
-				int py = ry + 6;
-				rect(ctx, px, py, px + pw, py + ph, lerp(COL_OFF, Theme.accent(), on));
-				int knob = ph - 2;
-				int kx = px + 1 + Math.round((pw - knob - 2) * on);
-				rect(ctx, kx, py + 1, kx + knob, py + 1 + knob, 0xFFFFFFFF);
+				pill(ctx, px2 - 8 - 26, ry + 6, 26, 12, on);
 			} else {
 				text(ctx, label, px1 + 8, ry + 3, Theme.TEXT);
 				textRight(ctx, s.format(), px2 - 8, ry + 3, Theme.TEXT_DIM);
@@ -447,13 +526,54 @@ public class FlyMenuScreen extends Screen {
 				int cy = ry + 17;
 				double frac = (s.get() - s.getMin()) / (s.getMax() - s.getMin());
 				int fx = x1 + (int) Math.round(frac * (x2 - x1));
-				rect(ctx, x1, cy - 1, x2, cy + 1, COL_OFF);
-				rect(ctx, x1, cy - 1, fx, cy + 1, Theme.accent());
-				rect(ctx, fx - 2, cy - 4, fx + 2, cy + 4, 0xFFFFFFFF);
+				if (s.getName().equals("Color (hue)")) {
+					// Радужная дорожка: выбирай любой оттенок
+					for (int xx = x1; xx < x2; xx += 2) {
+						float hh = (xx - x1) / (float) (x2 - x1) * 360.0f;
+						rect(ctx, xx, cy - 2, Math.min(xx + 2, x2), cy + 2, 0xFF000000 | ColorUtil.hsv(hh, 0.9f, 1.0f));
+					}
+				} else {
+					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, COL_OFF);
+					if (fx > x1) {
+						rr(ctx, x1, cy - 2, fx - x1, 4, 2, Theme.accent());
+					}
+				}
+				rr(ctx, fx - 4, cy - 4, 8, 8, 4, 0xFFFFFFFF);
 			}
 		}
 		ctx.disableScissor();
 		extra = 1.0f;
+	}
+
+	private void drawPicker(DrawContext ctx) {
+		if (!pickerOpen) return;
+		int x = pickX();
+		int y = pickY();
+		rr(ctx, x - 1, y - 1, PICK_W + 2, pickHeight() + 2, 8, 0xFF3A3A3E);
+		rr(ctx, x, y, PICK_W, pickHeight(), 7, 0xFF1A1A1E);
+
+		int sx = svX();
+		int sy = svY();
+		for (int i = 0; i < SV_W; i++) {
+			float sat = i / (float) (SV_W - 1);
+			int topColor = 0xFF000000 | (Color.HSBtoRGB(pickH, sat, 1.0f) & 0xFFFFFF);
+			ctx.fillGradient(sx + i, sy, sx + i + 1, sy + SV_H, col(topColor), col(0xFF000000));
+		}
+		int cx = sx + Math.round(pickS * (SV_W - 1));
+		int cy = sy + Math.round((1.0f - pickV) * (SV_H - 1));
+		rr(ctx, cx - 4, cy - 4, 8, 8, 4, 0xFFFFFFFF);
+		rr(ctx, cx - 3, cy - 3, 6, 6, 3, 0xFF000000 | (Color.HSBtoRGB(pickH, pickS, pickV) & 0xFFFFFF));
+
+		int hy = hueY();
+		for (int i = 0; i < SV_W; i++) {
+			rect(ctx, sx + i, hy, sx + i + 1, hy + HUE_H, 0xFF000000 | (Color.HSBtoRGB(i / (float) SV_W, 1.0f, 1.0f) & 0xFFFFFF));
+		}
+		int hx = sx + Math.round(pickH * (SV_W - 1));
+		rr(ctx, hx - 2, hy - 2, 4, HUE_H + 4, 2, 0xFFFFFFFF);
+
+		int rgb = FlyConfig.get().accentColor & 0xFFFFFF;
+		rr(ctx, sx, hy + HUE_H + 8, 12, 12, 4, 0xFF000000 | rgb);
+		text(ctx, String.format("#%06X", rgb), sx + 18, hy + HUE_H + 10, Theme.TEXT);
 	}
 
 	private void drawFooter(DrawContext ctx, String hoverDesc) {
@@ -480,17 +600,38 @@ public class FlyMenuScreen extends Screen {
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
 		if (closing || open < 0.6f) return true;
 
+		if (pickerOpen && button == 0 && inPicker(mouseX, mouseY)) {
+			if (mouseX >= svX() && mouseX < svX() + SV_W && mouseY >= svY() && mouseY < svY() + SV_H) {
+				dragSv = true;
+			} else if (mouseX >= svX() && mouseX < svX() + SV_W && mouseY >= hueY() - 3 && mouseY < hueY() + HUE_H + 3) {
+				dragHue = true;
+			}
+			dragPicker(mouseX, mouseY);
+			return true;
+		}
+
 		if (button == 0) {
 			// Цвет темы
-			for (int i = 0; i < Theme.PRESETS.length; i++) {
+			for (int i = 0; i <= Theme.PRESETS.length; i++) {
 				int sx = swatchX(i);
 				int sy = swatchY();
 				if (mouseX >= sx && mouseX < sx + SW && mouseY >= sy && mouseY < sy + SW) {
-					FlyConfig.get().accentColor = Theme.PRESETS[i];
-					FlyConfig.save();
+					if (i == Theme.PRESETS.length) {
+						if (pickerOpen) {
+							pickerOpen = false;
+						} else {
+							openPicker();
+						}
+					} else {
+						FlyConfig.get().accentColor = Theme.PRESETS[i];
+						FlyConfig.save();
+						pickerOpen = false;
+					}
 					return true;
 				}
 			}
+			// Клик мимо окна выбора цвета закрывает его
+			pickerOpen = false;
 
 			// HUD-редактор
 			int bx = btnX();
@@ -542,6 +683,10 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+		if (dragSv || dragHue) {
+			dragPicker(mouseX, mouseY);
+			return true;
+		}
 		if (dragging != null) {
 			dragTo(mouseX);
 			return true;
@@ -551,6 +696,12 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean mouseReleased(double mouseX, double mouseY, int button) {
+		if (dragSv || dragHue) {
+			dragSv = false;
+			dragHue = false;
+			FlyConfig.save();
+			return true;
+		}
 		if (dragging != null) {
 			dragging = null;
 			FlyConfig.save();

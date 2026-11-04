@@ -14,7 +14,10 @@ import java.util.Random;
  * Всё рисуется обычными прямоугольниками и кусками одной текстуры, поэтому почти не грузит FPS.
  */
 public class TitleBackground {
-	private static final Identifier TEXTURE = new Identifier("flyvisual", "textures/gui/title_bg.png");
+	private static final Identifier TEXTURE = new Identifier("flyvisual", "textures/gui/title_castle.png");
+	private static final Identifier PANEL = new Identifier("flyvisual", "textures/gui/title_panel.png");
+	public static final int PW = 1517;
+	public static final int PH = 818;
 	private static final int TW = 1920;
 	private static final int TH = 1080;
 
@@ -124,6 +127,16 @@ public class TitleBackground {
 			drawMist(ctx, w, h, t);
 			drawParticles(ctx, w, h, t, dt);
 		}
+	}
+
+	/** Готовая картинка меню (рамка, замок, кнопки без надписей) в прямоугольнике x,y,w,h. */
+	public void drawPanel(DrawContext ctx, int x, int y, int w, int h) {
+		MatrixStack ms = ctx.getMatrices();
+		ms.push();
+		ms.translate(x, y, 0.0f);
+		ms.scale(w / (float) PW, h / (float) PH, 1.0f);
+		ctx.drawTexture(PANEL, 0, 0, 0.0f, 0.0f, PW, PH, PW, PH);
+		ms.pop();
 	}
 
 	private static float clamp(float v, float min, float max) {
