@@ -17,7 +17,7 @@ public class ClientWorldMixin {
 	private void flyvisual$sky(Vec3d cameraPos, float tickDelta, CallbackInfoReturnable<Vec3d> cir) {
 		SkyModule sky = ModuleManager.sky();
 		if (sky != null && sky.isEnabled()) {
-			cir.setReturnValue(sky.applySky(cir.getReturnValue()));
+			cir.setReturnValue(sky.applySky(cir.getReturnValue(), (ClientWorld) (Object) this, tickDelta));
 		}
 	}
 
@@ -26,7 +26,7 @@ public class ClientWorldMixin {
 	private void flyvisual$clouds(float tickDelta, CallbackInfoReturnable<Vec3d> cir) {
 		SkyModule sky = ModuleManager.sky();
 		if (sky != null && sky.isEnabled()) {
-			cir.setReturnValue(sky.applyClouds(cir.getReturnValue()));
+			cir.setReturnValue(sky.applyClouds(cir.getReturnValue(), (ClientWorld) (Object) this, tickDelta));
 		}
 	}
 }

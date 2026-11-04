@@ -8,9 +8,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,9 +36,6 @@ public class FlyConfig {
 	/** Позиции HUD-модулей: имя модуля -> [x, y]. */
 	public Map<String, int[]> positions = new LinkedHashMap<>();
 
-	/** Предметы, выбранные в подсветке предметов (id вида minecraft:netherite_ingot). */
-	public List<String> highlightItems = new ArrayList<>();
-
 	/** Числовые настройки: "Модуль.Настройка" -> значение. */
 	public Map<String, Double> settings = new LinkedHashMap<>();
 
@@ -64,7 +59,6 @@ public class FlyConfig {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();
 				if (loaded.settings == null) loaded.settings = new LinkedHashMap<>();
-				if (loaded.highlightItems == null) loaded.highlightItems = new ArrayList<>();
 				instance = loaded;
 			}
 		} catch (Exception e) {

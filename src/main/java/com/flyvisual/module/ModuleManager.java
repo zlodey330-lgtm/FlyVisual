@@ -60,7 +60,6 @@ public final class ModuleManager {
 	private static CustomChatModule customChat;
 	private static PetModule pet;
 	private static DeathScreenModule deathScreen;
-	private static ItemHighlightModule itemHighlight;
 
 	private ModuleManager() {
 	}
@@ -82,7 +81,6 @@ public final class ModuleManager {
 		customChat = new CustomChatModule();
 		pet = new PetModule();
 		deathScreen = new DeathScreenModule();
-		itemHighlight = new ItemHighlightModule();
 
 		// Чтобы добавить новую функцию, создай класс и добавь его сюда.
 		// Порядок = порядок в меню.
@@ -115,7 +113,7 @@ public final class ModuleManager {
 		MODULES.add(customChat);
 		MODULES.add(new DurabilityWarningModule());
 		MODULES.add(new ServerIpModule());
-		MODULES.add(itemHighlight);
+		MODULES.add(new ItemHighlightModule());
 		MODULES.add(deathScreen);
 		MODULES.add(pet);
 
@@ -180,10 +178,6 @@ public final class ModuleManager {
 
 	public static PetModule pet() {
 		return pet;
-	}
-
-	public static ItemHighlightModule itemHighlight() {
-		return itemHighlight;
 	}
 
 	public static DeathScreenModule deathScreen() {

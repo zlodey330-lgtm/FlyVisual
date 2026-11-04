@@ -69,7 +69,7 @@ public class AuraModule extends Module {
 
 			float h = rainbow.getBool() ? (ticks * 4 + i * 20) % 360 : hue.getFloat();
 			int rgb = ColorUtil.hsv(h, 0.85f, 1.0f);
-			ParticleFx.spawn(ParticleFx.create(type.getInt(), rgb, 1.0f), x, y, z, 0.0, 0.01, 0.0);
+			world.addParticle(ParticleFx.create(type.getInt(), rgb, 1.0f), x, y, z, 0.0, 0.01, 0.0);
 		}
 	}
 }
