@@ -17,8 +17,6 @@ public final class Lang {
 			Map.entry("Potion Status", "Эффекты зелий"),
 			Map.entry("TargetHUD", "Таргет-HUD"),
 			Map.entry("Fullbright", "Полная яркость"),
-			Map.entry("NoHurtCam", "Без тряски"),
-			Map.entry("Lower Fire", "Низкий огонь"),
 			Map.entry("Zoom", "Зум"),
 			Map.entry("FreeLook", "Свободный обзор"),
 			Map.entry("Hand Offset", "Позиция руки"),
@@ -72,9 +70,9 @@ public final class Lang {
 			Map.entry("Custom Chat", "Прозрачность и размер чата"),
 			Map.entry("Durability Warning", "Уведомление, когда броня почти сломана"),
 			Map.entry("Server IP", "Адрес сервера, на котором ты играешь"),
-			Map.entry("Item Highlight", "Подсветка ценных выпавших предметов, элитры красным"),
-			Map.entry("Death Screen", "Кто убил и на каких координатах"),
-			Map.entry("Pet", "Компаньон ходит или летает рядом (видно только тебе)")
+			Map.entry("Item Highlight", "Подсветка выпавших предметов: ценные и выбранные тобой"),
+			Map.entry("Death Screen", "Свой экран смерти: кто убил и где"),
+			Map.entry("Pet", "Свой питомец ходит или летает рядом (видно только тебе)")
 	);
 
 	private static final Map<String, String> SETTINGS = Map.ofEntries(
@@ -101,7 +99,7 @@ public final class Lang {
 			Map.entry("X (right)", "X (вправо)"),
 			Map.entry("Y (up)", "Y (вверх)"),
 			Map.entry("Z (closer)", "Z (ближе)"),
-			Map.entry("Color (hue)", "Цвет (оттенок)"),
+			Map.entry("Color (hue)", "Цвет"),
 			Map.entry("Range", "Дальность"),
 			Map.entry("Strength", "Сила"),
 			Map.entry("Remove fog", "Убрать туман"),
@@ -139,6 +137,11 @@ public final class Lang {
 			Map.entry("Hide vanilla crit", "Убрать обычный крит"),
 			Map.entry("Mode", "Режим"),
 			Map.entry("Elytra color (hue)", "Цвет элитр"),
+			Map.entry("Beam color (hue)", "Цвет луча"),
+			Map.entry("Beam height", "Высота луча"),
+			Map.entry("Beam width", "Толщина луча"),
+			Map.entry("Choose items", "Выбрать предметы"),
+			Map.entry("Own color", "Свой цвет"),
 			Map.entry("Other color (hue)", "Цвет других"),
 			Map.entry("Beam", "Луч"),
 			Map.entry("Red vignette", "Красные края"),

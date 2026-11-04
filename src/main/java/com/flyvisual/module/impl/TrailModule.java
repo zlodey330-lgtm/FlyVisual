@@ -7,12 +7,11 @@ import com.flyvisual.util.ParticleFx;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 
 /**
  * Шлейф: частицы остаются за тобой, пока ты двигаешься (бежишь, прыгаешь, летишь на элитрах).
- * Видны только тебе.
+ * Видны только тебе. Работают при любой настройке частиц Minecraft (даже «минимум»).
  */
 public class TrailModule extends Module {
 	private static final String[] HEIGHTS = {"Ноги", "Тело", "Голова"};
@@ -36,9 +35,12 @@ public class TrailModule extends Module {
 		ClientWorld world = client.world;
 		if (player == null || world == null) return;
 
-		Vec3d velocity = player.getVelocity();
-		double speed = Math.hypot(velocity.x, velocity.z);
-		if (speed < 0.03 && !player.isFallFlying()) return;
+		// Скорость берём из реального сдвига за тик (velocity у клиентского игрока бывает почти нулевой)
+		double dx = player.getX() - player.prevX;
+		double dy = player.getY() - player.prevY;
+		double dz = player.getZ() - player.prevZ;
+		double speed = Math.sqrt(dx * dx + dz * dz);
+		if (speed < 0.02 && Math.abs(dy) < 0.05 && !player.isFallFlying()) return;
 
 		ticks++;
 		Random random = world.getRandom();
@@ -49,15 +51,15 @@ public class TrailModule extends Module {
 		};
 
 		for (int i = 0; i < amount.getInt(); i++) {
-			// Чуть позади по направлению движения и с небольшим разбросом
-			double back = 0.2 + random.nextDouble() * 0.3;
-			double x = player.getX() - velocity.x * back * 4.0 + (random.nextDouble() - 0.5) * 0.3;
-			double y = player.getY() + yOffset + (random.nextDouble() - 0.5) * 0.2;
-			double z = player.getZ() - velocity.z * back * 4.0 + (random.nextDouble() - 0.5) * 0.3;
+			// Частицы раскладываем вдоль пути, который игрок прошёл за тик, и чуть сдвигаем назад
+			double along = random.nextDouble();
+			double x = player.getX() - dx * along - dx * 1.5 + (random.nextDouble() - 0.5) * 0.3;
+			double y = player.getY() - dy * along + yOffset + (random.nextDouble() - 0.5) * 0.2;
+			double z = player.getZ() - dz * along - dz * 1.5 + (random.nextDouble() - 0.5) * 0.3;
 
 			float h = rainbow.getBool() ? (ticks * 6 + i * 25) % 360 : hue.getFloat();
 			int rgb = ColorUtil.hsv(h, 0.85f, 1.0f);
-			world.addParticle(ParticleFx.create(type.getInt(), rgb, size.getFloat()), x, y, z, 0.0, 0.0, 0.0);
+			ParticleFx.spawn(ParticleFx.create(type.getInt(), rgb, size.getFloat()), x, y, z, 0.0, 0.0, 0.0);
 		}
 	}
 }
