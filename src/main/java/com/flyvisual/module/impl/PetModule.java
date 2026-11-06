@@ -9,10 +9,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.passive.PassiveEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.shape.VoxelShape;
 
 /**
  * Питомец-компаньон: настоящий моб (лиса, кот, попугай и т.д.), который существует только
@@ -74,16 +70,7 @@ public class PetModule extends Module {
 		double tx = player.getX() + Math.sin(yawRad) * back + Math.cos(yawRad) * sideOffset * 0.9 * -1.0;
 		double tz = player.getZ() - Math.cos(yawRad) * back + Math.sin(yawRad) * sideOffset * 0.9 * -1.0;
 		boolean flying = FLYING[index];
-		// Аллея (призрака) не трогаем: он двигается как раньше.
-		boolean ghost = index == 4;
-		double ty;
-		if (flying) {
-			ty = player.getY() + 1.5 + Math.sin(ticks * 0.12) * 0.18;
-		} else if (ghost) {
-			ty = player.getY();
-		} else {
-			ty = groundY(world, tx, tz, player.getY());
-		}
+		double ty = player.getY() + (flying ? 1.5 + Math.sin(ticks * 0.12) * 0.18 : 0.0);
 
 		double dx = tx - current.getX();
 		double dy = ty - current.getY();
@@ -93,74 +80,25 @@ public class PetModule extends Module {
 		if (dist > 14.0) {
 			current.refreshPositionAndAngles(tx, ty, tz, player.getYaw(), 0.0f);
 		} else {
-			double oldX = current.getX();
-			double oldY = current.getY();
-			double oldZ = current.getZ();
-			float oldYaw = current.getYaw();
+			double k = 0.14;
+			double nx = current.getX() + dx * k;
+			double ny = current.getY() + dy * k;
+			double nz = current.getZ() + dz * k;
 
-			double k = ghost ? 0.14 : 0.10;
-			double nx = oldX + dx * k;
-			double ny = oldY + dy * k;
-			double nz = oldZ + dz * k;
-
-			float yaw = oldYaw;
+			float yaw = current.getYaw();
 			double horizontal = Math.hypot(dx, dz);
-			boolean moving = horizontal > 0.15;
-			if (moving) {
+			if (horizontal > 0.15) {
 				float want = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0f;
-				yaw = approach(yaw, want, ghost ? 0.25f : 0.18f);
+				yaw = approach(yaw, want, 0.25f);
 			} else {
 				yaw = approach(yaw, player.getYaw(), 0.1f);
 			}
 			current.refreshPositionAndAngles(nx, ny, nz, yaw, 0.0f);
-
-			if (ghost) {
-				current.setHeadYaw(yaw);
-				current.setBodyYaw(yaw);
-			} else {
-				// Плавность между тиками: игра сама интерполирует положение и поворот при любом FPS.
-				current.prevX = oldX;
-				current.prevY = oldY;
-				current.prevZ = oldZ;
-				current.lastRenderX = oldX;
-				current.lastRenderY = oldY;
-				current.lastRenderZ = oldZ;
-				current.prevYaw = oldYaw;
-				current.prevBodyYaw = current.bodyYaw;
-				current.prevHeadYaw = current.headYaw;
-
-				current.setBodyYaw(yaw);
-				// Когда стоит на месте, голова плавно поворачивается к тебе
-				float headTarget = yaw;
-				if (!moving) {
-					double lx = player.getX() - nx;
-					double lz = player.getZ() - nz;
-					headTarget = (float) Math.toDegrees(Math.atan2(lz, lx)) - 90.0f;
-					float limit = 55.0f;
-					float diff = ((headTarget - yaw) % 360.0f + 540.0f) % 360.0f - 180.0f;
-					headTarget = yaw + Math.max(-limit, Math.min(limit, diff));
-				}
-				current.setHeadYaw(approach(current.getHeadYaw(), headTarget, 0.12f));
-			}
+			current.setHeadYaw(yaw);
+			current.setBodyYaw(yaw);
 		}
 		current.setOnGround(!flying);
 		current.setVelocity(0.0, 0.0, 0.0);
-	}
-
-	/** Высота земли под питомцем: он поднимается по ступенькам и склонам, а не висит на уровне игрока. */
-	private static double groundY(ClientWorld world, double x, double z, double fallback) {
-		int bx = MathHelper.floor(x);
-		int bz = MathHelper.floor(z);
-		int top = MathHelper.floor(fallback) + 1;
-		BlockPos.Mutable pos = new BlockPos.Mutable();
-		for (int y = top; y >= top - 4; y--) {
-			pos.set(bx, y, bz);
-			VoxelShape shape = world.getBlockState(pos).getCollisionShape(world, pos);
-			if (!shape.isEmpty()) {
-				return y + shape.getMax(Direction.Axis.Y);
-			}
-		}
-		return fallback;
 	}
 
 	private static float approach(float from, float to, float k) {

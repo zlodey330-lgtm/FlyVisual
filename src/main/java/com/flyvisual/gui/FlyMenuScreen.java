@@ -6,6 +6,7 @@ import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Lang;
 import com.flyvisual.module.Module;
 import com.flyvisual.module.ModuleManager;
+import com.flyvisual.module.impl.MacroModule;
 import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -83,6 +84,14 @@ public class FlyMenuScreen extends Screen {
 		List<Module> all = ModuleManager.all();
 		if (!all.isEmpty()) {
 			selected = all.get(0);
+			String last = FlyConfig.get().lastModule;
+			for (Module m : all) {
+				if (m.getName().equals(last)) {
+					selected = m;
+					break;
+				}
+			}
+			scroll = Math.max(0, FlyConfig.get().lastScroll);
 		}
 	}
 
@@ -335,6 +344,10 @@ public class FlyMenuScreen extends Screen {
 			selected = m;
 			paneAlpha = 0.0f;
 		}
+		if (!m.getName().equals(FlyConfig.get().lastModule)) {
+			FlyConfig.get().lastModule = m.getName();
+			FlyConfig.save();
+		}
 	}
 
 	// ---------- Отрисовка ----------
@@ -498,6 +511,12 @@ public class FlyMenuScreen extends Screen {
 		}
 		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, 0x22FFFFFF);
 
+		if (selected instanceof MacroModule) {
+			drawMacroPane(ctx, mouseX, mouseY);
+			extra = 1.0f;
+			return;
+		}
+
 		List<DoubleSetting> settings = selected.getSettings();
 		if (settings.isEmpty()) {
 			text(ctx, "Настроек нет, только вкл/выкл", px1 + 8, settingsTop() + 4, Theme.TEXT_DIM);
@@ -543,6 +562,30 @@ public class FlyMenuScreen extends Screen {
 		}
 		ctx.disableScissor();
 		extra = 1.0f;
+	}
+
+	private boolean overMacroButton(double mx, double my) {
+		return mx >= px1() + 8 && mx < px2() - 8 && my >= settingsTop() && my < settingsTop() + 18;
+	}
+
+	/** Вместо ползунков у макросов кнопка открытия редактора текстов. */
+	private void drawMacroPane(DrawContext ctx, int mouseX, int mouseY) {
+		int bx = px1() + 8;
+		int by = settingsTop();
+		int bw = PANE_W - 16;
+		boolean hover = overMacroButton(mouseX, mouseY);
+		rr(ctx, bx, by, bw, 18, 6, hover ? Theme.accent() : 0xFF2A2A2E);
+		String label = "Редактировать макросы";
+		text(ctx, label, bx + (bw - textRenderer.getWidth(label)) / 2, by + 5, Theme.TEXT);
+
+		List<OrderedText> lines = textRenderer.wrapLines(
+				Text.literal("Клавиши назначаются в Управление, категория FlyVisual."), PANE_W - 16);
+		for (int i = 0; i < Math.min(3, lines.size()); i++) {
+			int c = col(Theme.TEXT_DIM);
+			if (((c >>> 24) & 0xFF) >= 12) {
+				ctx.drawText(textRenderer, lines.get(i), bx, by + 26 + i * 10, c, true);
+			}
+		}
 	}
 
 	private void drawPicker(DrawContext ctx) {
@@ -659,6 +702,11 @@ public class FlyMenuScreen extends Screen {
 			}
 		}
 
+		if (button == 0 && selected instanceof MacroModule && overMacroButton(mouseX, mouseY)) {
+			MinecraftClient.getInstance().setScreen(new MacroScreen(this));
+			return true;
+		}
+
 		// Настройки выбранного модуля
 		if (button == 0 && selected != null && mouseX >= px1() && mouseX < px2()) {
 			List<DoubleSetting> settings = selected.getSettings();
@@ -731,6 +779,8 @@ public class FlyMenuScreen extends Screen {
 	/** Закрытие с анимацией: сам экран закроется, когда меню полностью растворится. */
 	@Override
 	public void close() {
+		FlyConfig.get().lastScroll = scroll;
+		FlyConfig.save();
 		closing = true;
 	}
 }

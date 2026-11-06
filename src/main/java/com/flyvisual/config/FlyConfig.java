@@ -18,8 +18,11 @@ public class FlyConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static FlyConfig instance = new FlyConfig();
 
-	/** Акцентный цвет темы (RGB). По умолчанию красный. */
-	public int accentColor = 0xE53935;
+	/** Акцентный цвет темы (RGB). По умолчанию серебристый (серо-чёрная тема). */
+	public int accentColor = 0xB4B8BF;
+
+	/** Версия темы: при переходе на серо-чёрную тему цвет один раз сбрасывается на серебристый. */
+	public int themeVersion = 2;
 
 	/** Заменять ли ванильное главное меню меню FlyVisual. */
 	public boolean customTitleScreen = true;
@@ -29,6 +32,13 @@ public class FlyConfig {
 
 	/** Лучи, туман, листья и искры на фоне главного меню. */
 	public boolean titleParticles = true;
+
+	/** Последний выбранный в меню модуль и прокрутка списка: меню открывается там, где ты закончил. */
+	public String lastModule = "";
+	public int lastScroll = 0;
+
+	/** Тексты макросов (8 штук): сообщение или команда, если начинается с "/". */
+	public String[] macros = {"", "", "", "", "", "", "", ""};
 
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
@@ -59,6 +69,10 @@ public class FlyConfig {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();
 				if (loaded.settings == null) loaded.settings = new LinkedHashMap<>();
+				if (loaded.themeVersion < 2) {
+					loaded.accentColor = 0xB4B8BF;
+					loaded.themeVersion = 2;
+				}
 				instance = loaded;
 			}
 		} catch (Exception e) {

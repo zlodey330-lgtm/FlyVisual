@@ -39,7 +39,13 @@ public final class Lang {
 			Map.entry("Server IP", "Адрес сервера"),
 			Map.entry("Item Highlight", "Подсветка предметов"),
 			Map.entry("Death Screen", "Экран смерти"),
-			Map.entry("Pet", "Питомец")
+			Map.entry("Pet", "Питомец"),
+			Map.entry("Aspect Ratio", "Соотношение сторон"),
+			Map.entry("Saturation", "Насыщенность"),
+			Map.entry("Health Indicator", "Показатель здоровья"),
+			Map.entry("Macro Keybinds", "Макросы"),
+			Map.entry("Emotes", "Эмоции"),
+			Map.entry("TargetESP", "TargetESP")
 	);
 
 	private static final Map<String, String> MODULE_DESCRIPTIONS = Map.ofEntries(
@@ -57,7 +63,7 @@ public final class Lang {
 			Map.entry("Zoom", "Держи C для зума, колёсико меняет силу"),
 			Map.entry("FreeLook", "Держи Left Alt, чтобы осмотреться на 360°"),
 			Map.entry("Hand Offset", "Сдвиг и размер предмета в руке"),
-			Map.entry("Hitboxes", "Цветные хитбоксы существ"),
+			Map.entry("Hitboxes", "Свой цвет хитбоксов (показываются через F3+B)"),
 			Map.entry("Damage Particles", "Частицы при ударе по цели"),
 			Map.entry("Hitcolor", "Свой цвет вспышки при ударе"),
 			Map.entry("Fog", "Убрать или изменить туман"),
@@ -66,15 +72,21 @@ public final class Lang {
 			Map.entry("Totem Animation", "Уменьшить или скрыть анимацию тотема"),
 			Map.entry("Crosshair", "Свой прицел: форма, цвет, размер"),
 			Map.entry("Capes", "Свой плащ (видно только тебе, F5)"),
-			Map.entry("Aura", "Частицы вокруг тебя (видно только тебе)"),
-			Map.entry("Trail", "Шлейф частиц за тобой при движении"),
+			Map.entry("Aura", "3D-фигуры вокруг тебя (видно только тебе)"),
+			Map.entry("Trail", "Объёмный 3D-шлейф за тобой"),
 			Map.entry("Sky", "Плавно меняющийся цвет неба и облаков"),
 			Map.entry("Custom Chat", "Прозрачность и размер чата"),
 			Map.entry("Durability Warning", "Уведомление, когда броня почти сломана"),
 			Map.entry("Server IP", "Адрес сервера, на котором ты играешь"),
 			Map.entry("Item Highlight", "Подсветка ценных выпавших предметов, элитры красным"),
 			Map.entry("Death Screen", "Кто убил и на каких координатах"),
-			Map.entry("Pet", "Компаньон ходит или летает рядом (видно только тебе)")
+			Map.entry("Pet", "Компаньон ходит или летает рядом (видно только тебе)"),
+			Map.entry("Aspect Ratio", "Растянутая или сжатая картинка (4:3, 21:9 и др.)"),
+			Map.entry("Saturation", "Насыщенные цвета или чёрно-белая картинка"),
+			Map.entry("Health Indicator", "ХП цели под прицелом"),
+			Map.entry("Macro Keybinds", "Клавиши отправляют сообщения и команды в чат"),
+			Map.entry("Emotes", "Меню эмоций: Сикс сэвен, танец и другие (видно только тебе)"),
+			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб, спираль")
 	);
 
 	private static final Map<String, String> SETTINGS = Map.ofEntries(
@@ -137,6 +149,7 @@ public final class Lang {
 			Map.entry("Chat scale", "Размер чата"),
 			Map.entry("Include held item", "Учитывать предмет в руке"),
 			Map.entry("Hide vanilla crit", "Убрать обычный крит"),
+			Map.entry("Show durability bar", "Показывать шкалу прочности"),
 			Map.entry("Mode", "Режим"),
 			Map.entry("Elytra color (hue)", "Цвет элитр"),
 			Map.entry("Other color (hue)", "Цвет других"),
@@ -145,6 +158,20 @@ public final class Lang {
 			Map.entry("Write coords in chat", "Координаты в чат"),
 			Map.entry("Side", "Сторона"),
 			Map.entry("Pet distance", "Расстояние до питомца"),
+			Map.entry("Aspect", "Формат"),
+			Map.entry("Show on aim", "При наведении (без удара)"),
+			Map.entry("Theme color", "Цвет темы"),
+			Map.entry("Auto third person", "Авто вид сзади (F5)"),
+			Map.entry("Cancel on sneak", "Отмена на Shift"),
+			Map.entry("Emote speed", "Скорость эмоции"),
+			Map.entry("Custom ratio", "Свой формат"),
+			Map.entry("Saturation %", "Насыщенность, %"),
+			Map.entry("Black and white", "Чёрно-белое"),
+			Map.entry("Show max HP", "Показывать максимум"),
+			Map.entry("Offset", "Отступ"),
+			Map.entry("Length", "Длина"),
+			Map.entry("Glow", "Свечение"),
+			Map.entry("Spin speed", "Скорость вращения"),
 			Map.entry("Baby", "Малыш")
 	);
 
