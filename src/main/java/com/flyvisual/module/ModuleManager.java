@@ -5,6 +5,7 @@ import com.flyvisual.module.impl.ArmorHudModule;
 import com.flyvisual.module.impl.AspectRatioModule;
 import com.flyvisual.module.impl.HealthIndicatorModule;
 import com.flyvisual.module.impl.MacroModule;
+import com.flyvisual.module.impl.MouseFixModule;
 import com.flyvisual.module.impl.SaturationModule;
 import com.flyvisual.module.impl.TargetEspModule;
 import com.flyvisual.module.impl.AuraModule;
@@ -68,6 +69,7 @@ public final class ModuleManager {
 	private static HitboxModule hitbox;
 	private static AspectRatioModule aspectRatio;
 	private static EmoteModule emotes;
+	private static MouseFixModule mouseFix;
 	private static SaturationModule saturation;
 	private static PotionHudModule potionHud;
 	private static DeathScreenModule deathScreen;
@@ -94,6 +96,7 @@ public final class ModuleManager {
 		hitbox = new HitboxModule();
 		aspectRatio = new AspectRatioModule();
 		emotes = new EmoteModule();
+		mouseFix = new MouseFixModule();
 		saturation = new SaturationModule();
 		potionHud = new PotionHudModule();
 		deathScreen = new DeathScreenModule();
@@ -137,6 +140,7 @@ public final class ModuleManager {
 		MODULES.add(new HealthIndicatorModule());
 		MODULES.add(new MacroModule());
 		MODULES.add(emotes);
+		MODULES.add(mouseFix);
 		MODULES.add(new TargetEspModule());
 
 		FlyConfig cfg = FlyConfig.get();
@@ -200,6 +204,10 @@ public final class ModuleManager {
 
 	public static PotionHudModule potionHud() {
 		return potionHud;
+	}
+
+	public static MouseFixModule mouseFix() {
+		return mouseFix;
 	}
 
 	public static EmoteModule emotes() {

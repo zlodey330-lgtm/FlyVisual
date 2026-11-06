@@ -45,6 +45,7 @@ public final class Lang {
 			Map.entry("Health Indicator", "Показатель здоровья"),
 			Map.entry("Macro Keybinds", "Макросы"),
 			Map.entry("Emotes", "Эмоции"),
+			Map.entry("Mouse Fix", "Фикс мыши"),
 			Map.entry("TargetESP", "TargetESP")
 	);
 
@@ -74,7 +75,7 @@ public final class Lang {
 			Map.entry("Capes", "Свой плащ (видно только тебе, F5)"),
 			Map.entry("Aura", "3D-фигуры вокруг тебя (видно только тебе)"),
 			Map.entry("Trail", "Объёмный 3D-шлейф за тобой"),
-			Map.entry("Sky", "Плавно меняющийся цвет неба и облаков"),
+			Map.entry("Sky", "Красивое небо: цвета и реалистичное 3D с облаками"),
 			Map.entry("Custom Chat", "Прозрачность и размер чата"),
 			Map.entry("Durability Warning", "Уведомление, когда броня почти сломана"),
 			Map.entry("Server IP", "Адрес сервера, на котором ты играешь"),
@@ -86,6 +87,7 @@ public final class Lang {
 			Map.entry("Health Indicator", "ХП цели под прицелом"),
 			Map.entry("Macro Keybinds", "Клавиши отправляют сообщения и команды в чат"),
 			Map.entry("Emotes", "Меню эмоций: Сикс сэвен, танец и другие (видно только тебе)"),
+			Map.entry("Mouse Fix", "Меньше задержки мыши при просадках FPS и в полном экране"),
 			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб, спираль")
 	);
 
@@ -144,6 +146,8 @@ public final class Lang {
 			Map.entry("Intensity", "Сила"),
 			Map.entry("Sky speed", "Скорость смены"),
 			Map.entry("Tint clouds", "Красить облака"),
+			Map.entry("Cloud amount", "Облачность"),
+			Map.entry("Cloud speed", "Скорость облаков"),
 			Map.entry("Text opacity", "Прозрачность текста"),
 			Map.entry("Background opacity", "Прозрачность фона"),
 			Map.entry("Chat scale", "Размер чата"),
