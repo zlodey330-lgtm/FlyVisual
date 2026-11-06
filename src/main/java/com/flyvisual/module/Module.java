@@ -7,6 +7,7 @@ import net.minecraft.client.gui.DrawContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Базовый класс любой функции мода. Новая функция = новый класс-наследник
@@ -56,6 +57,13 @@ public abstract class Module {
 	/** Добавляет выбор из списка (например, тип частиц). */
 	protected DoubleSetting addChoice(String settingName, int defIndex, String... labels) {
 		DoubleSetting setting = DoubleSetting.createChoice(name, settingName, defIndex, labels);
+		settings.add(setting);
+		return setting;
+	}
+
+	/** Добавляет кнопку в настройки модуля (например, «Выбрать предметы»). */
+	protected DoubleSetting addButton(String settingName, Supplier<String> valueText, Runnable action) {
+		DoubleSetting setting = DoubleSetting.createButton(name, settingName, valueText, action);
 		settings.add(setting);
 		return setting;
 	}

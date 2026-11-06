@@ -72,20 +72,6 @@ public class PetModule extends Module {
 
 	private void render(WorldRenderContext context) {
 		if (!isEnabled()) return;
-		try {
-			renderPet(context);
-		} catch (Throwable t) {
-			// Любая ошибка в питомце: дорисовываем буферы и выключаем питомца, чтобы игра не вылетала
-			try {
-				solid.flush();
-				glass.flush();
-			} catch (Throwable ignored) {
-			}
-			setEnabled(false);
-		}
-	}
-
-	private void renderPet(WorldRenderContext context) {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		ClientPlayerEntity player = mc.player;
 		ClientWorld world = context.world();

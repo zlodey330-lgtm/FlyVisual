@@ -29,19 +29,9 @@ public class SkyModule extends Module {
 		super("Sky", "Smoothly animated sky colors");
 		WorldRenderEvents.AFTER_SETUP.register(context -> {
 			if (isRealistic()) {
-				try {
-					SkyRenderer.render(context, cloudAmount.getFloat(), cloudSpeed.getFloat());
-				} catch (Throwable t) {
-					// Ошибка в 3D-небе: переключаемся на простой стиль, чтобы игра не вылетала
-					safeMode();
-				}
+				SkyRenderer.render(context, cloudAmount.getFloat(), cloudSpeed.getFloat());
 			}
 		});
-	}
-
-	/** Аварийный режим: при ошибке в 3D-небе переключаемся на простой стиль «Аврора». */
-	private void safeMode() {
-		style.set(1.0);
 	}
 
 	/** Включён режим «Реалистичное 3D»: настоящие облака и ореол солнца рисует SkyRenderer. */

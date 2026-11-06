@@ -3,6 +3,7 @@ package com.flyvisual.module;
 import com.flyvisual.config.FlyConfig;
 
 import java.util.Locale;
+import java.util.function.Supplier;
 
 /**
  * Настройка модуля: ползунок, переключатель Вкл/Выкл или выбор из списка.
@@ -17,6 +18,10 @@ public class DoubleSetting {
 	private final boolean toggle;
 	private final String[] labels;
 	private double value;
+
+	/** Для кнопок: действие при нажатии и текст справа (например, число выбранных предметов). */
+	private Runnable action;
+	private Supplier<String> valueText;
 
 	public DoubleSetting(String moduleName, String name, double def, double min, double max, double step) {
 		this(moduleName, name, def, min, max, step, false, null);
@@ -44,6 +49,24 @@ public class DoubleSetting {
 	/** Выбор из списка (например, тип частиц). */
 	public static DoubleSetting createChoice(String moduleName, String name, int defIndex, String... labels) {
 		return new DoubleSetting(moduleName, name, defIndex, 0.0, labels.length - 1, 1.0, false, labels);
+	}
+
+	/** Кнопка в настройках модуля: по клику выполняет действие (например, открывает окно выбора). */
+	public static DoubleSetting createButton(String moduleName, String name, Supplier<String> valueText, Runnable action) {
+		DoubleSetting setting = new DoubleSetting(moduleName, name, 0.0, 0.0, 1.0, 1.0, false, null);
+		setting.action = action;
+		setting.valueText = valueText;
+		return setting;
+	}
+
+	public boolean isButton() {
+		return action != null;
+	}
+
+	public void press() {
+		if (action != null) {
+			action.run();
+		}
 	}
 
 	private double normalize(double v) {
@@ -96,6 +119,9 @@ public class DoubleSetting {
 
 	/** Значение для показа в меню. */
 	public String format() {
+		if (valueText != null) {
+			return valueText.get();
+		}
 		if (toggle) {
 			return getBool() ? "Вкл" : "Выкл";
 		}
