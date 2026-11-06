@@ -1,6 +1,7 @@
 package com.flyvisual.module.impl;
 
 import com.flyvisual.gui.EmoteScreen;
+import com.flyvisual.hud.Notifications;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -37,6 +38,7 @@ public class EmoteModule extends Module {
 	private int index = -1;
 	private long startNanos;
 	private Perspective savedPerspective;
+	private long lastApplyNanos;
 
 	public EmoteModule() {
 		super("Emotes", "Emotes menu: Six Seven, dance and more");
@@ -65,6 +67,7 @@ public class EmoteModule extends Module {
 		}
 		index = i;
 		startNanos = System.nanoTime();
+		Notifications.push("Эмоция: " + NAMES[i], true);
 
 		Perspective current = client.options.getPerspective();
 		if (autoThird.getBool() && current == Perspective.FIRST_PERSON) {
@@ -130,6 +133,10 @@ public class EmoteModule extends Module {
 	/** Накладывает позу текущей эмоции на модель игрока. Вызывается из PlayerEntityModelMixin. */
 	public void apply(PlayerEntityModel<?> m) {
 		if (index < 0) return;
+		// Позу могут вызвать два миксина подряд в одном кадре: второй раз пропускаем
+		long nowN = System.nanoTime();
+		if (nowN - lastApplyNanos < 300_000L) return;
+		lastApplyNanos = nowN;
 
 		float elapsed = (System.nanoTime() - startNanos) / 1.0e9f;
 		float t = elapsed * speed.getFloat();

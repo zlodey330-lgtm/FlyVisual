@@ -25,7 +25,7 @@ import java.util.List;
  * которая плавно сужается и тает. Рисуется только на твоей стороне.
  */
 public class TrailModule extends Module {
-	private static final String[] STYLES = {"Лента", "Кубики"};
+	private static final String[] STYLES = {"Лента", "Кубики", "Спираль", "Искры", "Волна", "Кольца"};
 	private static final String[] HEIGHTS = {"Ноги", "Тело", "Голова"};
 
 	private final DoubleSetting style = addChoice("Style", 0, STYLES);
@@ -147,26 +147,81 @@ public class TrailModule extends Module {
 					Shape3D.prism(vc, m, ga, gb, rgb, (float) (0.14 * fa), (float) (0.14 * fb));
 				}
 			} else {
-				// Цепочка кубиков вдоль отрезка с равным шагом
-				double segLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
-				double step = Math.max(0.12, half * 2.6);
-				double yaw = Math.atan2(dz, dx);
-				double d = cubeCarry;
-				while (d < segLen) {
-					double f = d / segLen;
-					double fade = fa + (fb - fa) * f;
-					double cx = a[0] + dx * f;
-					double cy = a[1] + dy * f;
-					double cz = a[2] + dz * f;
-					double hf = half * (0.3 + 0.7 * fade);
-					Shape3D.cube(vc, m, cx, cy, cz, hf, yaw, rgb, (float) (0.95 * fade));
-					if (glow.getBool()) {
-						Shape3D.cube(vc, m, cx, cy, cz, hf * 2.3, yaw, rgb, (float) (0.15 * fade));
+					// Цепочка элементов вдоль отрезка с равным шагом (кубики, спираль, искры, волна, кольца)
+					int st = style.getInt();
+					double segLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+					double step = st == 5 ? Math.max(0.3, half * 4.0) : st == 3 ? Math.max(0.1, half * 2.2) : Math.max(0.12, half * 2.6);
+					double yaw = Math.atan2(dz, dx);
+					double sx = horiz > 1.0e-4 ? -dz / horiz : 1.0;
+					double sz = horiz > 1.0e-4 ? dx / horiz : 0.0;
+					double d = cubeCarry;
+					while (d < segLen) {
+						double f = d / segLen;
+						double fade = fa + (fb - fa) * f;
+						double age = a[3] + (b[3] - a[3]) * f;
+						double cx = a[0] + dx * f;
+						double cy = a[1] + dy * f;
+						double cz = a[2] + dz * f;
+						double hf = half * (0.3 + 0.7 * fade);
+						switch (st) {
+							case 2 -> {
+								double rad = half * 2.2 * (0.4 + 0.6 * fade);
+								for (int strand = 0; strand < 2; strand++) {
+									double ph = age * 0.55 + time * 2.0 + strand * Math.PI;
+									double ox = sx * Math.cos(ph) * rad;
+									double oy = Math.sin(ph) * rad;
+									double oz = sz * Math.cos(ph) * rad;
+									Shape3D.cube(vc, m, cx + ox, cy + oy, cz + oz, hf * 0.6, yaw, rgb, (float) (0.95 * fade));
+									if (glow.getBool()) {
+										Shape3D.cube(vc, m, cx + ox, cy + oy, cz + oz, hf * 1.5, yaw, rgb, (float) (0.15 * fade));
+									}
+								}
+							}
+							case 3 -> {
+								long seed = (long) (Math.floor(a[3] * 3.0) * 31L + i * 17L + (long) (d * 100.0));
+								double r1 = ((seed * 2654435761L) & 0xFFFF) / 65535.0 - 0.5;
+								double r2 = (((seed * 40503L) >> 3) & 0xFFFF) / 65535.0 - 0.5;
+								double spread = half * 3.0 * (1.0 - fade * 0.5);
+								double ox = sx * r1 * spread;
+								double oz = sz * r1 * spread;
+								double oy = r2 * spread + (1.0 - fade) * half * 3.0;
+								Shape3D.cube(vc, m, cx + ox, cy + oy, cz + oz, hf * 0.35, yaw, rgb, (float) (0.95 * fade));
+								if (glow.getBool()) {
+									Shape3D.cube(vc, m, cx + ox, cy + oy, cz + oz, hf * 1.0, yaw, rgb, (float) (0.15 * fade));
+								}
+							}
+							case 4 -> {
+								double amp = half * 3.0 * (0.3 + 0.7 * fade);
+								double w = Math.sin(age * 0.45 + time * 3.0);
+								double ox = sx * Math.cos(age * 0.45 + time * 3.0) * amp * 0.6;
+								double oz = sz * Math.cos(age * 0.45 + time * 3.0) * amp * 0.6;
+								Shape3D.cube(vc, m, cx + ox, cy + w * amp, cz + oz, hf, yaw, rgb, (float) (0.95 * fade));
+								if (glow.getBool()) {
+									Shape3D.cube(vc, m, cx + ox, cy + w * amp, cz + oz, hf * 2.2, yaw, rgb, (float) (0.15 * fade));
+								}
+							}
+							case 5 -> {
+								double rad = half * 3.0 * (0.3 + 0.7 * fade);
+								int pts = 10;
+								for (int q = 0; q < pts; q++) {
+									double ang = q * 2.0 * Math.PI / pts + time;
+									double ox = sx * Math.cos(ang) * rad;
+									double oy = Math.sin(ang) * rad;
+									double oz = sz * Math.cos(ang) * rad;
+									Shape3D.cube(vc, m, cx + ox, cy + oy, cz + oz, hf * 0.4, yaw, rgb, (float) (0.9 * fade));
+								}
+							}
+							default -> {
+								Shape3D.cube(vc, m, cx, cy, cz, hf, yaw, rgb, (float) (0.95 * fade));
+								if (glow.getBool()) {
+									Shape3D.cube(vc, m, cx, cy, cz, hf * 2.3, yaw, rgb, (float) (0.15 * fade));
+								}
+							}
+						}
+						d += step;
 					}
-					d += step;
+					cubeCarry = d - segLen;
 				}
-				cubeCarry = d - segLen;
-			}
 		}
 	}
 }

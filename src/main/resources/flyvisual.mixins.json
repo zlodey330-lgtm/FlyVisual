@@ -18,7 +18,10 @@
     "BackgroundRendererMixin",
     "ClientWorldMixin",
     "ParticleManagerMixin",
-    "DeathScreenMixin"
+    "DeathScreenMixin",
+    "EntityRenderDispatcherMixin",
+    "PlayerEntityModelMixin",
+		"BipedEntityModelMixin"
   ],
   "injectors": {
     "defaultRequire": 0

@@ -32,14 +32,12 @@ public class TargetHudModule extends HudModule {
 			EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
 	};
 
-	private final DoubleSetting holdTime = addSetting("Hold time (s)", 3.0, 0.0, 10.0, 0.5);
 	private final DoubleSetting playersOnly = addToggle("Players only", false);
 	private final DoubleSetting showArmor = addToggle("Show armor", true);
 	private final DoubleSetting showBar = addToggle("Show durability bar", true);
 	private final DoubleSetting showPercent = addToggle("Show durability %", true);
 
 	private LivingEntity target;
-	private long lastSeen;
 	private long lastNanos = System.nanoTime();
 
 	// Последние показанные данные (чтобы панель красиво гасла после потери цели)
@@ -66,16 +64,13 @@ public class TargetHudModule extends HudModule {
 		float dt = Math.min((nowNanos - lastNanos) / 1.0e9f, 0.05f);
 		lastNanos = nowNanos;
 
-		long now = System.currentTimeMillis();
 		Entity looked = mc.targetedEntity;
-		if (looked instanceof LivingEntity living && living != mc.player
+		// Показываем только пока смотришь на моба/игрока. Отвёл прицел: худ плавно скрывается.
+		if (looked instanceof LivingEntity living && living != mc.player && !living.isRemoved()
 				&& (!playersOnly.getBool() || living instanceof PlayerEntity)
 				&& !(living.isInvisible() && !hasArmor(living))) {
 			target = living;
-			lastSeen = now;
-		}
-		if (target != null && (target.isRemoved() || now - lastSeen > holdTime.get() * 1000.0
-				|| (target.isInvisible() && !hasArmor(target)))) {
+		} else {
 			target = null;
 		}
 

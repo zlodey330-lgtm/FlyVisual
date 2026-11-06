@@ -27,6 +27,7 @@ public class EntityRenderDispatcherMixin {
 											  float red, float green, float blue, float alpha) {
 		HitboxModule module = ModuleManager.hitbox();
 		if (module != null && module.isEnabled()) {
+			HitboxModule.markMixinWorked();
 			float[] c = module.color();
 			WorldRenderer.drawBox(matrices, vertices, box, c[0], c[1], c[2], c[3]);
 		} else {
