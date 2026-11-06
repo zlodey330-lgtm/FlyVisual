@@ -2,10 +2,7 @@ package com.flyvisual.mixin;
 
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.gui.FlyTitleScreen;
-import com.flyvisual.module.ModuleManager;
-import com.flyvisual.module.impl.DeathScreenModule;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.DeathScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,21 +13,13 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 public class MinecraftClientMixin {
 
 	/**
-	 * Подмена ванильного главного меню на меню FlyVisual
-	 * (отключается в config/flyvisual.json: "customTitleScreen": false)
-	 * и ванильного экрана смерти на экран смерти FlyVisual (выключается модулем «Экран смерти»).
+	 * Подмена ванильного главного меню на меню FlyVisual.
+	 * Отключается в config/flyvisual.json: "customTitleScreen": false.
 	 */
 	@ModifyVariable(method = "setScreen", at = @At("HEAD"), argsOnly = true)
-	private Screen flyvisual$replaceScreen(Screen screen) {
-		if (screen == null) return null;
-		if (screen.getClass() == TitleScreen.class && FlyConfig.get().customTitleScreen) {
+	private Screen flyvisual$replaceTitleScreen(Screen screen) {
+		if (screen != null && screen.getClass() == TitleScreen.class && FlyConfig.get().customTitleScreen) {
 			return new FlyTitleScreen();
-		}
-		if (screen.getClass() == DeathScreen.class) {
-			DeathScreenModule module = ModuleManager.deathScreen();
-			if (module != null && module.isEnabled()) {
-				return module.createScreen();
-			}
 		}
 		return screen;
 	}

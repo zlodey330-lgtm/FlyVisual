@@ -2,12 +2,18 @@ package com.flyvisual.module;
 
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.module.impl.ArmorHudModule;
+import com.flyvisual.module.impl.AspectRatioModule;
+import com.flyvisual.module.impl.HealthIndicatorModule;
+import com.flyvisual.module.impl.MacroModule;
+import com.flyvisual.module.impl.SaturationModule;
+import com.flyvisual.module.impl.TargetEspModule;
 import com.flyvisual.module.impl.AuraModule;
 import com.flyvisual.module.impl.BlockOutlineModule;
 import com.flyvisual.module.impl.CapesModule;
 import com.flyvisual.module.impl.CrosshairModule;
 import com.flyvisual.module.impl.CustomChatModule;
 import com.flyvisual.module.impl.DeathScreenModule;
+import com.flyvisual.module.impl.EmoteModule;
 import com.flyvisual.module.impl.ItemHighlightModule;
 import com.flyvisual.module.impl.PetModule;
 import com.flyvisual.module.impl.DurabilityWarningModule;
@@ -59,8 +65,12 @@ public final class ModuleManager {
 	private static DamageParticlesModule damageParticles;
 	private static CustomChatModule customChat;
 	private static PetModule pet;
+	private static HitboxModule hitbox;
+	private static AspectRatioModule aspectRatio;
+	private static EmoteModule emotes;
+	private static SaturationModule saturation;
+	private static PotionHudModule potionHud;
 	private static DeathScreenModule deathScreen;
-	private static ItemHighlightModule itemHighlight;
 
 	private ModuleManager() {
 	}
@@ -81,8 +91,12 @@ public final class ModuleManager {
 		damageParticles = new DamageParticlesModule();
 		customChat = new CustomChatModule();
 		pet = new PetModule();
+		hitbox = new HitboxModule();
+		aspectRatio = new AspectRatioModule();
+		emotes = new EmoteModule();
+		saturation = new SaturationModule();
+		potionHud = new PotionHudModule();
 		deathScreen = new DeathScreenModule();
-		itemHighlight = new ItemHighlightModule();
 
 		// Чтобы добавить новую функцию, создай класс и добавь его сюда.
 		// Порядок = порядок в меню.
@@ -92,7 +106,7 @@ public final class ModuleManager {
 		MODULES.add(new CoordinatesModule());
 		MODULES.add(new KeybindHudModule());
 		MODULES.add(new ArmorHudModule());
-		MODULES.add(new PotionHudModule());
+		MODULES.add(potionHud);
 		MODULES.add(new TargetHudModule());
 		MODULES.add(fullbright);
 		MODULES.add(noHurtCam);
@@ -100,7 +114,7 @@ public final class ModuleManager {
 		MODULES.add(zoom);
 		MODULES.add(freeLook);
 		MODULES.add(handOffset);
-		MODULES.add(new HitboxModule());
+		MODULES.add(hitbox);
 		MODULES.add(damageParticles);
 		MODULES.add(new HitColorModule());
 		MODULES.add(fog);
@@ -115,9 +129,15 @@ public final class ModuleManager {
 		MODULES.add(customChat);
 		MODULES.add(new DurabilityWarningModule());
 		MODULES.add(new ServerIpModule());
-		MODULES.add(itemHighlight);
+		MODULES.add(new ItemHighlightModule());
 		MODULES.add(deathScreen);
 		MODULES.add(pet);
+		MODULES.add(aspectRatio);
+		MODULES.add(saturation);
+		MODULES.add(new HealthIndicatorModule());
+		MODULES.add(new MacroModule());
+		MODULES.add(emotes);
+		MODULES.add(new TargetEspModule());
 
 		FlyConfig cfg = FlyConfig.get();
 		for (Module m : MODULES) {
@@ -178,12 +198,28 @@ public final class ModuleManager {
 		return damageParticles;
 	}
 
-	public static PetModule pet() {
-		return pet;
+	public static PotionHudModule potionHud() {
+		return potionHud;
 	}
 
-	public static ItemHighlightModule itemHighlight() {
-		return itemHighlight;
+	public static EmoteModule emotes() {
+		return emotes;
+	}
+
+	public static AspectRatioModule aspectRatio() {
+		return aspectRatio;
+	}
+
+	public static SaturationModule saturation() {
+		return saturation;
+	}
+
+	public static HitboxModule hitbox() {
+		return hitbox;
+	}
+
+	public static PetModule pet() {
+		return pet;
 	}
 
 	public static DeathScreenModule deathScreen() {

@@ -6,6 +6,7 @@ import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Lang;
 import com.flyvisual.module.Module;
 import com.flyvisual.module.ModuleManager;
+import com.flyvisual.module.impl.MacroModule;
 import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -50,11 +51,7 @@ public class FlyMenuScreen extends Screen {
 	private static final int COL_OFF = 0xFF3A3A3E;
 
 	private Module selected;
-	/** Плавная прокрутка: pos догоняет target, поэтому список едет мягко, а не рывками. */
-	private float scrollPos;
-	private float scrollTarget;
-	private float paneScrollPos;
-	private float paneScrollTarget;
+	private int scroll;
 	private DoubleSetting dragging;
 
 	// Выбор любого цвета темы
@@ -87,6 +84,14 @@ public class FlyMenuScreen extends Screen {
 		List<Module> all = ModuleManager.all();
 		if (!all.isEmpty()) {
 			selected = all.get(0);
+			String last = FlyConfig.get().lastModule;
+			for (Module m : all) {
+				if (m.getName().equals(last)) {
+					selected = m;
+					break;
+				}
+			}
+			scroll = Math.max(0, FlyConfig.get().lastScroll);
 		}
 	}
 
@@ -165,12 +170,8 @@ public class FlyMenuScreen extends Screen {
 		return gx1() + (i % COLS) * (tileW() + GAP);
 	}
 
-	private int scroll() {
-		return Math.round(scrollPos);
-	}
-
 	private int tileY(int i) {
-		return gy1() + (i / COLS) * (TILE_H + GAP) - scroll();
+		return gy1() + (i / COLS) * (TILE_H + GAP) - scroll;
 	}
 
 	private int btnX() {
@@ -247,17 +248,7 @@ public class FlyMenuScreen extends Screen {
 	}
 
 	private int rowY(int k) {
-		return settingsTop() + k * ROW_H - Math.round(paneScrollPos);
-	}
-
-	private int maxPaneScroll() {
-		if (selected == null) return 0;
-		return Math.max(0, selected.getSettings().size() * ROW_H - (gy2() - settingsTop()));
-	}
-
-	/** Настройки с цветом (оттенком): рядом показываем образец выбранного цвета. */
-	private static boolean isHue(DoubleSetting s) {
-		return s.getName().endsWith("(hue)");
+		return settingsTop() + k * ROW_H;
 	}
 
 	@Override
@@ -352,8 +343,10 @@ public class FlyMenuScreen extends Screen {
 		if (selected != m) {
 			selected = m;
 			paneAlpha = 0.0f;
-			paneScrollPos = 0.0f;
-			paneScrollTarget = 0.0f;
+		}
+		if (!m.getName().equals(FlyConfig.get().lastModule)) {
+			FlyConfig.get().lastModule = m.getName();
+			FlyConfig.save();
 		}
 	}
 
@@ -374,12 +367,7 @@ public class FlyMenuScreen extends Screen {
 		alpha = 1.0f - inv * inv * inv;
 		scale = 0.9f + 0.1f * alpha;
 		paneAlpha += (1.0f - paneAlpha) * (1.0f - (float) Math.exp(-16.0f * dt));
-		scrollTarget = Math.max(0.0f, Math.min(scrollTarget, maxScroll()));
-		scrollPos += (scrollTarget - scrollPos) * (1.0f - (float) Math.exp(-16.0f * dt));
-		if (Math.abs(scrollTarget - scrollPos) < 0.3f) scrollPos = scrollTarget;
-		paneScrollTarget = Math.max(0.0f, Math.min(paneScrollTarget, maxPaneScroll()));
-		paneScrollPos += (paneScrollTarget - paneScrollPos) * (1.0f - (float) Math.exp(-16.0f * dt));
-		if (Math.abs(paneScrollTarget - paneScrollPos) < 0.3f) paneScrollPos = paneScrollTarget;
+		scroll = Math.max(0, Math.min(scroll, maxScroll()));
 		extra = 1.0f;
 
 		ctx.fill(0, 0, width, height, mulA(0x99000000, alpha));
@@ -490,7 +478,7 @@ public class FlyMenuScreen extends Screen {
 		if (maxScroll() > 0) {
 			int vh = viewH();
 			int barH = Math.max(12, vh * vh / contentH());
-			int barY = gy1 + (vh - barH) * scroll() / maxScroll();
+			int barY = gy1 + (vh - barH) * scroll / maxScroll();
 			rect(ctx, gx2() + 3, barY, gx2() + 5, barY + barH, 0x60FFFFFF);
 		}
 		return hoverDesc;
@@ -509,11 +497,6 @@ public class FlyMenuScreen extends Screen {
 			return;
 		}
 
-		// У модулей без настроек просто пустое серое окошко, без надписей
-		if (selected.getSettings().isEmpty()) {
-			return;
-		}
-
 		extra = paneAlpha;
 
 		text(ctx, textRenderer.trimToWidth(Lang.module(selected.getName()), PANE_W - 16), px1 + 8, gy1 + 8, Theme.accent());
@@ -528,48 +511,47 @@ public class FlyMenuScreen extends Screen {
 		}
 		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, 0x22FFFFFF);
 
+		if (selected instanceof MacroModule) {
+			drawMacroPane(ctx, mouseX, mouseY);
+			extra = 1.0f;
+			return;
+		}
+
 		List<DoubleSetting> settings = selected.getSettings();
-		scissor(ctx, px1, settingsTop() - 3, px2, gy2);
+		if (settings.isEmpty()) {
+			text(ctx, "Настроек нет, только вкл/выкл", px1 + 8, settingsTop() + 4, Theme.TEXT_DIM);
+			extra = 1.0f;
+			return;
+		}
+
+		scissor(ctx, px1, gy1, px2, gy2);
 		for (int k = 0; k < settings.size(); k++) {
 			DoubleSetting s = settings.get(k);
 			int ry = rowY(k);
-			if (ry + ROW_H <= settingsTop() - 3 || ry >= gy2) continue;
+			if (ry + ROW_H > gy2) break;
 
 			String label = Lang.setting(s.getName());
-			if (s.isButton()) {
-				boolean hover = mouseX >= px1 + 6 && mouseX < px2 - 6 && mouseY >= Math.max(ry + 2, settingsTop())
-						&& mouseY < Math.min(ry + ROW_H - 2, gy2);
-				float hv = animate(selected.getName() + "." + s.getName() + "#b", hover ? 1.0f : 0.0f, dt, 18.0f);
-				rr(ctx, px1 + 6, ry + 2, PANE_W - 12, ROW_H - 4, 5, lerp(0xFF26262B, 0xFF34343B, hv));
-				rr(ctx, px1 + 6, ry + 2, 2, ROW_H - 4, 1, Theme.accent());
-				text(ctx, label, px1 + 14, ry + 8, Theme.TEXT);
-				textRight(ctx, s.format() + "  >", px2 - 12, ry + 8, Theme.TEXT_DIM);
-			} else if (s.isToggle()) {
+			if (s.isToggle()) {
 				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
 				text(ctx, label, px1 + 8, ry + 8, Theme.TEXT);
 
 				pill(ctx, px2 - 8 - 26, ry + 6, 26, 12, on);
 			} else {
 				text(ctx, label, px1 + 8, ry + 3, Theme.TEXT);
+				textRight(ctx, s.format(), px2 - 8, ry + 3, Theme.TEXT_DIM);
 
 				int x1 = px1 + 8;
 				int x2 = px2 - 8;
 				int cy = ry + 17;
 				double frac = (s.get() - s.getMin()) / (s.getMax() - s.getMin());
 				int fx = x1 + (int) Math.round(frac * (x2 - x1));
-				if (isHue(s)) {
-					// Вместо числа показываем образец выбранного цвета
-					int swatch = 0xFF000000 | ColorUtil.hsv(s.getFloat(), 0.9f, 1.0f);
-					rr(ctx, x2 - 17, ry + 1, 17, 10, 4, 0xFFFFFFFF);
-					rr(ctx, x2 - 16, ry + 2, 15, 8, 3, swatch);
-
+				if (s.getName().equals("Color (hue)")) {
 					// Радужная дорожка: выбирай любой оттенок
 					for (int xx = x1; xx < x2; xx += 2) {
 						float hh = (xx - x1) / (float) (x2 - x1) * 360.0f;
 						rect(ctx, xx, cy - 2, Math.min(xx + 2, x2), cy + 2, 0xFF000000 | ColorUtil.hsv(hh, 0.9f, 1.0f));
 					}
 				} else {
-					textRight(ctx, s.format(), px2 - 8, ry + 3, Theme.TEXT_DIM);
 					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, COL_OFF);
 					if (fx > x1) {
 						rr(ctx, x1, cy - 2, fx - x1, 4, 2, Theme.accent());
@@ -580,13 +562,29 @@ public class FlyMenuScreen extends Screen {
 		}
 		ctx.disableScissor();
 		extra = 1.0f;
+	}
 
-		// Полоса прокрутки настроек
-		if (maxPaneScroll() > 0) {
-			int vh = gy2 - settingsTop();
-			int barH = Math.max(10, vh * vh / (settings.size() * ROW_H));
-			int barY = settingsTop() + (vh - barH) * Math.round(paneScrollPos) / maxPaneScroll();
-			rect(ctx, px2 - 3, barY, px2 - 1, barY + barH, 0x60FFFFFF);
+	private boolean overMacroButton(double mx, double my) {
+		return mx >= px1() + 8 && mx < px2() - 8 && my >= settingsTop() && my < settingsTop() + 18;
+	}
+
+	/** Вместо ползунков у макросов кнопка открытия редактора текстов. */
+	private void drawMacroPane(DrawContext ctx, int mouseX, int mouseY) {
+		int bx = px1() + 8;
+		int by = settingsTop();
+		int bw = PANE_W - 16;
+		boolean hover = overMacroButton(mouseX, mouseY);
+		rr(ctx, bx, by, bw, 18, 6, hover ? Theme.accent() : 0xFF2A2A2E);
+		String label = "Редактировать макросы";
+		text(ctx, label, bx + (bw - textRenderer.getWidth(label)) / 2, by + 5, Theme.TEXT);
+
+		List<OrderedText> lines = textRenderer.wrapLines(
+				Text.literal("Клавиши назначаются в Управление, категория FlyVisual."), PANE_W - 16);
+		for (int i = 0; i < Math.min(3, lines.size()); i++) {
+			int c = col(Theme.TEXT_DIM);
+			if (((c >>> 24) & 0xFF) >= 12) {
+				ctx.drawText(textRenderer, lines.get(i), bx, by + 26 + i * 10, c, true);
+			}
 		}
 	}
 
@@ -704,17 +702,20 @@ public class FlyMenuScreen extends Screen {
 			}
 		}
 
+		if (button == 0 && selected instanceof MacroModule && overMacroButton(mouseX, mouseY)) {
+			MinecraftClient.getInstance().setScreen(new MacroScreen(this));
+			return true;
+		}
+
 		// Настройки выбранного модуля
-		if (button == 0 && selected != null && mouseX >= px1() && mouseX < px2()
-				&& mouseY >= settingsTop() - 3 && mouseY < gy2()) {
+		if (button == 0 && selected != null && mouseX >= px1() && mouseX < px2()) {
 			List<DoubleSetting> settings = selected.getSettings();
 			for (int k = 0; k < settings.size(); k++) {
 				int ry = rowY(k);
+				if (ry + ROW_H > gy2()) break;
 				if (mouseY >= ry && mouseY < ry + ROW_H) {
 					DoubleSetting s = settings.get(k);
-					if (s.isButton()) {
-						s.press();
-					} else if (s.isToggle()) {
+					if (s.isToggle()) {
 						s.flip();
 						FlyConfig.save();
 					} else {
@@ -759,12 +760,8 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
-		if (mouseX >= px1() && mouseX < px2() && mouseY >= gy1() && mouseY < gy2()) {
-			paneScrollTarget = Math.max(0.0f, Math.min(maxPaneScroll(), paneScrollTarget - (float) amount * 28.0f));
-			return true;
-		}
 		if (mouseX >= gx1() && mouseX < gx2() + 6 && mouseY >= gy1() && mouseY < gy2()) {
-			scrollTarget = Math.max(0.0f, Math.min(maxScroll(), scrollTarget - (float) amount * 28.0f));
+			scroll = Math.max(0, Math.min(maxScroll(), scroll - (int) Math.round(amount * 16)));
 			return true;
 		}
 		return super.mouseScrolled(mouseX, mouseY, amount);
@@ -782,6 +779,8 @@ public class FlyMenuScreen extends Screen {
 	/** Закрытие с анимацией: сам экран закроется, когда меню полностью растворится. */
 	@Override
 	public void close() {
+		FlyConfig.get().lastScroll = scroll;
+		FlyConfig.save();
 		closing = true;
 	}
 }

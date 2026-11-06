@@ -4,8 +4,6 @@ import com.flyvisual.config.Theme;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
 import com.flyvisual.util.ColorUtil;
-import com.flyvisual.util.SkyRenderer;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.util.math.Vec3d;
 
 import java.awt.Color;
@@ -16,27 +14,15 @@ import java.awt.Color;
  * Подмена цвета происходит в ClientWorldMixin. Видно только тебе.
  */
 public class SkyModule extends Module {
-	private static final String[] STYLES = {"Радуга", "Аврора", "Красный закат", "Цвет темы", "Космос", "Реалистичное 3D", "Розовый рассвет", "Тропики", "Туман", "Грозовое", "Золотой час", "Лавандовое"};
+	private static final String[] STYLES = {"Радуга", "Аврора", "Красный закат", "Цвет темы", "Космос"};
 
-	private final DoubleSetting style = addChoice("Sky style", 5, STYLES);
+	private final DoubleSetting style = addChoice("Sky style", 1, STYLES);
 	private final DoubleSetting intensity = addSetting("Intensity", 100.0, 10.0, 100.0, 5.0);
 	private final DoubleSetting speed = addSetting("Sky speed", 1.0, 0.1, 4.0, 0.1);
-	private final DoubleSetting cloudAmount = addSetting("Cloud amount", 45.0, 0.0, 100.0, 5.0);
-	private final DoubleSetting cloudSpeed = addSetting("Cloud speed", 1.0, 0.0, 5.0, 0.25);
 	private final DoubleSetting tintClouds = addToggle("Tint clouds", true);
 
 	public SkyModule() {
 		super("Sky", "Smoothly animated sky colors");
-		WorldRenderEvents.AFTER_SETUP.register(context -> {
-			if (isRealistic()) {
-				SkyRenderer.render(context, cloudAmount.getFloat(), cloudSpeed.getFloat());
-			}
-		});
-	}
-
-	/** Включён режим «Реалистичное 3D»: настоящие облака и ореол солнца рисует SkyRenderer. */
-	public boolean isRealistic() {
-		return isEnabled() && style.getInt() == 5;
 	}
 
 	/** Цвет стиля в данный момент, brightness = множитель яркости. */
@@ -65,36 +51,6 @@ public class SkyModule extends Module {
 				s = 0.85f;
 				v = (float) (0.5 + 0.35 * wave);
 			}
-			case 6 -> {
-				h = (float) (320.0 + 40.0 * wave);
-				s = (float) (0.35 + 0.25 * wave);
-				v = 0.95f;
-			}
-			case 7 -> {
-				h = (float) (170.0 + 25.0 * wave);
-				s = 0.6f;
-				v = 0.9f;
-			}
-			case 8 -> {
-				h = 210.0f;
-				s = 0.08f;
-				v = (float) (0.7 + 0.08 * wave);
-			}
-			case 9 -> {
-				h = (float) (240.0 + 20.0 * wave);
-				s = 0.35f;
-				v = (float) (0.2 + 0.1 * wave);
-			}
-			case 10 -> {
-				h = (float) (30.0 + 15.0 * wave);
-				s = 0.75f;
-				v = 0.95f;
-			}
-			case 11 -> {
-				h = (float) (265.0 + 25.0 * wave);
-				s = 0.4f;
-				v = 0.85f;
-			}
 			case 4 -> {
 				h = (float) (230.0 + 50.0 * wave);
 				s = 0.8f;
@@ -120,12 +76,10 @@ public class SkyModule extends Module {
 	}
 
 	public Vec3d applySky(Vec3d vanilla) {
-		if (style.getInt() == 5) return vanilla;
 		return mix(vanilla, custom(1.0));
 	}
 
 	public Vec3d applyClouds(Vec3d vanilla) {
-		if (style.getInt() == 5) return vanilla;
 		return tintClouds.getBool() ? mix(vanilla, custom(0.85)) : vanilla;
 	}
 }

@@ -14,10 +14,7 @@ import java.util.Random;
  * Всё рисуется обычными прямоугольниками и кусками одной текстуры, поэтому почти не грузит FPS.
  */
 public class TitleBackground {
-	private static final Identifier TEXTURE = new Identifier("flyvisual", "textures/gui/title_castle.png");
-	private static final Identifier PANEL = new Identifier("flyvisual", "textures/gui/title_panel.png");
-	public static final int PW = 1517;
-	public static final int PH = 818;
+	private static final Identifier TEXTURE = new Identifier("flyvisual", "textures/gui/title_clouds.png");
 	private static final int TW = 1920;
 	private static final int TH = 1080;
 
@@ -50,7 +47,7 @@ public class TitleBackground {
 
 	private void setup(int w, int h) {
 		leaves = new Leaf[LEAF_COUNT];
-		int[] palette = {0xE53935, 0xFF5A52, 0xB71C1C, 0xFF7B72, 0xD32F2F};
+		int[] palette = {0x9E9E9E, 0xBDBDBD, 0x757575, 0xE0E0E0, 0x616161};
 		for (int i = 0; i < leaves.length; i++) {
 			Leaf l = new Leaf();
 			l.x = random.nextFloat() * w;
@@ -75,7 +72,7 @@ public class TitleBackground {
 			m.speed = 3.0f + random.nextFloat() * 8.0f;
 			m.phase = random.nextFloat() * 6.28f;
 			m.drift = (random.nextFloat() - 0.5f) * 6.0f;
-			m.rgb = random.nextInt(3) == 0 ? 0xFFFFFF : 0xFF8A80;
+			m.rgb = random.nextInt(3) == 0 ? 0xFFFFFF : 0xB0BEC5;
 			motes[i] = m;
 		}
 	}
@@ -114,7 +111,16 @@ public class TitleBackground {
 		ms.push();
 		ms.translate((w - dw) / 2.0f + panX, (h - dh) / 2.0f + panY, 0.0f);
 		ms.scale(s, s, 1.0f);
-		drawImage(ctx, t, cfg.titleWave);
+		drawImage(ctx, t, false);
+		// Второй слой тех же облаков медленно плывёт поверх: картинка "дышит"
+		ctx.setShaderColor(1.0f, 1.0f, 1.0f, 0.30f);
+		ms.push();
+		ms.translate(TW / 2.0f + (float) Math.sin(t * 0.05f) * 70.0f, TH / 2.0f - 16.0f + (float) Math.cos(t * 0.04f) * 14.0f, 0.0f);
+		ms.scale(1.2f, 1.2f, 1.0f);
+		ms.translate(-TW / 2.0f, -TH / 2.0f, 0.0f);
+		ctx.drawTexture(TEXTURE, 0, 0, 0.0f, 0.0f, TW, TH, TW, TH);
+		ms.pop();
+		ctx.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
 		ms.pop();
 
 		// Затемнение по краям, чтобы кнопки и логотип читались
@@ -127,16 +133,6 @@ public class TitleBackground {
 			drawMist(ctx, w, h, t);
 			drawParticles(ctx, w, h, t, dt);
 		}
-	}
-
-	/** Готовая картинка меню (рамка, замок, кнопки без надписей) в прямоугольнике x,y,w,h. */
-	public void drawPanel(DrawContext ctx, int x, int y, int w, int h) {
-		MatrixStack ms = ctx.getMatrices();
-		ms.push();
-		ms.translate(x, y, 0.0f);
-		ms.scale(w / (float) PW, h / (float) PH, 1.0f);
-		ctx.drawTexture(PANEL, 0, 0, 0.0f, 0.0f, PW, PH, PW, PH);
-		ms.pop();
 	}
 
 	private static float clamp(float v, float min, float max) {
@@ -198,7 +194,7 @@ public class TitleBackground {
 			ms.push();
 			ms.translate(w * pos[i], -30.0f, 0.0f);
 			ms.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-32.0f));
-			beam(ctx, widths[i] * (0.9f + 0.1f * pulse), h * 1.5f, 0xFFD6D0, alpha);
+			beam(ctx, widths[i] * (0.9f + 0.1f * pulse), h * 1.5f, 0xD0D6DC, alpha);
 			ms.pop();
 		}
 	}
