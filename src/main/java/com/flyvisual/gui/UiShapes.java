@@ -26,25 +26,38 @@ public final class UiShapes {
 		return (a << 24) | (r << 16) | (g << 8) | b;
 	}
 
-	/** Закруглённый прямоугольник, рисуется построчно. */
+	/** Сдвиг края от угла для строки row (0 = самая верхняя строка угла) у скругления радиуса r. */
+	private static int cornerInset(int row, int r) {
+		double dy = r - (row + 0.5);
+		double dx = Math.sqrt(Math.max(0.0, (double) r * r - dy * dy));
+		return (int) Math.round(r - dx);
+	}
+
+	/**
+	 * Закруглённый прямоугольник. Середина рисуется одним куском, а в углах строки с одинаковым
+	 * сдвигом склеиваются, поэтому вместо сотен вызовов fill получается около десятка (меню не тормозит).
+	 */
 	public static void roundRect(DrawContext ctx, int x, int y, int w, int h, int radius, int argb) {
 		if (((argb >>> 24) & 0xFF) == 0 || w <= 0 || h <= 0) return;
 		int r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
-
-		// Середина без скруглений рисуется одним прямоугольником (быстрее, меньше вызовов)
-		int midTop = r;
-		int midBottom = h - r;
-		if (midBottom > midTop) {
-			ctx.fill(x, y + midTop, x + w, y + midBottom, argb);
+		if (r == 0) {
+			ctx.fill(x, y, x + w, y + h, argb);
+			return;
 		}
-		for (int row = 0; row < r; row++) {
-			double dy = r - (row + 0.5);
-			double dx = Math.sqrt(Math.max(0.0, (double) r * r - dy * dy));
-			int inset = (int) Math.round(r - dx);
-			ctx.fill(x + inset, y + row, x + w - inset, y + row + 1, argb);
-			int rowB = h - 1 - row;
-			if (rowB >= midTop && rowB != row) {
-				ctx.fill(x + inset, y + rowB, x + w - inset, y + rowB + 1, argb);
+
+		if (h - 2 * r > 0) {
+			ctx.fill(x, y + r, x + w, y + h - r, argb);
+		}
+
+		int runStart = 0;
+		int runInset = cornerInset(0, r);
+		for (int row = 1; row <= r; row++) {
+			int inset = row < r ? cornerInset(row, r) : -1;
+			if (inset != runInset) {
+				ctx.fill(x + runInset, y + runStart, x + w - runInset, y + row, argb);
+				ctx.fill(x + runInset, y + h - row, x + w - runInset, y + h - runStart, argb);
+				runStart = row;
+				runInset = inset;
 			}
 		}
 	}

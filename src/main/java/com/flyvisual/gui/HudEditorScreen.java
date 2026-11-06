@@ -21,12 +21,8 @@ public class HudEditorScreen extends Screen {
 	private int dragOffsetX;
 	private int dragOffsetY;
 
-	/** Куда вернуться после меню FlyVisual (главное меню или null в игре). */
-	private final Screen parent;
-
-	public HudEditorScreen(Screen parent) {
+	public HudEditorScreen() {
 		super(Text.literal("FlyVisual HUD Editor"));
-		this.parent = parent;
 	}
 
 	@Override
@@ -109,6 +105,6 @@ public class HudEditorScreen extends Screen {
 
 	@Override
 	public void close() {
-		MinecraftClient.getInstance().setScreen(new FlyMenuScreen(parent));
+		MinecraftClient.getInstance().setScreen(new FlyMenuScreen());
 	}
 }
