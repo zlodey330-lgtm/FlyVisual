@@ -1,6 +1,6 @@
 package com.flyvisual.module.impl;
 
-import com.flyvisual.gui.FlyDeathScreen;
+import com.flyvisual.module.DeathMenuScreen;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
 import net.minecraft.client.MinecraftClient;
@@ -55,8 +55,8 @@ public class DeathScreenModule extends Module {
 		return true;
 	}
 
-	public FlyDeathScreen createScreen() {
-		return new FlyDeathScreen(this);
+	public DeathMenuScreen createScreen() {
+		return new DeathMenuScreen(this);
 	}
 
 	@Override

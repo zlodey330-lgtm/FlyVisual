@@ -1,7 +1,7 @@
 package com.flyvisual.module.impl;
 
 import com.flyvisual.config.FlyConfig;
-import com.flyvisual.gui.ItemPickerScreen;
+import com.flyvisual.module.ItemSearchScreen;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
 import com.flyvisual.util.ColorUtil;
@@ -54,7 +54,7 @@ public class ItemHighlightModule extends Module implements com.flyvisual.module.
 	private final DoubleSetting beamWidth = addSetting("Beam width", 0.3, 0.05, 1.0, 0.05);
 	private final DoubleSetting range = addSetting("Range", 48.0, 8.0, 128.0, 8.0);
 	private final DoubleSetting pick = addButton("Choose items", () -> String.valueOf(picked.size()),
-			() -> MinecraftClient.getInstance().setScreen(new ItemPickerScreen(MinecraftClient.getInstance().currentScreen, this)));
+			() -> MinecraftClient.getInstance().setScreen(new ItemSearchScreen(MinecraftClient.getInstance().currentScreen, this)));
 
 	public ItemHighlightModule() {
 		super("Item Highlight", "Highlights valuable dropped items");

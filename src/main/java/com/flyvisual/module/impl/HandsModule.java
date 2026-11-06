@@ -1,7 +1,7 @@
 package com.flyvisual.module.impl;
 
 import com.flyvisual.config.FlyConfig;
-import com.flyvisual.gui.ItemPickerScreen;
+import com.flyvisual.module.ItemSearchScreen;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.ItemSelection;
 import com.flyvisual.module.Module;
@@ -45,7 +45,7 @@ public class HandsModule extends Module implements ItemSelection {
 	private final DoubleSetting rainbow = addToggle("Rainbow", false);
 	private final DoubleSetting size = addSetting("Size", 1.0, 0.5, 2.0, 0.1);
 	private final DoubleSetting pick = addButton("Choose items", () -> picked.isEmpty() ? "Все" : String.valueOf(picked.size()),
-			() -> MinecraftClient.getInstance().setScreen(new ItemPickerScreen(MinecraftClient.getInstance().currentScreen, this)));
+			() -> MinecraftClient.getInstance().setScreen(new ItemSearchScreen(MinecraftClient.getInstance().currentScreen, this)));
 
 	private final Draw3d draw = new Draw3d(true);
 
