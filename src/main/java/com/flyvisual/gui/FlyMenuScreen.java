@@ -79,8 +79,16 @@ public class FlyMenuScreen extends Screen {
 
 	private final Map<String, Float> anims = new HashMap<>();
 
+	/** Экран, на который вернёмся при закрытии (главное меню или null в игре). */
+	private final Screen parent;
+
 	public FlyMenuScreen() {
+		this(null);
+	}
+
+	public FlyMenuScreen(Screen parent) {
 		super(Text.literal("FlyVisual"));
+		this.parent = parent;
 		List<Module> all = ModuleManager.all();
 		if (!all.isEmpty()) {
 			selected = all.get(0);
@@ -360,7 +368,8 @@ public class FlyMenuScreen extends Screen {
 
 		open = clamp01(open + (closing ? -dt : dt) / OPEN_TIME);
 		if (closing && open <= 0.0f) {
-			super.close();
+			// Возвращаемся на экран, откуда открыли (в главном меню это наше главное меню, а не ванильное)
+			MinecraftClient.getInstance().setScreen(parent);
 			return;
 		}
 		float inv = 1.0f - open;
@@ -680,7 +689,7 @@ public class FlyMenuScreen extends Screen {
 			int bx = btnX();
 			int by = btnY();
 			if (mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H) {
-				MinecraftClient.getInstance().setScreen(new HudEditorScreen());
+				MinecraftClient.getInstance().setScreen(new HudEditorScreen(parent));
 				return true;
 			}
 		}

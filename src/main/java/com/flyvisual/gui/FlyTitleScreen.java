@@ -242,7 +242,7 @@ public class FlyTitleScreen extends Screen {
 					? new MultiplayerScreen(this)
 					: new MultiplayerWarningScreen(this));
 			case 2 -> mc.setScreen(new ModsScreen(this));
-			case 3 -> mc.setScreen(new FlyMenuScreen());
+			case 3 -> mc.setScreen(new FlyMenuScreen(this));
 			case 4 -> mc.setScreen(new OptionsScreen(this, mc.options));
 			case 5 -> mc.scheduleStop();
 			default -> {
