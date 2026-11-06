@@ -12,48 +12,31 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
 /**
- * Свой цвет хитбоксов (F3+B). Основную рамку перекрашивает EntityRenderDispatcherMixin.
- * Если подмена в игре не сработала, цветную рамку рисует сам модуль поверх ванильной
- * (только когда F3+B включён). Через стены ничего не рисуется.
+ * Свои хитбоксы с выбором цвета (вместо ванильных F3+B).
+ * Рисуются только на твоей стороне и скрыты за блоками, как обычные линии, сервер ничего не узнаёт.
  */
 public class HitboxModule extends Module {
 	private final DoubleSetting hue = addSetting("Color (hue)", 0.0, 0.0, 355.0, 5.0);
-	private final DoubleSetting rainbow = addToggle("Rainbow", false);
-
-	/** Время последнего вызова подмены из миксина. Если он свежий, своя рамка не нужна. */
-	private static volatile long mixinNanos;
+	private final DoubleSetting brightness = addSetting("Brightness", 100.0, 30.0, 100.0, 5.0);
+	private final DoubleSetting opacity = addSetting("Opacity", 100.0, 20.0, 100.0, 10.0);
+	private final DoubleSetting range = addSetting("Range", 48.0, 8.0, 128.0, 8.0);
+	private final DoubleSetting playersOnly = addToggle("Players only", true);
 
 	public HitboxModule() {
-		super("Hitboxes", "Custom hitbox color (F3+B)");
+		super("Hitboxes", "Colored hitboxes of entities");
 		WorldRenderEvents.AFTER_ENTITIES.register(this::render);
-	}
-
-	public static void markMixinWorked() {
-		mixinNanos = System.nanoTime();
-	}
-
-	private int rgb() {
-		float h = rainbow.getBool() ? (float) ((System.nanoTime() / 1.0e9 * 60.0) % 360.0) : hue.getFloat();
-		return ColorUtil.hsv(h, 0.9f, 1.0f);
-	}
-
-	/** Цвет рамки: r, g, b, a в диапазоне 0..1. */
-	public float[] color() {
-		int rgb = rgb();
-		return new float[]{ColorUtil.red(rgb), ColorUtil.green(rgb), ColorUtil.blue(rgb), 1.0f};
 	}
 
 	private void render(WorldRenderContext context) {
 		if (!isEnabled()) return;
+
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc.player == null || context.world() == null) return;
-		if (!mc.getEntityRenderDispatcher().shouldRenderHitboxes()) return;
-		// Подмена цвета в миксине работает, вторая рамка не нужна
-		if (System.nanoTime() - mixinNanos < 500_000_000L) return;
 
 		VertexConsumerProvider consumers = context.consumers();
 		MatrixStack matrices = context.matrixStack();
@@ -62,14 +45,25 @@ public class HitboxModule extends Module {
 		VertexConsumer lines = consumers.getBuffer(RenderLayer.getLines());
 		Vec3d cam = context.camera().getPos();
 		float tickDelta = context.tickDelta();
-		float[] c = color();
 
-		for (Entity e : context.world().getEntities()) {
-			if (e == mc.player && mc.options.getPerspective().isFirstPerson()) continue;
-			if (e.squaredDistanceTo(cam) > 96.0 * 96.0) continue;
-			Vec3d shift = e.getLerpedPos(tickDelta).subtract(e.getPos()).subtract(cam);
-			Box box = e.getBoundingBox().offset(shift).expand(0.004);
-			WorldRenderer.drawBox(matrices, lines, box, c[0], c[1], c[2], c[3]);
+		int rgb = ColorUtil.hsv(hue.getFloat(), 0.85f, brightness.getFloat() / 100.0f);
+		float r = ColorUtil.red(rgb);
+		float g = ColorUtil.green(rgb);
+		float b = ColorUtil.blue(rgb);
+		float a = opacity.getFloat() / 100.0f;
+		double maxDistSq = range.get() * range.get();
+
+		for (Entity entity : context.world().getEntities()) {
+			if (entity == mc.player || entity.isInvisible()) continue;
+			if (playersOnly.getBool() && !(entity instanceof PlayerEntity)) continue;
+			if (entity.squaredDistanceTo(cam) > maxDistSq) continue;
+
+			// Плавная позиция между тиками и сдвиг в координаты камеры
+			Vec3d lerped = entity.getLerpedPos(tickDelta);
+			Vec3d shift = lerped.subtract(entity.getPos()).subtract(cam);
+			Box box = entity.getBoundingBox().offset(shift);
+
+			WorldRenderer.drawBox(matrices, lines, box, r, g, b, a);
 		}
 	}
 }

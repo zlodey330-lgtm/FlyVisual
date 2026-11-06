@@ -1,5 +1,6 @@
 package com.flyvisual.util;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
@@ -12,6 +13,16 @@ public final class ParticleFx {
 	};
 
 	private ParticleFx() {
+	}
+
+	/**
+	 * Создаёт частицу напрямую в менеджере частиц, в обход настройки Minecraft «Частицы» (все / меньше / минимум).
+	 * Через world.addParticle при настройке «минимум» наши частицы просто не появлялись.
+	 */
+	public static void spawn(ParticleEffect effect, double x, double y, double z, double vx, double vy, double vz) {
+		MinecraftClient mc = MinecraftClient.getInstance();
+		if (mc == null || mc.particleManager == null) return;
+		mc.particleManager.addParticle(effect, x, y, z, vx, vy, vz);
 	}
 
 	/** index из NAMES; rgb и size используются только для цветной пыли. */

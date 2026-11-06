@@ -77,4 +77,61 @@ public final class Shape3D {
 				{x - sx * w, y - t, z - sz * w}
 		};
 	}
+
+	/**
+	 * Октаэдр (бриллиант/игла): вершины на концах трёх осей A, B, C от центра. Если одна ось
+	 * длинная, а две другие короткие, получается игла.
+	 */
+	public static void octa(VertexConsumer vc, Matrix4f m, double cx, double cy, double cz,
+							double[] a, double[] b, double[] c, int rgb, float alpha) {
+		double[][] v = new double[6][];
+		double[][] ax = {a, b, c};
+		for (int i = 0; i < 3; i++) {
+			v[i * 2] = new double[]{cx + ax[i][0], cy + ax[i][1], cz + ax[i][2]};
+			v[i * 2 + 1] = new double[]{cx - ax[i][0], cy - ax[i][1], cz - ax[i][2]};
+		}
+		for (int i = 0; i < 2; i++) {
+			for (int j = 2; j < 4; j++) {
+				for (int k = 4; k < 6; k++) {
+					quad(vc, m, v[i], v[j], v[k], v[k], rgb, alpha, alpha, alpha, alpha);
+				}
+			}
+		}
+	}
+
+	/** Бриллиант: октаэдр с равными осями по вертикали и горизонтали, повёрнутый на yaw. */
+	public static void diamond(VertexConsumer vc, Matrix4f m, double cx, double cy, double cz,
+							   double size, double yaw, int rgb, float alpha) {
+		double cos = Math.cos(yaw) * size;
+		double sin = Math.sin(yaw) * size;
+		octa(vc, m, cx, cy, cz, new double[]{cos, 0.0, sin}, new double[]{0.0, size * 1.5, 0.0},
+				new double[]{-sin, 0.0, cos}, rgb, alpha);
+	}
+
+	/** Игла длиной len вдоль направления (dx, dy, dz), толщиной thick. */
+	public static void needle(VertexConsumer vc, Matrix4f m, double cx, double cy, double cz,
+							  double dx, double dy, double dz, double len, double thick, int rgb, float alpha) {
+		double l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+		if (l < 1.0e-6) return;
+		dx /= l;
+		dy /= l;
+		dz /= l;
+		// Любой вектор, перпендикулярный направлению
+		double px = -dz;
+		double pz = dx;
+		double pl = Math.sqrt(px * px + pz * pz);
+		if (pl < 1.0e-6) {
+			px = 1.0;
+			pz = 0.0;
+			pl = 1.0;
+		}
+		px /= pl;
+		pz /= pl;
+		// Второй перпендикуляр = направление x первый
+		double qx = dy * pz;
+		double qy = dz * px - dx * pz;
+		double qz = -dy * px;
+		octa(vc, m, cx, cy, cz, new double[]{dx * len, dy * len, dz * len},
+				new double[]{px * thick, 0.0, pz * thick}, new double[]{qx * thick, qy * thick, qz * thick}, rgb, alpha);
+	}
 }

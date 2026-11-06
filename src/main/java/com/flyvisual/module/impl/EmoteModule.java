@@ -4,18 +4,29 @@ import com.flyvisual.gui.EmoteScreen;
 import com.flyvisual.hud.Notifications;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
+import com.flyvisual.util.Shape3D;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.model.ModelPart;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.option.Perspective;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix4f;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 
 /**
  * Эмоции: клавиша открывает меню, выбранная эмоция проигрывается на твоей модели.
- * Камера сама переходит на вид сзади (F5) и после конца эмоции возвращается в первое лицо.
+ * Камера сама переходит на вид спереди (видно своё лицо) и после конца эмоции возвращается в первое лицо.
  * Каждая эмоция конечная. Видно только тебе: другие игроки анимацию не получают.
  * Позы накладываются в PlayerEntityModelMixin.
  */
@@ -42,6 +53,7 @@ public class EmoteModule extends Module {
 
 	public EmoteModule() {
 		super("Emotes", "Emotes menu: Six Seven, dance and more");
+		WorldRenderEvents.AFTER_ENTITIES.register(this::renderDigits);
 	}
 
 	@Override
@@ -72,7 +84,7 @@ public class EmoteModule extends Module {
 		Perspective current = client.options.getPerspective();
 		if (autoThird.getBool() && current == Perspective.FIRST_PERSON) {
 			savedPerspective = current;
-			client.options.setPerspective(Perspective.THIRD_PERSON_BACK);
+			client.options.setPerspective(Perspective.THIRD_PERSON_FRONT);
 		} else {
 			savedPerspective = null;
 		}
@@ -115,6 +127,81 @@ public class EmoteModule extends Module {
 			boolean cancel = cancelOnSneak.getBool() && client.player.isSneaking();
 			if (over || cancel) {
 				stop();
+			}
+		}
+	}
+
+	// Цифры 6 и 7 в руках (сетка 3 x 5, единица = пиксель)
+	private static final String[] SIX = {"111", "100", "111", "101", "111"};
+	private static final String[] SEVEN = {"111", "001", "010", "010", "010"};
+
+	/** Тангаж руки в эмоции «Сикс сэвен» (повторяет pose в apply). */
+	private float armPitch(boolean right, float t) {
+		float a = (float) Math.sin(t * (float) (Math.PI * 2.0) * 1.7f);
+		return -1.45f + (right ? 0.55f : -0.55f) * a;
+	}
+
+	/** Рисует светящиеся цифры 6 (в правой руке) и 7 (в левой) над кистями во время эмоции «Сикс сэвен». */
+	private void renderDigits(WorldRenderContext context) {
+		if (!isEnabled() || index != 0) return;
+		MinecraftClient client = mc();
+		PlayerEntity p = client.player;
+		if (p == null || context.world() == null) return;
+		// От первого лица цифр не видно, не тратим время
+		if (client.options.getPerspective().isFirstPerson()) return;
+
+		VertexConsumerProvider consumers = context.consumers();
+		MatrixStack matrices = context.matrixStack();
+		if (consumers == null || matrices == null) return;
+		VertexConsumer vc = consumers.getBuffer(RenderLayer.getLightning());
+		Matrix4f m = matrices.peek().getPositionMatrix();
+		Vec3d cam = context.camera().getPos();
+		float td = context.tickDelta();
+
+		float elapsed = (System.nanoTime() - startNanos) / 1.0e9f;
+		float t = elapsed * speed.getFloat();
+		float dur = DURATIONS[0];
+		float fade = Math.max(0.0f, Math.min(1.0f, Math.min(t / 0.35f, (dur - t) / 0.35f)));
+		if (fade <= 0.01f) return;
+
+		Vec3d base = p.getLerpedPos(td).subtract(cam);
+		double bodyYaw = Math.toRadians(MathHelper.lerpAngleDegrees(td, p.prevBodyYaw, p.bodyYaw));
+		// Вправо от игрока и вперёд (yaw 0 смотрит на +Z)
+		double rx = -Math.cos(bodyYaw);
+		double rz = -Math.sin(bodyYaw);
+		double fx = -Math.sin(bodyYaw);
+		double fz = Math.cos(bodyYaw);
+		// Вправо/вверх относительно камеры, чтобы цифры всегда были читаемыми
+		double camYaw = Math.toRadians(context.camera().getYaw());
+		double cr_x = -Math.cos(camYaw);
+		double cr_z = -Math.sin(camYaw);
+
+		double shoulderY = p.getHeight() * 0.78;
+		double armLen = 0.62;
+		int rgbA = 0xFFFFFF;
+		for (int side = 0; side < 2; side++) {
+			boolean right = side == 0;
+			float pitch = armPitch(right, t);
+			double forward = -Math.sin(pitch) * armLen;
+			double down = Math.cos(pitch) * armLen;
+			double sideOff = (right ? 0.32 : -0.32);
+			double hx = base.x + rx * sideOff + fx * forward;
+			double hy = base.y + shoulderY - down + 0.22;
+			double hz = base.z + rz * sideOff + fz * forward;
+			String[] glyph = right ? SIX : SEVEN;
+			int color = right ? 0xFF5555 : 0x55AAFF;
+			double px = 0.045;
+			for (int row = 0; row < 5; row++) {
+				for (int col = 0; col < 3; col++) {
+					if (glyph[row].charAt(col) != '1') continue;
+					double u = (col - 1) * px * 2.0;
+					double v = (2 - row) * px * 2.0;
+					double x = hx + cr_x * u;
+					double y = hy + v;
+					double z = hz + cr_z * u;
+					Shape3D.cube(vc, m, x, y, z, px * 0.95, 0.0, color, 0.95f * fade);
+					Shape3D.cube(vc, m, x, y, z, px * 1.9, 0.0, color, 0.14f * fade);
+				}
 			}
 		}
 	}

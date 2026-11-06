@@ -9,8 +9,8 @@ import net.minecraft.client.render.VertexFormats;
 import org.joml.Matrix4f;
 
 /**
- * Простое рисование закрашенных кубов и лучей в мире (без текстур и освещения).
- * Использование: new Draw3d(true), несколько вызовов cube/beam, затем flush().
+ * Простое рисование закрашенных кубов, лучей и произвольных четырёхугольников в мире
+ * (без текстур и освещения). Использование: new Draw3d(true), несколько вызовов, затем flush().
  * Если ничего не нарисовано, flush() ничего не делает.
  */
 public final class Draw3d {
@@ -53,6 +53,11 @@ public final class Draw3d {
 		buffer().vertex(m, x, y, z).color(r, g, b, a).next();
 	}
 
+	/** Одна вершина с готовым цветом (для заранее собранных моделей). */
+	public void vertex(Matrix4f m, float x, float y, float z, float r, float g, float b, float a) {
+		v(m, x, y, z, r, g, b, a);
+	}
+
 	/** Куб от (x0,y0,z0) до (x1,y1,z1). Грани слегка затемнены по сторонам, чтобы был виден объём. */
 	public void cube(Matrix4f m, float x0, float y0, float z0, float x1, float y1, float z1,
 					 float r, float g, float b, float a) {
@@ -61,32 +66,31 @@ public final class Draw3d {
 		float side2 = 0.72f;
 		float bottom = 0.58f;
 
-		// верх
 		v(m, x0, y1, z0, r * top, g * top, b * top, a);
 		v(m, x0, y1, z1, r * top, g * top, b * top, a);
 		v(m, x1, y1, z1, r * top, g * top, b * top, a);
 		v(m, x1, y1, z0, r * top, g * top, b * top, a);
-		// низ
+
 		v(m, x0, y0, z0, r * bottom, g * bottom, b * bottom, a);
 		v(m, x1, y0, z0, r * bottom, g * bottom, b * bottom, a);
 		v(m, x1, y0, z1, r * bottom, g * bottom, b * bottom, a);
 		v(m, x0, y0, z1, r * bottom, g * bottom, b * bottom, a);
-		// перед (+Z)
+
 		v(m, x0, y0, z1, r * side1, g * side1, b * side1, a);
 		v(m, x1, y0, z1, r * side1, g * side1, b * side1, a);
 		v(m, x1, y1, z1, r * side1, g * side1, b * side1, a);
 		v(m, x0, y1, z1, r * side1, g * side1, b * side1, a);
-		// зад (-Z)
+
 		v(m, x1, y0, z0, r * side1, g * side1, b * side1, a);
 		v(m, x0, y0, z0, r * side1, g * side1, b * side1, a);
 		v(m, x0, y1, z0, r * side1, g * side1, b * side1, a);
 		v(m, x1, y1, z0, r * side1, g * side1, b * side1, a);
-		// право (+X)
+
 		v(m, x1, y0, z1, r * side2, g * side2, b * side2, a);
 		v(m, x1, y0, z0, r * side2, g * side2, b * side2, a);
 		v(m, x1, y1, z0, r * side2, g * side2, b * side2, a);
 		v(m, x1, y1, z1, r * side2, g * side2, b * side2, a);
-		// лево (-X)
+
 		v(m, x0, y0, z0, r * side2, g * side2, b * side2, a);
 		v(m, x0, y0, z1, r * side2, g * side2, b * side2, a);
 		v(m, x0, y1, z1, r * side2, g * side2, b * side2, a);

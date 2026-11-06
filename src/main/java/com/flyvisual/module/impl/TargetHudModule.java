@@ -10,12 +10,8 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.client.util.math.MatrixStack;
 
 import java.util.Locale;
 
@@ -25,25 +21,22 @@ import java.util.Locale;
  * а за ней тянется светлый "след" потерянного здоровья.
  */
 public class TargetHudModule extends HudModule {
-	private static final int W = 150;
-	private static final int BASE_H = 38;
-	private static final int CELL = 22;
-	private static final EquipmentSlot[] ARMOR_SLOTS = {
-			EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
-	};
+	private static final int W = 140;
+	private static final int H = 38;
 
+	private final DoubleSetting holdTime = addSetting("Hold time (s)", 3.0, 0.0, 10.0, 0.5);
 	private final DoubleSetting playersOnly = addToggle("Players only", false);
 	private final DoubleSetting showArmor = addToggle("Show armor", true);
-	private final DoubleSetting showBar = addToggle("Show durability bar", true);
-	private final DoubleSetting showPercent = addToggle("Show durability %", true);
 
 	private LivingEntity target;
+	private long lastSeen;
 	private long lastNanos = System.nanoTime();
 
 	// Последние показанные данные (чтобы панель красиво гасла после потери цели)
 	private String shownName = "";
 	private float shownHp;
-	private final ItemStack[] shownStacks = {ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY};
+	private float shownDist;
+	private int shownArmor;
 	private float shownFrac = 1.0f;
 	private float trailFrac = 1.0f;
 	private float alpha;
@@ -64,17 +57,19 @@ public class TargetHudModule extends HudModule {
 		float dt = Math.min((nowNanos - lastNanos) / 1.0e9f, 0.05f);
 		lastNanos = nowNanos;
 
+		long now = System.currentTimeMillis();
 		Entity looked = mc.targetedEntity;
-		// Показываем только пока смотришь на моба/игрока. Отвёл прицел: худ плавно скрывается.
-		if (looked instanceof LivingEntity living && living != mc.player && !living.isRemoved()
-				&& (!playersOnly.getBool() || living instanceof PlayerEntity)
-				&& !(living.isInvisible() && !hasArmor(living))) {
+		if (looked instanceof LivingEntity living && living != mc.player
+				&& (!playersOnly.getBool() || living instanceof PlayerEntity)) {
 			target = living;
-		} else {
+			lastSeen = now;
+		}
+		if (target != null && (target.isRemoved() || now - lastSeen > holdTime.get() * 1000.0)) {
 			target = null;
 		}
 
 		boxW = W;
+		boxH = H;
 
 		boolean preview = mc.currentScreen instanceof HudEditorScreen;
 		boolean visible = target != null || preview;
@@ -83,9 +78,8 @@ public class TargetHudModule extends HudModule {
 			float max = Math.max(1.0f, target.getMaxHealth());
 			shownName = target.getName().getString();
 			shownHp = target.getHealth();
-			for (int i = 0; i < 4; i++) {
-				shownStacks[i] = target.getEquippedStack(ARMOR_SLOTS[i]);
-			}
+			shownDist = mc.player.distanceTo(target);
+			shownArmor = target.getArmor();
 			float frac = UiShapes.clamp01(shownHp / max);
 			if (target != lastTarget || alpha < 0.05f) {
 				shownFrac = frac;
@@ -102,10 +96,8 @@ public class TargetHudModule extends HudModule {
 		} else if (preview) {
 			shownName = "Цель (пример)";
 			shownHp = 14.0f;
-			shownStacks[0] = damaged(Items.NETHERITE_HELMET, 0.12);
-			shownStacks[1] = damaged(Items.DIAMOND_CHESTPLATE, 0.45);
-			shownStacks[2] = ItemStack.EMPTY;
-			shownStacks[3] = damaged(Items.IRON_BOOTS, 0.8);
+			shownDist = 3.0f;
+			shownArmor = 12;
 			shownFrac = 0.7f;
 			trailFrac = 0.85f;
 			lastTarget = null;
@@ -117,19 +109,15 @@ public class TargetHudModule extends HudModule {
 			return;
 		}
 
-		int armorBlock = armorBlockHeight();
-		int h = BASE_H + (showArmor.getBool() ? armorBlock + 4 : 0);
-		boxH = h;
-
 		// Лёгкий подъём при появлении
 		int oy = Math.round((1.0f - alpha) * 5.0f);
 		int px = x;
 		int py = y + oy;
 
 		int accent = Theme.accent();
-		UiShapes.roundRect(ctx, px, py, W, h, 7, UiShapes.mulA(bg(), alpha));
+		UiShapes.roundRect(ctx, px, py, W, H, 7, UiShapes.mulA(bg() | 0x000000, alpha));
 		if (showAccentBar()) {
-			UiShapes.roundRect(ctx, px + 4, py + 6, 2, h - 12, 1, UiShapes.mulA(accent, alpha));
+			UiShapes.roundRect(ctx, px + 4, py + 6, 2, H - 12, 1, UiShapes.mulA(accent, alpha));
 		}
 
 		int textX = px + (showAccentBar() ? 11 : 8);
@@ -154,75 +142,13 @@ public class TargetHudModule extends HudModule {
 			UiShapes.roundRect(ctx, bx, by, fillW, bh, 3, UiShapes.mulA(barColor, alpha));
 		}
 
+		StringBuilder info = new StringBuilder(String.format(Locale.ROOT, "%.1f ХП  %.1f м", shownHp, shownDist));
+		if (showArmor.getBool()) {
+			info.append("  Бр ").append(shownArmor);
+		}
 		int infoColor = UiShapes.mulA(Theme.TEXT_DIM, alpha);
 		if (((infoColor >>> 24) & 0xFF) >= 12) {
-			ctx.drawText(tr, String.format(Locale.ROOT, "%.1f ХП", shownHp), textX, py + 27, infoColor, true);
-		}
-
-		if (showArmor.getBool()) {
-			drawArmor(ctx, tr, textX, py + 38, alpha);
-		}
-	}
-
-	private static ItemStack damaged(net.minecraft.item.Item item, double fraction) {
-		ItemStack stack = new ItemStack(item);
-		stack.setDamage((int) (stack.getMaxDamage() * fraction));
-		return stack;
-	}
-
-	private static boolean hasArmor(LivingEntity entity) {
-		for (EquipmentSlot slot : ARMOR_SLOTS) {
-			if (!entity.getEquippedStack(slot).isEmpty()) return true;
-		}
-		return false;
-	}
-
-	/** Высота строки с бронёй: иконка, под ней шкала и/или проценты. */
-	private int armorBlockHeight() {
-		return 16 + (showBar.getBool() ? 3 : 0) + (showPercent.getBool() ? 7 : 0);
-	}
-
-	/** "Броня:" и иконки надетых предметов, под каждой шкала прочности и/или проценты. */
-	private void drawArmor(DrawContext ctx, TextRenderer tr, int x0, int y0, float alpha) {
-		int labelColor = UiShapes.mulA(Theme.TEXT_DIM, alpha);
-		boolean any = false;
-		for (ItemStack st : shownStacks) {
-			if (!st.isEmpty()) any = true;
-		}
-		if (((labelColor >>> 24) & 0xFF) >= 12) {
-			ctx.drawText(tr, any ? "Броня:" : "Броня: нет", x0, y0 + 4, labelColor, true);
-		}
-		if (!any) return;
-
-		int cx = x0 + tr.getWidth("Броня:") + 6;
-		for (ItemStack st : shownStacks) {
-			if (st.isEmpty()) continue;
-
-			if (alpha > 0.6f) {
-				ctx.drawItem(st, cx, y0);
-			}
-			int ny = y0 + 17;
-			if (st.isDamageable()) {
-				float frac = UiShapes.clamp01(1.0f - st.getDamage() / (float) Math.max(1, st.getMaxDamage()));
-				if (showBar.getBool()) {
-					UiShapes.roundRect(ctx, cx, ny, 16, 2, 1, UiShapes.mulA(0xFF2A2A2E, alpha));
-					int w = Math.max(1, Math.round(16 * frac));
-					UiShapes.roundRect(ctx, cx, ny, w, 2, 1,
-							UiShapes.mulA(0xFF000000 | ColorUtil.hsv(frac * 120.0f, 0.85f, 0.95f), alpha));
-					ny += 3;
-				}
-				int pctColor = UiShapes.mulA(Theme.TEXT, alpha);
-				if (showPercent.getBool() && ((pctColor >>> 24) & 0xFF) >= 12) {
-					String t = Math.round(frac * 100.0f) + "%";
-					MatrixStack ms = ctx.getMatrices();
-					ms.push();
-					ms.translate(cx + 8.0f - tr.getWidth(t) * 0.3f, ny + 1.0f, 0.0f);
-					ms.scale(0.6f, 0.6f, 1.0f);
-					ctx.drawText(tr, t, 0, 0, pctColor, true);
-					ms.pop();
-				}
-			}
-			cx += CELL;
+			ctx.drawText(tr, info.toString(), textX, py + 27, infoColor, true);
 		}
 	}
 }
