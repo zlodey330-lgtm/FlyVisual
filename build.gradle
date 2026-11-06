@@ -37,3 +37,13 @@ java {
 	sourceCompatibility = JavaVersion.VERSION_17
 	targetCompatibility = JavaVersion.VERSION_17
 }
+
+// Старые файлы прежних версий, которые могли остаться в репозитории: в сборку не берём
+sourceSets {
+	main {
+		java {
+			exclude '**/util/ParticleFx.java', '**/mixin/FpsLimitMixin.java',
+					'**/gui/ItemPickerScreen.java', '**/gui/FlyDeathScreen.java'
+		}
+	}
+}

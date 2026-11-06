@@ -21,7 +21,9 @@
     "DeathScreenMixin",
     "EntityRenderDispatcherMixin",
     "PlayerEntityModelMixin",
-		"BipedEntityModelMixin"
+		"BipedEntityModelMixin",
+		"MouseLatencyMixin",
+		"WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0
