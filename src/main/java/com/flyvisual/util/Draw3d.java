@@ -16,13 +16,20 @@ import org.joml.Matrix4f;
 public final class Draw3d {
 	private final boolean translucent;
 	private BufferBuilder buf;
+	/** Кто сейчас пишет в общий буфер Tessellator: двум Draw3d одновременно нельзя. */
+	private static Draw3d active;
 
 	public Draw3d(boolean translucent) {
 		this.translucent = translucent;
 	}
 
 	private BufferBuilder buffer() {
+		if (active != null && active != this) {
+			// Общий буфер занят другим Draw3d: сначала дорисовываем его, иначе будет «Already building»
+			active.flush();
+		}
 		if (buf == null) {
+			active = this;
 			RenderSystem.setShader(GameRenderer::getPositionColorProgram);
 			RenderSystem.enableBlend();
 			RenderSystem.defaultBlendFunc();
@@ -47,6 +54,9 @@ public final class Draw3d {
 		RenderSystem.enableCull();
 		RenderSystem.disableBlend();
 		buf = null;
+		if (active == this) {
+			active = null;
+		}
 	}
 
 	private void v(Matrix4f m, float x, float y, float z, float r, float g, float b, float a) {
