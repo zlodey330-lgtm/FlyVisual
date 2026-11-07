@@ -29,7 +29,9 @@
 		"SpriteContentsMixin",
 		"SpriteAtlasTextureMixin",
 		"ItemEntityMixin",
-		"SignBlockEntityRendererMixin"
+		"SignBlockEntityRendererMixin",
+		"HeldItemShaderMixin",
+		"FramerateLimitMixin"
   ],
   "injectors": {
     "defaultRequire": 0

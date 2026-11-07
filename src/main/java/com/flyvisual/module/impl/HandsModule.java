@@ -41,10 +41,18 @@ public class HandsModule extends Module implements ItemSelection {
 	private final DoubleSetting style = addChoice("Effect style", 0, STYLES);
 	private final DoubleSetting hue = addSetting("Color (hue)", 280.0, 0.0, 355.0, 5.0);
 	private final DoubleSetting power = addSetting("Intensity", 1.0, 0.3, 2.0, 0.1);
-	private final DoubleSetting pick = addButton("Choose items", () -> picked.isEmpty() ? "Все" : String.valueOf(picked.size()),
-			() -> MinecraftClient.getInstance().setScreen(new ItemSearchScreen(MinecraftClient.getInstance().currentScreen, this)));
+	private final DoubleSetting pick = addToggle("Choose items", false);
 
 	private boolean busy;
+
+	@Override
+	public void onTick(MinecraftClient client) {
+		super.onTick(client);
+		if (pick.getBool()) {
+			pick.set(0.0);
+			client.setScreen(new ItemSearchScreen(client.currentScreen, this));
+		}
+	}
 
 	public HandsModule() {
 		super("Hands", "Shader effect on the item in your hand");

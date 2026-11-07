@@ -46,6 +46,8 @@ public final class Lang {
 			Map.entry("Macro Keybinds", "Макросы"),
 			Map.entry("Emotes", "Эмоции"),
 			Map.entry("Mouse Fix", "Фикс мыши"),
+			Map.entry("Hands", "Руки"),
+			Map.entry("Jump Effect", "Эффект прыжка"),
 			Map.entry("Optimization", "Оптимизация"),
 			Map.entry("TargetESP", "TargetESP")
 	);
@@ -88,6 +90,8 @@ public final class Lang {
 			Map.entry("Health Indicator", "ХП цели под прицелом"),
 			Map.entry("Macro Keybinds", "Клавиши отправляют сообщения и команды в чат"),
 			Map.entry("Emotes", "Меню эмоций: Сикс сэвен, танец и другие (видно только тебе)"),
+			Map.entry("Hands", "Шейдер на предмете в руке (видно только тебе)"),
+			Map.entry("Jump Effect", "3D-эффект под ногами при прыжке"),
 			Map.entry("Mouse Fix", "Меньше задержки мыши при просадках FPS и в полном экране"),
 			Map.entry("Optimization", "Убирает лишнее, что съедает FPS: небо, частицы, анимации, мобов за стенами. Каждый пункт включается отдельно"),
 			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб, спираль")
@@ -169,6 +173,9 @@ public final class Lang {
 			Map.entry("Radius", "Радиус"),
 			Map.entry("Sky style", "Стиль неба"),
 			Map.entry("Intensity", "Сила"),
+			Map.entry("Effect style", "Стиль эффекта"),
+			Map.entry("Shader", "Шейдер"),
+			Map.entry("Choose items", "Выбрать предметы"),
 			Map.entry("Sky speed", "Скорость смены"),
 			Map.entry("Tint clouds", "Красить облака"),
 			Map.entry("Cloud amount", "Облачность"),

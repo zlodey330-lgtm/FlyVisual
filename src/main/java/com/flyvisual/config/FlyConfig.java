@@ -40,6 +40,9 @@ public class FlyConfig {
 	/** Тексты макросов (8 штук): сообщение или команда, если начинается с "/". */
 	public String[] macros = {"", "", "", "", "", "", "", ""};
 
+	/** Предметы для шейдера Hands (id), пусто = любые. */
+	public java.util.List<String> handItems = new java.util.ArrayList<>();
+
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
 
@@ -67,6 +70,7 @@ public class FlyConfig {
 			FlyConfig loaded = GSON.fromJson(reader, FlyConfig.class);
 			if (loaded != null) {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
+				if (loaded.handItems == null) loaded.handItems = new java.util.ArrayList<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();
 				if (loaded.settings == null) loaded.settings = new LinkedHashMap<>();
 				if (loaded.themeVersion < 2) {
