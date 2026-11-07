@@ -103,7 +103,8 @@ public class FlyMenuScreen extends Screen {
 					break;
 				}
 			}
-			scroll = Math.max(0, FlyConfig.get().lastScroll);
+			scrollTarget = Math.max(0, FlyConfig.get().lastScroll);
+			scrollPos = scrollTarget;
 		}
 	}
 
@@ -839,7 +840,7 @@ public class FlyMenuScreen extends Screen {
 	/** Закрытие с анимацией: сам экран закроется, когда меню полностью растворится. */
 	@Override
 	public void close() {
-		FlyConfig.get().lastScroll = scroll;
+		FlyConfig.get().lastScroll = Math.round(scrollTarget);
 		FlyConfig.save();
 		closing = true;
 	}
