@@ -8,9 +8,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,8 +18,11 @@ public class FlyConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static FlyConfig instance = new FlyConfig();
 
-	/** Акцентный цвет темы (RGB). По умолчанию красный. */
-	public int accentColor = 0xE53935;
+	/** Акцентный цвет темы (RGB). По умолчанию серебристый (серо-чёрная тема). */
+	public int accentColor = 0xB4B8BF;
+
+	/** Версия темы: при переходе на серо-чёрную тему цвет один раз сбрасывается на серебристый. */
+	public int themeVersion = 2;
 
 	/** Заменять ли ванильное главное меню меню FlyVisual. */
 	public boolean customTitleScreen = true;
@@ -32,17 +33,24 @@ public class FlyConfig {
 	/** Лучи, туман, листья и искры на фоне главного меню. */
 	public boolean titleParticles = true;
 
+	/** Последний выбранный в меню модуль и прокрутка списка: меню открывается там, где ты закончил. */
+	public String lastModule = "";
+	public int lastScroll = 0;
+
+	/** Тексты макросов (8 штук): сообщение или команда, если начинается с "/". */
+	public String[] macros = {"", "", "", "", "", "", "", ""};
+
+	/** Предметы, выбранные в подсветке предметов (id вида minecraft:netherite_ingot). */
+	public java.util.List<String> highlightItems = new java.util.ArrayList<>();
+
+	/** Предметы, выбранные для эффекта Hands. */
+	public java.util.List<String> handItems = new java.util.ArrayList<>();
+
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
 
 	/** Позиции HUD-модулей: имя модуля -> [x, y]. */
 	public Map<String, int[]> positions = new LinkedHashMap<>();
-
-	/** Предметы, выбранные в подсветке предметов (id вида minecraft:netherite_ingot). */
-	public List<String> highlightItems = new ArrayList<>();
-
-	/** Предметы, выбранные для эффекта Hands. */
-	public List<String> handItems = new ArrayList<>();
 
 	/** Числовые настройки: "Модуль.Настройка" -> значение. */
 	public Map<String, Double> settings = new LinkedHashMap<>();
@@ -66,9 +74,13 @@ public class FlyConfig {
 			if (loaded != null) {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();
+				if (loaded.highlightItems == null) loaded.highlightItems = new java.util.ArrayList<>();
+				if (loaded.handItems == null) loaded.handItems = new java.util.ArrayList<>();
 				if (loaded.settings == null) loaded.settings = new LinkedHashMap<>();
-				if (loaded.highlightItems == null) loaded.highlightItems = new ArrayList<>();
-				if (loaded.handItems == null) loaded.handItems = new ArrayList<>();
+				if (loaded.themeVersion < 2) {
+					loaded.accentColor = 0xB4B8BF;
+					loaded.themeVersion = 2;
+				}
 				instance = loaded;
 			}
 		} catch (Exception e) {

@@ -19,9 +19,12 @@
     "ClientWorldMixin",
     "ParticleManagerMixin",
     "DeathScreenMixin",
-    "FpsLimitMixin",
+    "EntityRenderDispatcherMixin",
+    "PlayerEntityModelMixin",
+    "BipedEntityModelMixin",
+    "MouseLatencyMixin",
     "WorldRendererMixin",
-    "MouseLatencyMixin"
+    "FpsLimitMixin"
   ],
   "injectors": {
     "defaultRequire": 0

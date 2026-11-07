@@ -2,5 +2,14 @@
   "key.flyvisual.menu": "Открыть меню FlyVisual",
   "key.flyvisual.zoom": "Зум",
   "key.flyvisual.freelook": "Свободный обзор",
-  "category.flyvisual": "FlyVisual"
+  "category.flyvisual": "FlyVisual",
+  "key.flyvisual.macro1": "Макрос 1",
+  "key.flyvisual.macro2": "Макрос 2",
+  "key.flyvisual.macro3": "Макрос 3",
+  "key.flyvisual.macro4": "Макрос 4",
+  "key.flyvisual.macro5": "Макрос 5",
+  "key.flyvisual.macro6": "Макрос 6",
+  "key.flyvisual.macro7": "Макрос 7",
+  "key.flyvisual.macro8": "Макрос 8",
+  "key.flyvisual.emotes": "Меню эмоций"
 }

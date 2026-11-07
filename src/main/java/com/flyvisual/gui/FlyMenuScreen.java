@@ -6,6 +6,7 @@ import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Lang;
 import com.flyvisual.module.Module;
 import com.flyvisual.module.ModuleManager;
+import com.flyvisual.module.impl.MacroModule;
 import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -82,11 +83,27 @@ public class FlyMenuScreen extends Screen {
 
 	private final Map<String, Float> anims = new HashMap<>();
 
+	/** Экран, на который вернёмся при закрытии (главное меню или null в игре). */
+	private final Screen parent;
+
 	public FlyMenuScreen() {
+		this(null);
+	}
+
+	public FlyMenuScreen(Screen parent) {
 		super(Text.literal("FlyVisual"));
+		this.parent = parent;
 		List<Module> all = ModuleManager.all();
 		if (!all.isEmpty()) {
 			selected = all.get(0);
+			String last = FlyConfig.get().lastModule;
+			for (Module m : all) {
+				if (m.getName().equals(last)) {
+					selected = m;
+					break;
+				}
+			}
+			scroll = Math.max(0, FlyConfig.get().lastScroll);
 		}
 	}
 
@@ -355,6 +372,10 @@ public class FlyMenuScreen extends Screen {
 			paneScrollPos = 0.0f;
 			paneScrollTarget = 0.0f;
 		}
+		if (!m.getName().equals(FlyConfig.get().lastModule)) {
+			FlyConfig.get().lastModule = m.getName();
+			FlyConfig.save();
+		}
 	}
 
 	// ---------- Отрисовка ----------
@@ -367,7 +388,8 @@ public class FlyMenuScreen extends Screen {
 
 		open = clamp01(open + (closing ? -dt : dt) / OPEN_TIME);
 		if (closing && open <= 0.0f) {
-			super.close();
+			// Возвращаемся на экран, откуда открыли (в главном меню это наше главное меню, а не ванильное)
+			MinecraftClient.getInstance().setScreen(parent);
 			return;
 		}
 		float inv = 1.0f - open;
@@ -528,6 +550,12 @@ public class FlyMenuScreen extends Screen {
 		}
 		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, 0x22FFFFFF);
 
+		if (selected instanceof MacroModule) {
+			drawMacroPane(ctx, mouseX, mouseY);
+			extra = 1.0f;
+			return;
+		}
+
 		List<DoubleSetting> settings = selected.getSettings();
 		scissor(ctx, px1, settingsTop() - 3, px2, gy2);
 		for (int k = 0; k < settings.size(); k++) {
@@ -587,6 +615,30 @@ public class FlyMenuScreen extends Screen {
 			int barH = Math.max(10, vh * vh / (settings.size() * ROW_H));
 			int barY = settingsTop() + (vh - barH) * Math.round(paneScrollPos) / maxPaneScroll();
 			rect(ctx, px2 - 3, barY, px2 - 1, barY + barH, 0x60FFFFFF);
+		}
+	}
+
+	private boolean overMacroButton(double mx, double my) {
+		return mx >= px1() + 8 && mx < px2() - 8 && my >= settingsTop() && my < settingsTop() + 18;
+	}
+
+	/** Вместо ползунков у макросов кнопка открытия редактора текстов. */
+	private void drawMacroPane(DrawContext ctx, int mouseX, int mouseY) {
+		int bx = px1() + 8;
+		int by = settingsTop();
+		int bw = PANE_W - 16;
+		boolean hover = overMacroButton(mouseX, mouseY);
+		rr(ctx, bx, by, bw, 18, 6, hover ? Theme.accent() : 0xFF2A2A2E);
+		String label = "Редактировать макросы";
+		text(ctx, label, bx + (bw - textRenderer.getWidth(label)) / 2, by + 5, Theme.TEXT);
+
+		List<OrderedText> lines = textRenderer.wrapLines(
+				Text.literal("Клавиши назначаются в Управление, категория FlyVisual."), PANE_W - 16);
+		for (int i = 0; i < Math.min(3, lines.size()); i++) {
+			int c = col(Theme.TEXT_DIM);
+			if (((c >>> 24) & 0xFF) >= 12) {
+				ctx.drawText(textRenderer, lines.get(i), bx, by + 26 + i * 10, c, true);
+			}
 		}
 	}
 
@@ -682,7 +734,7 @@ public class FlyMenuScreen extends Screen {
 			int bx = btnX();
 			int by = btnY();
 			if (mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H) {
-				MinecraftClient.getInstance().setScreen(new HudEditorScreen());
+				MinecraftClient.getInstance().setScreen(new HudEditorScreen(parent));
 				return true;
 			}
 		}
@@ -702,6 +754,11 @@ public class FlyMenuScreen extends Screen {
 					return true;
 				}
 			}
+		}
+
+		if (button == 0 && selected instanceof MacroModule && overMacroButton(mouseX, mouseY)) {
+			MinecraftClient.getInstance().setScreen(new MacroScreen(this));
+			return true;
 		}
 
 		// Настройки выбранного модуля
@@ -782,6 +839,8 @@ public class FlyMenuScreen extends Screen {
 	/** Закрытие с анимацией: сам экран закроется, когда меню полностью растворится. */
 	@Override
 	public void close() {
+		FlyConfig.get().lastScroll = scroll;
+		FlyConfig.save();
 		closing = true;
 	}
 }
