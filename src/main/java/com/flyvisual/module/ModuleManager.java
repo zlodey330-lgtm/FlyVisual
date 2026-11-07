@@ -240,6 +240,10 @@ public final class ModuleManager {
 		return pet;
 	}
 
+	public static HandsModule hands() {
+		return hands;
+	}
+
 	public static ItemHighlightModule itemHighlight() {
 		return itemHighlight;
 	}
