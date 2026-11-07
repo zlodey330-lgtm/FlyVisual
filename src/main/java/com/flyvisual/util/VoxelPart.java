@@ -59,32 +59,32 @@ public final class VoxelPart {
 			}
 		}
 
-		float[] out = new float[1024];
-		int count = 0;
-		for (int i = 0; i < nx; i++) {
-			for (int j = 0; j < ny; j++) {
-				for (int k = 0; k < nz; k++) {
-					int idx = (i * ny + j) * nz + k;
-					if (!solid[idx]) continue;
-					int rgb = color[idx];
-					float cr = ((rgb >> 16) & 0xFF) / 255.0f;
-					float cg = ((rgb >> 8) & 0xFF) / 255.0f;
-					float cb = (rgb & 0xFF) / 255.0f;
-
-					for (int f = 0; f < 6; f++) {
-						int[] n = DIR[f];
-						if (is(solid, nx, ny, nz, i + n[0], j + n[1], k + n[2])) continue;
-
-						if ((count + 1) * 24 > out.length) {
-							out = java.util.Arrays.copyOf(out, out.length * 2);
-						}
-						count = emit(out, count, f, i, j, k, v, minX, minY, minZ, px, py, pz, cr, cg, cb,
-								solid, nx, ny, nz, aoStrength);
-					}
-				}
+		final int fny = ny;
+		final int fnz = nz;
+		SmoothMesher.Result r = SmoothMesher.build(new SmoothMesher.Grid() {
+			@Override
+			public boolean solid(int i, int j, int k) {
+				return is(solid, nx, fny, fnz, i, j, k);
 			}
+
+			@Override
+			public int color(int i, int j, int k) {
+				return color[(i * fny + j) * fnz + k];
+			}
+		}, nx, ny, nz, v, minX, minY, minZ, px, py, pz, aoStrength);
+
+		// Раскладываем в формат части: на каждую вершину x, y, z, r, g, b
+		float[] out = new float[r.quads * 24];
+		for (int q = 0; q < r.quads * 4; q++) {
+			int o = q * 6;
+			out[o] = r.pos[q * 3];
+			out[o + 1] = r.pos[q * 3 + 1];
+			out[o + 2] = r.pos[q * 3 + 2];
+			out[o + 3] = r.rgb[q * 3];
+			out[o + 4] = r.rgb[q * 3 + 1];
+			out[o + 5] = r.rgb[q * 3 + 2];
 		}
-		return new VoxelPart(java.util.Arrays.copyOf(out, count * 24), count);
+		return new VoxelPart(out, r.quads);
 	}
 
 	private static boolean is(boolean[] solid, int nx, int ny, int nz, int i, int j, int k) {

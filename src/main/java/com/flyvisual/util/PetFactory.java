@@ -9,7 +9,8 @@ import com.flyvisual.util.Voxels.Paint;
  * с шерстью, глазами, ушами, усами и анимированными лапами и хвостом.
  */
 public final class PetFactory {
-	static final float RES = 0.0125f;
+	/** Размер кубика модели. Меняется настройкой качества питомца (меньше = глаже, но тяжелее). */
+	static float RES = 0.0135f;
 
 	private PetFactory() {
 	}

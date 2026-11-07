@@ -40,12 +40,6 @@ public class FlyConfig {
 	/** Тексты макросов (8 штук): сообщение или команда, если начинается с "/". */
 	public String[] macros = {"", "", "", "", "", "", "", ""};
 
-	/** Предметы, выбранные в подсветке предметов (id вида minecraft:netherite_ingot). */
-	public java.util.List<String> highlightItems = new java.util.ArrayList<>();
-
-	/** Предметы, выбранные для эффекта Hands. */
-	public java.util.List<String> handItems = new java.util.ArrayList<>();
-
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
 
@@ -74,8 +68,6 @@ public class FlyConfig {
 			if (loaded != null) {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();
-				if (loaded.highlightItems == null) loaded.highlightItems = new java.util.ArrayList<>();
-				if (loaded.handItems == null) loaded.handItems = new java.util.ArrayList<>();
 				if (loaded.settings == null) loaded.settings = new LinkedHashMap<>();
 				if (loaded.themeVersion < 2) {
 					loaded.accentColor = 0xB4B8BF;

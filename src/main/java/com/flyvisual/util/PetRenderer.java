@@ -32,7 +32,25 @@ public final class PetRenderer {
 	private static boolean unlit;
 	private static float time;
 
+	private static int quality;
+	private static final float[] QUALITY_SCALE = {1.0f, 0.7f, 0.55f};
+
 	private PetRenderer() {
+	}
+
+	/** Множитель размера кубика для текущего качества (1 = обычное, меньше = глаже). */
+	public static float qualityScale() {
+		return QUALITY_SCALE[quality];
+	}
+
+	/** Качество 0..2. При смене модели пересобираются заново (первый показ может чуть подвиснуть). */
+	public static void setQuality(int q) {
+		q = Math.max(0, Math.min(QUALITY_SCALE.length - 1, q));
+		if (q == quality) return;
+		quality = q;
+		PetFactory.RES = 0.0135f * QUALITY_SCALE[q];
+		java.util.Arrays.fill(ANIMALS, null);
+		PetDragon.reset();
 	}
 
 	/** Рисует питомца в начале координат текущей матрицы. */

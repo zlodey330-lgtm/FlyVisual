@@ -23,6 +23,7 @@ public class FlyVisualClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		FlyConfig.load();
 		ModuleManager.init();
+		com.flyvisual.util.GreenGrassPack.register();
 
 		menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.flyvisual.menu",

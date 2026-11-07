@@ -46,9 +46,8 @@ public final class Lang {
 			Map.entry("Macro Keybinds", "Макросы"),
 			Map.entry("Emotes", "Эмоции"),
 			Map.entry("Mouse Fix", "Фикс мыши"),
-			Map.entry("TargetESP", "TargetESP"),
-			Map.entry("Hands", "Руки (шейдер предметов)"),
-			Map.entry("Jump Effect", "Эффект прыжка")
+			Map.entry("Optimization", "Оптимизация"),
+			Map.entry("TargetESP", "TargetESP")
 	);
 
 	private static final Map<String, String> MODULE_DESCRIPTIONS = Map.ofEntries(
@@ -81,7 +80,7 @@ public final class Lang {
 			Map.entry("Custom Chat", "Прозрачность и размер чата"),
 			Map.entry("Durability Warning", "Уведомление, когда броня почти сломана"),
 			Map.entry("Server IP", "Адрес сервера, на котором ты играешь"),
-			Map.entry("Item Highlight", "Подсветка выпавших предметов: ценные и выбранные тобой"),
+			Map.entry("Item Highlight", "Подсветка ценных выпавших предметов, элитры красным"),
 			Map.entry("Death Screen", "Кто убил и на каких координатах"),
 			Map.entry("Pet", "Компаньон ходит или летает рядом (видно только тебе)"),
 			Map.entry("Aspect Ratio", "Растянутая или сжатая картинка (4:3, 21:9 и др.)"),
@@ -90,12 +89,34 @@ public final class Lang {
 			Map.entry("Macro Keybinds", "Клавиши отправляют сообщения и команды в чат"),
 			Map.entry("Emotes", "Меню эмоций: Сикс сэвен, танец и другие (видно только тебе)"),
 			Map.entry("Mouse Fix", "Меньше задержки мыши при просадках FPS и в полном экране"),
-			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб, спираль"),
-			Map.entry("Hands", "Шейдер прямо на предмете в руке, 10 видов, выбор предметов поиском"),
-			Map.entry("Jump Effect", "Объёмный эффект под ногами при прыжке, 10 видов")
+			Map.entry("Optimization", "Убирает лишнее, что съедает FPS: небо, частицы, анимации, мобов за стенами. Каждый пункт включается отдельно"),
+			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб, спираль")
 	);
 
 	private static final Map<String, String> SETTINGS = Map.ofEntries(
+			Map.entry("Quality level", "Уровень оптимизации (качество текстур блоков)"),
+			Map.entry("Hide sky in End", "Убрать небо в Энде"),
+			Map.entry("No entity fire", "Без огня вокруг горящих"),
+			Map.entry("No weather", "Без дождя и снега"),
+			Map.entry("No view bob", "Без покачивания при ходьбе"),
+			Map.entry("No block cracks", "Без трещин при ломании блока"),
+			Map.entry("All on", "Все включить"),
+			Map.entry("All off", "Все выключить"),
+			Map.entry("Hide sky", "Убрать небо, звёзды, солнце и луну (обычный мир)"),
+			Map.entry("Hide clouds", "Убрать облака"),
+			Map.entry("Green grass", "Блок травы целиком зелёный"),
+			Map.entry("No crit particles", "Без критов"),
+			Map.entry("No hit particles", "Без частиц и цифр урона"),
+			Map.entry("No other particles", "Без остальных частиц"),
+			Map.entry("No enchant glint", "Без блеска зачарований"),
+			Map.entry("Freeze animations", "Заморозить воду, лаву, портал, огонь"),
+			Map.entry("Still items", "Предметы лежат неподвижно"),
+			Map.entry("Limit sign text", "Табличка: текст только вблизи"),
+			Map.entry("Sign distance", "Дистанция таблички"),
+			Map.entry("Hide mobs behind walls", "Не рисовать мобов за стенами"),
+			Map.entry("Limit far frames", "Ограничить дальние рамки и стойки"),
+			Map.entry("Frames distance", "Дальность рамок и стоек"),
+			Map.entry("No entity shadows", "Без теней сущностей"),
 			Map.entry("Opacity", "Прозрачность"),
 			Map.entry("Scale", "Размер"),
 			Map.entry("Accent bar", "Цветная полоска"),
@@ -180,13 +201,7 @@ public final class Lang {
 			Map.entry("Length", "Длина"),
 			Map.entry("Glow", "Свечение"),
 			Map.entry("Spin speed", "Скорость вращения"),
-			Map.entry("Baby", "Малыш"),
-			Map.entry("Beam color (hue)", "Цвет луча"),
-			Map.entry("Beam height", "Высота луча"),
-			Map.entry("Beam width", "Толщина луча"),
-			Map.entry("Choose items", "Выбрать предметы"),
-			Map.entry("Effect style", "Вид эффекта"),
-			Map.entry("Shader", "Шейдер")
+			Map.entry("Baby", "Малыш")
 	);
 
 	private Lang() {

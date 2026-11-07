@@ -38,6 +38,8 @@ public class PetModule extends Module {
 	private double pz;
 	private float heading;
 	private float walkPhase;
+	/** Плавная высота земли под игроком: прыжок не двигает летающего питомца. */
+	private double smoothBase;
 	private float moving;
 	private long lastNanos;
 
@@ -110,7 +112,8 @@ public class PetModule extends Module {
 		if (!placed || lastWorld != world || Math.hypot(tx - px, tz - pz) > 16.0) {
 			px = tx;
 			pz = tz;
-			py = flying ? pp.y + 1.4 : groundY(world, tx, pp.y, tz);
+			smoothBase = groundY(world, pp.x, pp.y, pp.z);
+			py = flying ? smoothBase + 1.4 : groundY(world, tx, pp.y, tz);
 			heading = player.getYaw() * -1.0f;
 			placed = true;
 			lastWorld = world;
@@ -128,7 +131,9 @@ public class PetModule extends Module {
 			px += dx / dist * step;
 			pz += dz / dist * step;
 		}
-		double ty = flying ? pp.y + 1.4 + Math.sin(now / 1.0e9 * 1.8) * 0.12 : groundY(world, px, Math.max(py, pp.y) + 0.5, pz);
+		// Высота земли под игроком (при прыжке она не меняется) плавно догоняется медленно
+		smoothBase += (groundY(world, pp.x, pp.y, pp.z) - smoothBase) * (1.0 - Math.exp(-1.2 * dt));
+		double ty = flying ? smoothBase + 1.4 + Math.sin(now / 1.0e9 * 1.8) * 0.12 : groundY(world, px, Math.max(py, pp.y) + 0.5, pz);
 		py += (ty - py) * (1.0 - Math.exp(-(flying ? 3.0 : 12.0) * dt));
 
 		double moved = Math.hypot(px - ox, pz - oz);
@@ -145,6 +150,9 @@ public class PetModule extends Module {
 			heading += wrap(want - heading) * Math.min(1.0f, 2.5f * dt);
 		}
 		float lookYaw = Math.max(-60.0f, Math.min(60.0f, wrap((float) Math.toDegrees(Math.atan2(pp.x - px, pp.z - pz)) - heading)));
+
+		// От первого лица питомца не рисуем (он двигается и дальше, чтобы не телепортировался при смене вида)
+		if (mc.options.getPerspective().isFirstPerson()) return;
 
 		BlockPos bp = BlockPos.ofFloored(px, py + 0.5, pz);
 		int sky = world.getLightLevel(LightType.SKY, bp);

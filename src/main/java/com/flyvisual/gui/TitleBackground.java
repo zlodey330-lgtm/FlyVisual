@@ -21,6 +21,16 @@ public class TitleBackground {
 	private static final int LEAF_COUNT = 38;
 	private static final int MOTE_COUNT = 46;
 
+	private static TitleBackground shared;
+
+	/** Один общий фон для главного меню и экранов поверх него: анимация не сбрасывается при переходах. */
+	public static TitleBackground shared() {
+		if (shared == null) {
+			shared = new TitleBackground();
+		}
+		return shared;
+	}
+
 	private final Random random = new Random();
 	private final long start = System.nanoTime();
 	private long last = start;

@@ -46,9 +46,14 @@ public final class PetDragon {
 		return 0.82f + 0.2f * n + 0.1f * m;
 	}
 
+	/** Сброс моделей: при смене качества они соберутся заново. */
+	static void reset() {
+		body = null;
+	}
+
 	private static void init() {
 		if (body != null) return;
-		final float v = 0.016f;
+		final float v = 0.016f * PetRenderer.qualityScale();
 
 		// ---------- Туловище ----------
 		Sdf torso = smooth(0.06f,

@@ -260,66 +260,19 @@ public final class Voxels {
 	private static final float[] AO = {0.55f, 0.72f, 0.88f, 1.0f};
 	private static final int[][] CORNER = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
 
-	/** Собирает сетку. Координаты вершин считаются от точки вращения (px, py, pz). */
+	/** Собирает гладкую сетку (SmoothMesher). Координаты вершин считаются от точки вращения (px, py, pz). */
 	public Mesh bake(float px, float py, float pz) {
-		float[] pos = new float[1 << 14];
-		float[] rgb = new float[1 << 14];
-		int n = 0;
-		int[] ao = new int[4];
-
-		for (int k = 0; k < nz; k++) {
-			for (int j = 0; j < ny; j++) {
-				for (int i = 0; i < nx; i++) {
-					int c = cells[index(i, j, k)];
-					if (c == 0) continue;
-					float cr = ((c >> 16) & 0xFF) / 255.0f;
-					float cg = ((c >> 8) & 0xFF) / 255.0f;
-					float cb = (c & 0xFF) / 255.0f;
-					float cx = ox + (i + 0.5f) * res - px;
-					float cy = oy + (j + 0.5f) * res - py;
-					float cz = oz + (k + 0.5f) * res - pz;
-
-					for (int f = 0; f < 6; f++) {
-						int[] fd = FACE[f];
-						if (solid(i + fd[0], j + fd[1], k + fd[2])) continue;
-
-						for (int q = 0; q < 4; q++) {
-							int su = CORNER[q][0];
-							int sv = CORNER[q][1];
-							boolean s1 = solid(i + fd[0] + su * fd[3], j + fd[1] + su * fd[4], k + fd[2] + su * fd[5]);
-							boolean s2 = solid(i + fd[0] + sv * fd[6], j + fd[1] + sv * fd[7], k + fd[2] + sv * fd[8]);
-							boolean sc = solid(i + fd[0] + su * fd[3] + sv * fd[6], j + fd[1] + su * fd[4] + sv * fd[7],
-									k + fd[2] + su * fd[5] + sv * fd[8]);
-							ao[q] = (s1 && s2) ? 0 : 3 - ((s1 ? 1 : 0) + (s2 ? 1 : 0) + (sc ? 1 : 0));
-						}
-						// Выбираем диагональ, чтобы затенение не давало «ёлочек»
-						int start = (ao[0] + ao[2] < ao[1] + ao[3]) ? 1 : 0;
-
-						if ((n + 4) * 3 > pos.length) {
-							pos = Arrays.copyOf(pos, pos.length * 2);
-							rgb = Arrays.copyOf(rgb, rgb.length * 2);
-						}
-						for (int q = 0; q < 4; q++) {
-							int idx = (start + q) & 3;
-							int su = CORNER[idx][0];
-							int sv = CORNER[idx][1];
-							float h = res * 0.5f;
-							float vx = cx + h * (fd[0] + su * fd[3] + sv * fd[6]);
-							float vy = cy + h * (fd[1] + su * fd[4] + sv * fd[7]);
-							float vz = cz + h * (fd[2] + su * fd[5] + sv * fd[8]);
-							float shade = SHADE[f] * AO[ao[idx]];
-							pos[n * 3] = vx;
-							pos[n * 3 + 1] = vy;
-							pos[n * 3 + 2] = vz;
-							rgb[n * 3] = cr * shade;
-							rgb[n * 3 + 1] = cg * shade;
-							rgb[n * 3 + 2] = cb * shade;
-							n++;
-						}
-					}
-				}
+		SmoothMesher.Result r = SmoothMesher.build(new SmoothMesher.Grid() {
+			@Override
+			public boolean solid(int i, int j, int k) {
+				return Voxels.this.solid(i, j, k);
 			}
-		}
-		return new Mesh(Arrays.copyOf(pos, n * 3), Arrays.copyOf(rgb, n * 3), n);
+
+			@Override
+			public int color(int i, int j, int k) {
+				return cells[index(i, j, k)] & 0xFFFFFF;
+			}
+		}, nx, ny, nz, res, ox, oy, oz, px, py, pz, 1.0f);
+		return new Mesh(r.pos, r.rgb, r.quads * 4);
 	}
 }

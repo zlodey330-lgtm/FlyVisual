@@ -5,8 +5,6 @@ import com.flyvisual.module.impl.ArmorHudModule;
 import com.flyvisual.module.impl.AspectRatioModule;
 import com.flyvisual.module.impl.HealthIndicatorModule;
 import com.flyvisual.module.impl.MacroModule;
-import com.flyvisual.module.impl.JumpEffectModule;
-import com.flyvisual.module.impl.HandsModule;
 import com.flyvisual.module.impl.MouseFixModule;
 import com.flyvisual.module.impl.SaturationModule;
 import com.flyvisual.module.impl.TargetEspModule;
@@ -23,6 +21,7 @@ import com.flyvisual.module.impl.DurabilityWarningModule;
 import com.flyvisual.module.impl.ServerIpModule;
 import com.flyvisual.module.impl.CoordinatesModule;
 import com.flyvisual.module.impl.DamageParticlesModule;
+import com.flyvisual.module.impl.OptimizationModule;
 import com.flyvisual.module.impl.FpsModule;
 import com.flyvisual.module.impl.FogModule;
 import com.flyvisual.module.impl.FreeLookModule;
@@ -66,15 +65,13 @@ public final class ModuleManager {
 	private static CapesModule capes;
 	private static SkyModule sky;
 	private static DamageParticlesModule damageParticles;
+	private static OptimizationModule optimization;
 	private static CustomChatModule customChat;
 	private static PetModule pet;
 	private static HitboxModule hitbox;
 	private static AspectRatioModule aspectRatio;
 	private static EmoteModule emotes;
 	private static MouseFixModule mouseFix;
-	private static HandsModule hands;
-	private static JumpEffectModule jumpEffect;
-	private static ItemHighlightModule itemHighlight;
 	private static SaturationModule saturation;
 	private static PotionHudModule potionHud;
 	private static DeathScreenModule deathScreen;
@@ -96,15 +93,13 @@ public final class ModuleManager {
 		capes = new CapesModule();
 		sky = new SkyModule();
 		damageParticles = new DamageParticlesModule();
+		optimization = new OptimizationModule();
 		customChat = new CustomChatModule();
 		pet = new PetModule();
 		hitbox = new HitboxModule();
 		aspectRatio = new AspectRatioModule();
 		emotes = new EmoteModule();
 		mouseFix = new MouseFixModule();
-		hands = new HandsModule();
-		jumpEffect = new JumpEffectModule();
-		itemHighlight = new ItemHighlightModule();
 		saturation = new SaturationModule();
 		potionHud = new PotionHudModule();
 		deathScreen = new DeathScreenModule();
@@ -127,6 +122,7 @@ public final class ModuleManager {
 		MODULES.add(handOffset);
 		MODULES.add(hitbox);
 		MODULES.add(damageParticles);
+		MODULES.add(optimization);
 		MODULES.add(new HitColorModule());
 		MODULES.add(fog);
 		MODULES.add(timeChanger);
@@ -140,7 +136,7 @@ public final class ModuleManager {
 		MODULES.add(customChat);
 		MODULES.add(new DurabilityWarningModule());
 		MODULES.add(new ServerIpModule());
-		MODULES.add(itemHighlight);
+		MODULES.add(new ItemHighlightModule());
 		MODULES.add(deathScreen);
 		MODULES.add(pet);
 		MODULES.add(aspectRatio);
@@ -149,8 +145,6 @@ public final class ModuleManager {
 		MODULES.add(new MacroModule());
 		MODULES.add(emotes);
 		MODULES.add(mouseFix);
-		MODULES.add(hands);
-		MODULES.add(jumpEffect);
 		MODULES.add(new TargetEspModule());
 
 		FlyConfig cfg = FlyConfig.get();
@@ -208,6 +202,10 @@ public final class ModuleManager {
 		return capes;
 	}
 
+	public static OptimizationModule optimization() {
+		return optimization;
+	}
+
 	public static DamageParticlesModule damageParticles() {
 		return damageParticles;
 	}
@@ -238,14 +236,6 @@ public final class ModuleManager {
 
 	public static PetModule pet() {
 		return pet;
-	}
-
-	public static HandsModule hands() {
-		return hands;
-	}
-
-	public static ItemHighlightModule itemHighlight() {
-		return itemHighlight;
 	}
 
 	public static DeathScreenModule deathScreen() {
