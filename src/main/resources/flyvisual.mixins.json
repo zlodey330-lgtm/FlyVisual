@@ -21,11 +21,15 @@
     "DeathScreenMixin",
     "EntityRenderDispatcherMixin",
     "PlayerEntityModelMixin",
-    "BipedEntityModelMixin",
-    "MouseLatencyMixin",
-    "WorldRendererMixin",
-    "FramerateLimitMixin",
-    "HeldItemShaderMixin"
+		"BipedEntityModelMixin",
+		"MouseLatencyMixin",
+		"WorldRendererMixin",
+		"ScreenBackgroundMixin",
+		"ItemStackMixin",
+		"SpriteContentsMixin",
+		"SpriteAtlasTextureMixin",
+		"ItemEntityMixin",
+		"SignBlockEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0

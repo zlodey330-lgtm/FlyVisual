@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "snowy=false": [
+      {"model": "flyvisual:block/grass_green"},
+      {"model": "flyvisual:block/grass_green", "y": 90},
+      {"model": "flyvisual:block/grass_green", "y": 180},
+      {"model": "flyvisual:block/grass_green", "y": 270}
+    ],
+    "snowy=true": {"model": "minecraft:block/grass_block_snow"}
+  }
+}
