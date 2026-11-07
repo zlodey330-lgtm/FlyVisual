@@ -24,7 +24,7 @@
     "BipedEntityModelMixin",
     "MouseLatencyMixin",
     "WorldRendererMixin",
-    "FpsLimitMixin"
+    "FramerateLimitMixin"
   ],
   "injectors": {
     "defaultRequire": 0
