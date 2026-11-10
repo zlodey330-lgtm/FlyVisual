@@ -27,11 +27,10 @@
 		"ScreenBackgroundMixin",
 		"ItemStackMixin",
 		"SpriteContentsMixin",
+		"ResourceTextureDataMixin",
 		"SpriteAtlasTextureMixin",
 		"ItemEntityMixin",
-		"SignBlockEntityRendererMixin",
-		"HeldItemShaderMixin",
-		"FramerateLimitMixin"
+		"SignBlockEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0

@@ -32,11 +32,25 @@ public class SpriteContentsMixin {
 			OptimizationModule opt = ModuleManager.optimization();
 			if (opt == null || image == null || id == null) return;
 			int target = opt.pixelTarget();
-			if (target <= 0 || !id.getPath().startsWith("block/")) return;
+			if (target <= 0) return;
+			String path = id.getPath();
+			if (path.startsWith("item/") || path.startsWith("entity/")) {
+				com.flyvisual.util.ImageFx.soften(image, opt.softenMix());
+				return;
+			}
+			if (!path.startsWith("block/")) return;
 			int w = image.getWidth();
 			int h = image.getHeight();
 			int k = w / target;
 			if (k < 2 || h % k != 0 || w % k != 0) return;
+			flyvisual$pixelateBlocks(w, h, k);
+			if (opt.levelIndex() >= 2) com.flyvisual.util.ImageFx.soften(image, 0.5);
+		} catch (Throwable ignored) {
+		}
+	}
+
+	private void flyvisual$pixelateBlocks(int w, int h, int k) {
+		{
 			for (int by = 0; by < h; by += k) {
 				for (int bx = 0; bx < w; bx += k) {
 					long a = 0, r = 0, g = 0, b = 0;
@@ -68,7 +82,6 @@ public class SpriteContentsMixin {
 					}
 				}
 			}
-		} catch (Throwable ignored) {
 		}
 	}
 }

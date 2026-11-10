@@ -124,6 +124,17 @@ public class OptimizationModule extends Module {
 		return l == 1 ? 8 : l >= 2 ? 4 : 0;
 	}
 
+	/** Индекс уровня: 0 — обычный, 1 — уровень 2, 2 — уровень 3 (0, если модуль выключен). */
+	public int levelIndex() {
+		return isEnabled() ? level.getInt() : 0;
+	}
+
+	/** Сила размытия мобов и предметов: уровень 2 чуть-чуть, уровень 3 заметно, но узнаваемо. */
+	public double softenMix() {
+		int l = levelIndex();
+		return l == 1 ? 0.3 : l >= 2 ? 0.85 : 0.0;
+	}
+
 	/** Не показывать частицы удара: ванильный индикатор урона и наши Damage Particles. */
 	public boolean blocksHitParticles() {
 		return isEnabled() && noHit.getBool();
