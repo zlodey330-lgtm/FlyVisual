@@ -3,6 +3,7 @@ package com.flyvisual.mixin;
 import com.flyvisual.module.ModuleManager;
 import com.flyvisual.module.impl.OptimizationModule;
 import com.flyvisual.util.ImageFx;
+import com.flyvisual.util.ImageHolder;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
@@ -17,11 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Класс TextureData закрытый, поэтому цель задана строкой, а картинка достаётся через свой интерфейс.
  */
 @Mixin(targets = "net.minecraft.client.texture.ResourceTexture$TextureData")
-public abstract class ResourceTextureDataMixin implements ResourceTextureDataMixin.ImageHolder {
-	public interface ImageHolder {
-		NativeImage flyvisual$image();
-	}
-
+public abstract class ResourceTextureDataMixin implements ImageHolder {
 	@Shadow
 	public abstract NativeImage getImage();
 
