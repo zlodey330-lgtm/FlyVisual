@@ -16,25 +16,36 @@ public final class Shape3D {
 	private Shape3D() {
 	}
 
-	private static void vertex(VertexConsumer vc, Matrix4f m, double[] p, int rgb, float alpha) {
-		int r = (rgb >> 16) & 0xFF;
-		int g = (rgb >> 8) & 0xFF;
-		int b = rgb & 0xFF;
-		int a = Math.max(0, Math.min(255, Math.round(alpha * 255.0f)));
+	// Рабочие массивы: рисуем только из потока рендера, поэтому можно переиспользовать без new каждый кадр
+	private static final double[][] CUBE = new double[8][3];
+	private static final double[][] OCTA = new double[6][3];
+
+	private static int alpha8(float alpha) {
+		return Math.max(0, Math.min(255, Math.round(alpha * 255.0f)));
+	}
+
+	private static void vertex(VertexConsumer vc, Matrix4f m, double[] p, int r, int g, int b, int a) {
 		vc.vertex(m, (float) p[0], (float) p[1], (float) p[2]).color(r, g, b, a).next();
 	}
 
 	/** Четырёхугольник с разной прозрачностью у каждой вершины, виден с обеих сторон. */
 	public static void quad(VertexConsumer vc, Matrix4f m, double[] p0, double[] p1, double[] p2, double[] p3,
 							int rgb, float a0, float a1, float a2, float a3) {
-		vertex(vc, m, p0, rgb, a0);
-		vertex(vc, m, p1, rgb, a1);
-		vertex(vc, m, p2, rgb, a2);
-		vertex(vc, m, p3, rgb, a3);
-		vertex(vc, m, p3, rgb, a3);
-		vertex(vc, m, p2, rgb, a2);
-		vertex(vc, m, p1, rgb, a1);
-		vertex(vc, m, p0, rgb, a0);
+		int r = (rgb >> 16) & 0xFF;
+		int g = (rgb >> 8) & 0xFF;
+		int b = rgb & 0xFF;
+		int i0 = alpha8(a0);
+		int i1 = alpha8(a1);
+		int i2 = alpha8(a2);
+		int i3 = alpha8(a3);
+		vertex(vc, m, p0, r, g, b, i0);
+		vertex(vc, m, p1, r, g, b, i1);
+		vertex(vc, m, p2, r, g, b, i2);
+		vertex(vc, m, p3, r, g, b, i3);
+		vertex(vc, m, p3, r, g, b, i3);
+		vertex(vc, m, p2, r, g, b, i2);
+		vertex(vc, m, p1, r, g, b, i1);
+		vertex(vc, m, p0, r, g, b, i0);
 	}
 
 	/** Кубик с центром в (cx, cy, cz), половиной стороны half, повёрнутый вокруг вертикали на yaw радиан. */
@@ -42,7 +53,7 @@ public final class Shape3D {
 							double half, double yaw, int rgb, float alpha) {
 		double cos = Math.cos(yaw);
 		double sin = Math.sin(yaw);
-		double[][] c = new double[8][3];
+		double[][] c = CUBE;
 		for (int i = 0; i < 8; i++) {
 			double sx = (i & 1) == 0 ? -half : half;
 			double sy = (i & 2) == 0 ? -half : half;
@@ -84,11 +95,15 @@ public final class Shape3D {
 	 */
 	public static void octa(VertexConsumer vc, Matrix4f m, double cx, double cy, double cz,
 							double[] a, double[] b, double[] c, int rgb, float alpha) {
-		double[][] v = new double[6][];
-		double[][] ax = {a, b, c};
+		double[][] v = OCTA;
 		for (int i = 0; i < 3; i++) {
-			v[i * 2] = new double[]{cx + ax[i][0], cy + ax[i][1], cz + ax[i][2]};
-			v[i * 2 + 1] = new double[]{cx - ax[i][0], cy - ax[i][1], cz - ax[i][2]};
+			double[] axis = i == 0 ? a : i == 1 ? b : c;
+			v[i * 2][0] = cx + axis[0];
+			v[i * 2][1] = cy + axis[1];
+			v[i * 2][2] = cz + axis[2];
+			v[i * 2 + 1][0] = cx - axis[0];
+			v[i * 2 + 1][1] = cy - axis[1];
+			v[i * 2 + 1][2] = cz - axis[2];
 		}
 		for (int i = 0; i < 2; i++) {
 			for (int j = 2; j < 4; j++) {

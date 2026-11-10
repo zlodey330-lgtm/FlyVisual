@@ -31,6 +31,9 @@ public class AuraModule extends Module {
 	private final DoubleSetting glow = addToggle("Glow", true);
 	private final DoubleSetting firstPerson = addToggle("Show in first person", true);
 
+	private float cachedHue = -1.0f;
+	private int cachedRgb;
+
 	public AuraModule() {
 		super("Aura", "3D glowing shapes around you");
 		WorldRenderEvents.AFTER_ENTITIES.register(this::render);
@@ -105,7 +108,16 @@ public class AuraModule extends Module {
 	private void cube(VertexConsumer vc, Matrix4f m, double x, double y, double z, double half, double yaw,
 					  int index, int total, double t) {
 		float h = rainbow.getBool() ? (float) ((index * 360.0 / Math.max(1, total) + t * 50.0) % 360.0) : hue.getFloat();
-		int rgb = ColorUtil.hsv(h, 0.85f, 1.0f);
+		int rgb;
+		if (rainbow.getBool()) {
+			rgb = ColorUtil.hsv(h, 0.85f, 1.0f);
+		} else {
+			if (cachedHue != h) {
+				cachedHue = h;
+				cachedRgb = ColorUtil.hsv(h, 0.85f, 1.0f);
+			}
+			rgb = cachedRgb;
+		}
 		Shape3D.cube(vc, m, x, y, z, half, yaw, rgb, 0.95f);
 		if (glow.getBool()) {
 			Shape3D.cube(vc, m, x, y, z, half * 2.4, yaw, rgb, 0.16f);

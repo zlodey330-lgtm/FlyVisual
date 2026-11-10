@@ -58,12 +58,14 @@ public class PetModule extends Module {
 	}
 
 	/** Высота поверхности под точкой (верх ближайшего твёрдого блока ниже y + 1). */
+	private static final BlockPos.Mutable GROUND_POS = new BlockPos.Mutable();
+
 	private static double groundY(ClientWorld world, double x, double y, double z) {
 		int bx = (int) Math.floor(x);
 		int bz = (int) Math.floor(z);
 		int top = (int) Math.floor(y) + 1;
 		for (int i = 0; i < 10; i++) {
-			BlockPos pos = new BlockPos(bx, top - i, bz);
+			BlockPos pos = GROUND_POS.set(bx, top - i, bz);
 			VoxelShape shape = world.getBlockState(pos).getCollisionShape(world, pos);
 			if (!shape.isEmpty()) {
 				return pos.getY() + shape.getMax(Direction.Axis.Y);
