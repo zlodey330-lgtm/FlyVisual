@@ -83,7 +83,7 @@ public final class Lang {
 			Map.entry("Custom Chat", "Прозрачность и размер чата"),
 			Map.entry("Durability Warning", "Уведомление, когда броня почти сломана"),
 			Map.entry("Server IP", "Адрес сервера, на котором ты играешь"),
-			Map.entry("Item Highlight", "Подсветка ценных выпавших предметов, элитры красным"),
+			Map.entry("Item Highlight", "Подсветка выбранных выпавших предметов рамкой и лучом"),
 			Map.entry("Death Screen", "Кто убил и на каких координатах"),
 			Map.entry("Pet", "Компаньон ходит или летает рядом (видно только тебе)"),
 			Map.entry("Aspect Ratio", "Растянутая или сжатая картинка (4:3, 21:9 и др.)"),

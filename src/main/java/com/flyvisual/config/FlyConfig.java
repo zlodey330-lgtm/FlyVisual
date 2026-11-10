@@ -46,6 +46,9 @@ public class FlyConfig {
 	/** Клавиши макросов (GLFW-код, 0 = не назначена). */
 	public int[] macroKeys = new int[8];
 
+	/** Предметы для подсветки выпавших предметов (id), пусто = все. */
+	public java.util.List<String> highlightItems = new java.util.ArrayList<>();
+
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
 
@@ -73,6 +76,7 @@ public class FlyConfig {
 			FlyConfig loaded = GSON.fromJson(reader, FlyConfig.class);
 			if (loaded != null) {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
+				if (loaded.highlightItems == null) loaded.highlightItems = new java.util.ArrayList<>();
 				if (loaded.handItems == null) loaded.handItems = new java.util.ArrayList<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();
 				if (loaded.settings == null) loaded.settings = new LinkedHashMap<>();
