@@ -47,6 +47,7 @@ public final class Lang {
 			Map.entry("Emotes", "Эмоции"),
 			Map.entry("Mouse Fix", "Фикс мыши"),
 			Map.entry("Hands", "Руки"),
+			Map.entry("Kill Effect", "Эффект убийства"),
 			Map.entry("Jump Effect", "Эффект прыжка"),
 			Map.entry("Optimization", "Оптимизация"),
 			Map.entry("TargetESP", "TargetESP")
@@ -90,6 +91,7 @@ public final class Lang {
 			Map.entry("Health Indicator", "ХП цели под прицелом"),
 			Map.entry("Macro Keybinds", "Клавиши отправляют сообщения и команды в чат"),
 			Map.entry("Emotes", "Меню эмоций: Сикс сэвен, танец и другие (видно только тебе)"),
+			Map.entry("Kill Effect", "Гроб открывается и закрывается там, где ты убил игрока или моба"),
 			Map.entry("Hands", "Шейдер на предмете в руке (видно только тебе)"),
 			Map.entry("Jump Effect", "3D-эффект под ногами при прыжке"),
 			Map.entry("Mouse Fix", "Меньше задержки мыши при просадках FPS и в полном экране"),
@@ -175,6 +177,7 @@ public final class Lang {
 			Map.entry("Intensity", "Сила"),
 			Map.entry("Effect style", "Стиль эффекта"),
 			Map.entry("Shader", "Шейдер"),
+			Map.entry("Animation", "Анимация"),
 			Map.entry("Choose items", "Выбрать предметы"),
 			Map.entry("Sky speed", "Скорость смены"),
 			Map.entry("Tint clouds", "Красить облака"),

@@ -73,6 +73,7 @@ public final class ModuleManager {
 	private static EmoteModule emotes;
 	private static MouseFixModule mouseFix;
 	private static com.flyvisual.module.impl.HandsModule hands;
+	private static com.flyvisual.module.impl.KillEffectModule killEffect;
 	private static com.flyvisual.module.impl.JumpEffectModule jumpEffect;
 	private static SaturationModule saturation;
 	private static PotionHudModule potionHud;
@@ -103,6 +104,7 @@ public final class ModuleManager {
 		emotes = new EmoteModule();
 		mouseFix = new MouseFixModule();
 		hands = new com.flyvisual.module.impl.HandsModule();
+		killEffect = new com.flyvisual.module.impl.KillEffectModule();
 		jumpEffect = new com.flyvisual.module.impl.JumpEffectModule();
 		saturation = new SaturationModule();
 		potionHud = new PotionHudModule();
@@ -150,6 +152,7 @@ public final class ModuleManager {
 		MODULES.add(emotes);
 		MODULES.add(mouseFix);
 		MODULES.add(hands);
+		MODULES.add(killEffect);
 		MODULES.add(jumpEffect);
 		MODULES.add(new TargetEspModule());
 
