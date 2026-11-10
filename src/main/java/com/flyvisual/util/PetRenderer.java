@@ -10,12 +10,13 @@ import org.joml.Matrix4f;
  * Система координат модели: +Z = вперёд, +Y = вверх.
  */
 public final class PetRenderer {
-	public static final String[] NAMES = {"Кошка", "Собака", "Лисичка", "Дракончик", "Призрак", "Огонёк"};
-	public static final boolean[] FLYING = {false, false, false, true, true, true};
+	public static final String[] NAMES = {"Кошка", "Собака", "Лисичка", "Дракончик", "Призрак", "Огонёк", "Сиамская кошка", "Пантера",
+			"Волк", "Ретривер", "Белая лисица", "Далматин", "Рыжий кот"};
+	public static final boolean[] FLYING = {false, false, false, true, true, true, false, false, false, false, false, false, false};
 
-	private static final Quadruped[] ANIMALS = new Quadruped[3];
+	private static final Quadruped[] ANIMALS = new Quadruped[13];
 	/** Масштаб моделей: кошка, хаски, лиса. */
-	private static final float[] SCALE = {1.0f, 1.35f, 1.05f};
+	private static final float[] SCALE = {1.0f, 1.35f, 1.05f, 1.0f, 1.3f, 1.55f, 1.4f, 0.95f, 1.4f, 1.0f};
 
 	private static final int MAIN = 0;
 	private static final int LIGHT = 1;
@@ -68,13 +69,14 @@ public final class PetRenderer {
 		c.lookPitch = lookPitch;
 
 		switch (kind) {
-			case 0, 1, 2 -> {
+			case 0, 1, 2, 6, 7, 8, 9, 10, 11, 12 -> {
+				int breed = kind <= 2 ? kind : kind - 3;
 				Quadruped q = ANIMALS[kind];
 				if (q == null) {
-					q = kind == 0 ? PetFactory.cat() : kind == 1 ? PetFactory.husky() : PetFactory.fox();
+					q = PetFactory.breed(breed);
 					ANIMALS[kind] = q;
 				}
-				float sc = SCALE[kind];
+				float sc = SCALE[breed];
 				shadow(c, 0.5f * sc);
 				matrices.push();
 				matrices.scale(sc, sc, sc);

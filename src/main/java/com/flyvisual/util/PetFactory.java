@@ -92,38 +92,104 @@ public final class PetFactory {
 	// ---------- Кошка ----------
 
 	public static Quadruped cat() {
-		return animal(0);
+		return animal(SPECS[0]);
 	}
 
 	public static Quadruped husky() {
-		return animal(1);
+		return animal(SPECS[1]);
 	}
 
 	public static Quadruped fox() {
-		return animal(2);
+		return animal(SPECS[2]);
 	}
 
-	/** kind: 0 кошка, 1 хаски, 2 лиса. */
-	private static Quadruped animal(final int kind) {
+	public static final int TABBY = 0;
+	public static final int SADDLE = 1;
+	public static final int PLAIN = 2;
+	public static final int SPOTS = 3;
+	public static final int POINTS = 4;
+	public static final int SOLID = 5;
+
+	/** Описание породы: форма (0 кошка, 1 собака, 2 лиса), цвета, узор шерсти и стиль хвоста. */
+	public static final class Spec {
+		final int shape;
+		final int base;
+		final int dark;
+		final int light;
+		final int pink;
+		final int nose;
+		final int iris;
+		final int pattern;
+		final int tail;
+		final float saddle;
+		final float mask;
+		final boolean slit;
+
+		Spec(int shape, int base, int dark, int light, int pink, int nose, int iris, int pattern, int tail, float saddle,
+			 float mask, boolean slit) {
+			this.shape = shape;
+			this.base = base;
+			this.dark = dark;
+			this.light = light;
+			this.pink = pink;
+			this.nose = nose;
+			this.iris = iris;
+			this.pattern = pattern;
+			this.tail = tail;
+			this.saddle = saddle;
+			this.mask = mask;
+			this.slit = slit;
+		}
+	}
+
+	/** Все породы по номеру: 0 кошка, 1 хаски, 2 лиса, 3 сиамская, 4 пантера, 5 волк, 6 ретривер, 7 белая лиса, 8 далматин, 9 рыжий кот. */
+	public static final Spec[] SPECS = {
+			new Spec(0, 0x9A8C7A, 0x4B4237, 0xEBE2D2, 0xE9A5A5, 0xD98686, 0x9CCB3C, TABBY, 0, 0.0f, 0.0f, true),
+			new Spec(1, 0x858A93, 0x30333A, 0xF4F4F2, 0xD8C6C0, 0x141414, 0x86BFF0, SADDLE, 1, 0.8f, 0.7f, false),
+			new Spec(2, 0xD9702A, 0x2A1A12, 0xF7EFE3, 0xE7D2C0, 0x141414, 0xD9A21B, PLAIN, 2, 0.0f, 0.0f, true),
+			new Spec(0, 0xE9DDC6, 0x4E3C32, 0xF3EADA, 0xD9A0A0, 0x6E4A48, 0x58A8EA, POINTS, 0, 0.0f, 0.0f, true),
+			new Spec(0, 0x1A1A1F, 0x0C0C0E, 0x34343B, 0x3A2A2E, 0x2E2022, 0xE6C422, SOLID, 0, 0.0f, 0.0f, true),
+			new Spec(1, 0x7E766A, 0x2C2824, 0xD3CAB7, 0xC9B8A8, 0x111111, 0xE2A600, SADDLE, 2, 0.9f, 0.55f, false),
+			new Spec(1, 0xD6A04A, 0xB07426, 0xF1D08F, 0xE0B8A0, 0x1B1210, 0x6A4020, SADDLE, 2, 0.28f, 0.0f, false),
+			new Spec(2, 0xF1F3F6, 0xB9BFC8, 0xFFFFFF, 0xEBCFCF, 0x151515, 0x3A2A1A, PLAIN, 2, 0.0f, 0.0f, true),
+			new Spec(1, 0xF3F1EB, 0x1B1B1E, 0xFFFFFF, 0xE8C8C0, 0x111111, 0x6B4A2A, SPOTS, 2, 0.0f, 0.0f, false),
+			new Spec(0, 0xDB8631, 0xA24F17, 0xF6E4C8, 0xEBA5A0, 0xD98686, 0xCBB62B, TABBY, 0, 0.0f, 0.0f, true),
+	};
+
+	public static Quadruped breed(int index) {
+		return animal(SPECS[Math.max(0, Math.min(SPECS.length - 1, index))]);
+	}
+
+	private static Quadruped animal(final Spec sp) {
+		final int kind = sp.shape;
 		Quadruped q = new Quadruped();
-		q.tailStyle = kind;
+		q.tailStyle = sp.tail;
 		q.foreSwing = kind == 0 ? 30.0f : 34.0f;
 		q.hindSwing = kind == 0 ? 26.0f : 30.0f;
 		q.bob = 0.010f;
 		q.gait = kind == 0 ? 1.0f : 0.9f;
 
-		final int BASE = kind == 0 ? 0x9A8C7A : kind == 1 ? 0x858A93 : 0xD9702A;
-		final int DARK = kind == 0 ? 0x4B4237 : kind == 1 ? 0x30333A : 0x2A1A12;
-		final int LIGHT = kind == 0 ? 0xEBE2D2 : kind == 1 ? 0xF4F4F2 : 0xF7EFE3;
-		final int PINK = kind == 0 ? 0xE9A5A5 : kind == 1 ? 0xD8C6C0 : 0xE7D2C0;
-		final int NOSE = kind == 0 ? 0xD98686 : 0x141414;
-		final int IRIS = kind == 0 ? 0x9CCB3C : kind == 1 ? 0x86BFF0 : 0xD9A21B;
+		final int BASE = sp.base;
+		final int DARK = sp.dark;
+		final int LIGHT = sp.light;
+		final int PINK = sp.pink;
+		final int NOSE = sp.nose;
+		final int IRIS = sp.iris;
+		final int pat = sp.pattern;
 		final int RIM = 0x1F1B16;
 
-		Paint coat = kind == 0 ? tabby(BASE, DARK, LIGHT, 0.17f, 0.025f, 0.85f, 72.0f, 1.0f) : (x, y, z) -> {
+		Paint coat = pat == TABBY ? tabby(BASE, DARK, LIGHT, 0.17f, 0.025f, 0.85f, 72.0f, 1.0f) : (x, y, z) -> {
 			float fur = 0.9f + 0.12f * Voxels.grain(x, y, z, RES) + 0.08f * Voxels.noise(x * 40, y * 40, z * 40);
-			float saddle = Voxels.smooth(0.2f, 0.25f, y) * (kind == 1 ? 0.8f : 0.0f);
+			float saddle = Voxels.smooth(0.2f, 0.25f, y) * sp.saddle;
 			int c = Voxels.mix(BASE, DARK, saddle);
+			if (pat == SPOTS) {
+				float sn = Voxels.noise(x * 58 + 7, y * 58, z * 58);
+				c = Voxels.mix(c, DARK, Voxels.smooth(0.66f, 0.7f, sn) * Voxels.smooth(0.1f, 0.17f, y));
+			} else if (pat == POINTS) {
+				c = Voxels.mix(BASE, DARK, 0.2f * Voxels.smooth(0.2f, 0.27f, y));
+			} else if (pat == SOLID) {
+				c = Voxels.mix(BASE, LIGHT, 0.22f * Voxels.smooth(0.7f, 0.82f, Voxels.noise(x * 26, y * 26, z * 26)));
+			}
 			c = Voxels.mix(c, LIGHT, 1.0f - Voxels.smooth(0.15f, 0.2f, y));
 			c = Voxels.mix(c, LIGHT, Voxels.smooth(0.12f, 0.17f, z) * (1.0f - Voxels.smooth(0.2f, 0.26f, y)) * 0.9f);
 			return Voxels.lum(c, fur);
@@ -149,11 +215,21 @@ public final class PetFactory {
 		float hx = 0.0f;
 		float hy = 0.268f;
 		float hz = 0.205f;
-		Paint headCoat = kind == 0 ? tabby(BASE, DARK, LIGHT, 0.0f, 0.001f, 0.0f, 70.0f, 3.0f) : (x, y, z) -> {
+		Paint headCoat = pat == TABBY ? tabby(BASE, DARK, LIGHT, 0.0f, 0.001f, 0.0f, 70.0f, 3.0f) : (pat == POINTS || pat == SOLID) ? (x, y, z) -> {
+			float fur = 0.9f + 0.12f * Voxels.grain(x, y, z, RES) + 0.08f * Voxels.noise(x * 40, y * 40, z * 40);
+			int c = BASE;
+			if (pat == POINTS) {
+				float mask = (1.0f - Voxels.smooth(0.0f, 0.05f, Math.abs(x))) * Voxels.smooth(0.28f, 0.31f, z) * Voxels.smooth(0.33f, 0.28f, y);
+				float cheek = Voxels.smooth(0.30f, 0.34f, z) * Voxels.smooth(0.30f, 0.27f, y);
+				c = Voxels.mix(c, DARK, Math.max(mask, cheek * 0.9f));
+			}
+			return Voxels.lum(c, fur);
+		} : (x, y, z) -> {
 			float fur = 0.9f + 0.12f * Voxels.grain(x, y, z, RES) + 0.08f * Voxels.noise(x * 40, y * 40, z * 40);
 			int c = BASE;
 			if (kind == 1) {
-				c = Voxels.mix(c, DARK, 0.7f * Voxels.smooth(0.3f, 0.335f, y) * (1.0f - Voxels.smooth(0.28f, 0.33f, z)));
+				c = Voxels.mix(c, DARK, sp.mask * Voxels.smooth(0.3f, 0.335f, y) * (1.0f - Voxels.smooth(0.28f, 0.33f, z)));
+				if (pat == SPOTS) c = Voxels.mix(c, DARK, Voxels.smooth(0.67f, 0.71f, Voxels.noise(x * 62 + 3, y * 62, z * 62)) * 0.9f);
 				c = Voxels.mix(c, LIGHT, Voxels.smooth(0.29f, 0.3f, z) * (1.0f - Voxels.smooth(0.292f, 0.31f, y)) + (1.0f - Voxels.smooth(0.262f, 0.272f, y)));
 			} else {
 				c = Voxels.mix(c, LIGHT, Voxels.smooth(0.275f, 0.29f, Math.abs(x) * 2.0f + (0.31f - y) * 0.9f) * 0.0f
@@ -174,15 +250,15 @@ public final class PetFactory {
 		}
 		h.ellipsoid(0, 0.268f, 0.3f, 0.02f, 0.012f, 0.022f, headCoat);
 		// светлая мордочка и подбородок
-		if (kind == 0) {
+		if (pat == TABBY) {
 			h.paintEllipsoid(0, 0.281f, 0.318f, 0.032f, 0.026f, 0.03f, (x, y, z) -> Voxels.lum(LIGHT, 0.95f + 0.08f * Voxels.grain(x, y, z, RES)));
 		}
 		h.paintEllipsoid(0, 0.266f, 0.3f, 0.026f, 0.014f, 0.03f, (x, y, z) -> LIGHT);
 		// «М» на лбу и полосы на щеках
-		for (int i = -1; i <= 1 && kind == 0; i++) {
+		for (int i = -1; i <= 1 && pat == TABBY; i++) {
 			h.paintEllipsoid(i * 0.014f, 0.338f, 0.25f, 0.004f, 0.016f, 0.03f, (x, y, z) -> DARK);
 		}
-		for (int s = -1; s <= 1 && kind == 0; s += 2) {
+		for (int s = -1; s <= 1 && pat == TABBY; s += 2) {
 			h.paintEllipsoid(s * 0.05f, 0.292f, 0.285f, 0.012f, 0.004f, 0.025f, (x, y, z) -> DARK);
 			h.paintEllipsoid(s * 0.05f, 0.278f, 0.285f, 0.012f, 0.004f, 0.025f, (x, y, z) -> DARK);
 		}
@@ -195,9 +271,9 @@ public final class PetFactory {
 		}
 		// глаза
 		for (int s = -1; s <= 1; s += 2) {
-			eye(h, s * 0.03f, 0.31f, 0.298f, 0.0135f, 0.0125f, 0.008f, IRIS, RIM, 0x0A0A0A, kind != 1, s);
+			eye(h, s * 0.03f, 0.31f, 0.298f, 0.0135f, 0.0125f, 0.008f, IRIS, RIM, 0x0A0A0A, sp.slit, s);
 		}
-		if (kind != 1) {
+		if (sp.slit) {
 			whiskers(h, 1, 0.02f, 0.283f, nz - 0.015f, 0xF1ECE2, 0.06f, 3);
 			whiskers(h, -1, -0.02f, 0.283f, nz - 0.015f, 0xF1ECE2, 0.06f, 3);
 		}
@@ -212,19 +288,24 @@ public final class PetFactory {
 		q.lidR = q.add("lidR", q.head, hx, hy, hz, lids);
 
 		// уши
-		q.earL = cat_ear(q, 1, BASE, kind == 2 ? DARK : (kind == 1 ? BASE : DARK), PINK, kind == 0 ? 0.054f : 0.075f, kind == 0 ? 0.029f : 0.03f);
-		q.earR = cat_ear(q, -1, BASE, kind == 2 ? DARK : (kind == 1 ? BASE : DARK), PINK, kind == 0 ? 0.054f : 0.075f, kind == 0 ? 0.029f : 0.03f);
+		q.earL = cat_ear(q, 1, pat == POINTS ? DARK : BASE, pat == POINTS ? DARK : (kind == 2 ? DARK : (kind == 1 ? (pat == SPOTS ? DARK : BASE) : DARK)), PINK, kind == 0 ? 0.054f : 0.075f, kind == 0 ? 0.029f : 0.03f);
+		q.earR = cat_ear(q, -1, pat == POINTS ? DARK : BASE, pat == POINTS ? DARK : (kind == 2 ? DARK : (kind == 1 ? (pat == SPOTS ? DARK : BASE) : DARK)), PINK, kind == 0 ? 0.054f : 0.075f, kind == 0 ? 0.029f : 0.03f);
 
 		// ----- Лапы -----
 		for (int s = -1; s <= 1; s += 2) {
 			Paint leg = (x, y, z) -> {
 				float fur = 0.92f + 0.12f * Voxels.grain(x, y, z, RES);
 				int c;
-				if (kind == 0) {
+				if (pat == POINTS) {
+					c = Voxels.mix(BASE, DARK, Voxels.smooth(0.17f, 0.11f, y));
+				} else if (pat == SOLID) {
+					c = BASE;
+				} else if (kind == 0) {
 					c = Voxels.mix(BASE, DARK, 0.55f * Voxels.smooth(0.55f, 0.75f, 0.5f + 0.5f * (float) Math.sin(y * 75.0f)));
 					c = Voxels.mix(c, LIGHT, 1.0f - Voxels.smooth(0.03f, 0.06f, y));
 				} else if (kind == 1) {
 					c = Voxels.mix(BASE, LIGHT, 1.0f - Voxels.smooth(0.08f, 0.13f, y));
+					if (pat == SPOTS) c = Voxels.mix(c, DARK, Voxels.smooth(0.67f, 0.71f, Voxels.noise(x * 62 + 9, y * 62, z * 62)));
 				} else {
 					c = Voxels.mix(BASE, DARK, 1.0f - Voxels.smooth(0.06f, 0.11f, y));
 					c = Voxels.mix(c, LIGHT, Voxels.smooth(0.14f, 0.17f, y) * 0.0f);
@@ -280,7 +361,11 @@ public final class PetFactory {
 				float ring = Voxels.smooth(0.5f, 0.72f, 0.5f + 0.5f * (float) Math.sin(z * 95.0f));
 				int c = Voxels.mix(BASE, DARK, 0.7f * ring);
 				if (idx == n - 1) c = Voxels.mix(c, DARK, 0.85f);
-				if (kind == 1) {
+				if (pat == POINTS) c = DARK;
+				if (pat == SOLID) c = BASE;
+				if (pat == POINTS || pat == SOLID) {
+					// цвет уже выбран выше
+				} else if (kind == 1) {
 					c = Voxels.mix(BASE, LIGHT, 0.45f * (1.0f - Voxels.smooth(0.17f, 0.25f, y)) + 0.0f);
 				} else if (kind == 2) {
 					c = idx >= n - 2 ? LIGHT : (idx == n - 3 ? Voxels.mix(BASE, LIGHT, 0.4f) : BASE);

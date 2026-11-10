@@ -2,6 +2,9 @@ package com.flyvisual.mixin;
 
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.gui.FlyTitleScreen;
+import com.flyvisual.module.ModuleManager;
+import com.flyvisual.module.impl.DeathScreenModule;
+import net.minecraft.client.gui.screen.DeathScreen;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
@@ -20,6 +23,12 @@ public class MinecraftClientMixin {
 	private Screen flyvisual$replaceTitleScreen(Screen screen) {
 		if (screen != null && screen.getClass() == TitleScreen.class && FlyConfig.get().customTitleScreen) {
 			return new FlyTitleScreen();
+		}
+		if (screen != null && screen.getClass() == DeathScreen.class) {
+			DeathScreenModule module = ModuleManager.deathScreen();
+			if (module != null && module.isEnabled()) {
+				return module.createScreen();
+			}
 		}
 		return screen;
 	}

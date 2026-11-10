@@ -178,6 +178,7 @@ public final class Lang {
 			Map.entry("Effect style", "Стиль эффекта"),
 			Map.entry("Shader", "Шейдер"),
 			Map.entry("Animation", "Анимация"),
+			Map.entry("Quality", "Качество"),
 			Map.entry("Choose items", "Выбрать предметы"),
 			Map.entry("Sky speed", "Скорость смены"),
 			Map.entry("Tint clouds", "Красить облака"),

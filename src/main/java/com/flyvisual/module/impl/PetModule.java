@@ -26,6 +26,7 @@ public class PetModule extends Module {
 	private final DoubleSetting pet = addChoice("Pet", 0, PetRenderer.NAMES);
 	private final DoubleSetting size = addSetting("Size", 1.0, 0.5, 2.0, 0.1);
 	private final DoubleSetting distance = addSetting("Pet distance", 1.6, 0.8, 4.0, 0.2);
+	private final DoubleSetting quality = addChoice("Quality", 1, "Обычное", "Высокое", "Ультра");
 	private final DoubleSetting side = addChoice("Side", 0, "Справа", "Слева");
 
 	private final Draw3d solid = new Draw3d(false);
@@ -100,6 +101,7 @@ public class PetModule extends Module {
 		float dt = lastNanos == 0 ? 0.016f : Math.min(0.1f, (now - lastNanos) / 1.0e9f);
 		lastNanos = now;
 
+		PetRenderer.setQuality(quality.getInt());
 		int kind = Math.max(0, Math.min(PetRenderer.NAMES.length - 1, pet.getInt()));
 		boolean flying = PetRenderer.FLYING[kind];
 
