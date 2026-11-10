@@ -1,5 +1,6 @@
 package com.flyvisual.module.impl;
 
+import com.flyvisual.util.Bold;
 import com.flyvisual.config.Theme;
 import com.flyvisual.gui.HudEditorScreen;
 import com.flyvisual.gui.UiShapes;
@@ -135,7 +136,7 @@ public class TargetHudModule extends HudModule {
 		int textX = px + (showAccentBar() ? 11 : 8);
 		int nameColor = UiShapes.mulA(Theme.TEXT, alpha);
 		if (((nameColor >>> 24) & 0xFF) >= 12) {
-			ctx.drawText(tr, shownName, textX, py + 5, nameColor, true);
+			Bold.draw(ctx, tr, shownName, textX, py + 5, nameColor);
 		}
 
 		// Полоска здоровья со скруглением: след, затем текущее здоровье
@@ -156,7 +157,7 @@ public class TargetHudModule extends HudModule {
 
 		int infoColor = UiShapes.mulA(Theme.TEXT_DIM, alpha);
 		if (((infoColor >>> 24) & 0xFF) >= 12) {
-			ctx.drawText(tr, String.format(Locale.ROOT, "%.1f ХП", shownHp), textX, py + 27, infoColor, true);
+			Bold.draw(ctx, tr, String.format(Locale.ROOT, "%.1f ХП", shownHp), textX, py + 27, infoColor);
 		}
 
 		if (showArmor.getBool()) {
@@ -190,11 +191,11 @@ public class TargetHudModule extends HudModule {
 			if (!st.isEmpty()) any = true;
 		}
 		if (((labelColor >>> 24) & 0xFF) >= 12) {
-			ctx.drawText(tr, any ? "Броня:" : "Броня: нет", x0, y0 + 4, labelColor, true);
+			Bold.draw(ctx, tr, any ? "Броня:" : "Броня: нет", x0, y0 + 4, labelColor);
 		}
 		if (!any) return;
 
-		int cx = x0 + tr.getWidth("Броня:") + 6;
+		int cx = x0 + Bold.width(tr, "Броня:") + 6;
 		for (ItemStack st : shownStacks) {
 			if (st.isEmpty()) continue;
 
@@ -216,9 +217,9 @@ public class TargetHudModule extends HudModule {
 					String t = Math.round(frac * 100.0f) + "%";
 					MatrixStack ms = ctx.getMatrices();
 					ms.push();
-					ms.translate(cx + 8.0f - tr.getWidth(t) * 0.3f, ny + 1.0f, 0.0f);
+					ms.translate(cx + 8.0f - Bold.width(tr, t) * 0.3f, ny + 1.0f, 0.0f);
 					ms.scale(0.6f, 0.6f, 1.0f);
-					ctx.drawText(tr, t, 0, 0, pctColor, true);
+					Bold.draw(ctx, tr, t, 0, 0, pctColor);
 					ms.pop();
 				}
 			}

@@ -69,13 +69,29 @@ public class GameRendererMixin {
 	/** Aspect Ratio: подменяем соотношение сторон в матрице перспективы. */
 	@ModifyArg(
 			method = "getBasicProjectionMatrix",
-			at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;perspective(FFFF)Lorg/joml/Matrix4f;"),
-			index = 1
+			at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;setPerspective(FFFF)Lorg/joml/Matrix4f;", remap = false),
+			index = 1,
+			require = 0
 	)
 	private float flyvisual$aspect(float aspect) {
+		return flyvisual$aspectValue(aspect);
+	}
+
+	@ModifyArg(
+			method = "getBasicProjectionMatrix",
+			at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;perspective(FFFF)Lorg/joml/Matrix4f;", remap = false),
+			index = 1,
+			require = 0
+	)
+	private float flyvisual$aspect2(float aspect) {
+		return flyvisual$aspectValue(aspect);
+	}
+
+	private static float flyvisual$aspectValue(float aspect) {
 		AspectRatioModule module = ModuleManager.aspectRatio();
 		if (module != null && module.isEnabled()) {
-			return module.ratio();
+			float r = module.ratio();
+			if (r > 0.0f) return r;
 		}
 		return aspect;
 	}

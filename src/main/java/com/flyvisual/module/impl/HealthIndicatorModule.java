@@ -1,5 +1,6 @@
 package com.flyvisual.module.impl;
 
+import com.flyvisual.util.Bold;
 import com.flyvisual.config.Theme;
 import com.flyvisual.gui.UiShapes;
 import com.flyvisual.module.DoubleSetting;
@@ -80,7 +81,7 @@ public class HealthIndicatorModule extends Module {
 		String absorb = shownAbsorb >= 0.5f ? String.format(Locale.ROOT, " +%.0f", shownAbsorb) : "";
 
 		int heartW = tr.getWidth("♥");
-		int textW = tr.getWidth(hp) + tr.getWidth(absorb);
+		int textW = Bold.width(tr, hp) + Bold.width(tr, absorb);
 		int w = heartW + 4 + textW + 12;
 		int h = 14;
 
@@ -105,9 +106,9 @@ public class HealthIndicatorModule extends Module {
 		int gc = UiShapes.mulA(0xFFFFC107, alpha);
 		if (((hc >>> 24) & 0xFF) >= 12) {
 			ctx.drawText(tr, "♥", x + 6, 3, hc, true);
-			ctx.drawText(tr, hp, x + 6 + heartW + 4, 3, wc, true);
+			Bold.draw(ctx, tr, hp, x + 6 + heartW + 4, 3, wc);
 			if (!absorb.isEmpty()) {
-				ctx.drawText(tr, absorb, x + 6 + heartW + 4 + tr.getWidth(hp), 3, gc, true);
+				Bold.draw(ctx, tr, absorb, x + 6 + heartW + 4 + Bold.width(tr, hp), 3, gc);
 			}
 		}
 		ms.pop();

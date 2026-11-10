@@ -43,6 +43,9 @@ public class FlyConfig {
 	/** Предметы для шейдера Hands (id), пусто = любые. */
 	public java.util.List<String> handItems = new java.util.ArrayList<>();
 
+	/** Клавиши макросов (GLFW-код, 0 = не назначена). */
+	public int[] macroKeys = new int[8];
+
 	/** Включён ли модуль: имя модуля -> состояние. */
 	public Map<String, Boolean> modules = new LinkedHashMap<>();
 
