@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(WorldRenderer.class)
 public class WorldRendererMixin {
 	/** Реалистичное небо рисует свои облака, плоские ванильные тогда не нужны. */
-	@Inject(method = "renderClouds", at = @At("HEAD"), cancellable = true)
+	@Inject(method = "renderClouds(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FDDD)V", at = @At("HEAD"), cancellable = true)
 	private void flyvisual$hideVanillaClouds(CallbackInfo ci) {
 		SkyModule sky = ModuleManager.sky();
 		OptimizationModule opt = ModuleManager.optimization();
@@ -49,7 +49,7 @@ public class WorldRendererMixin {
 	}
 
 	/** Оптимизация: без неба, звёзд, солнца и луны. */
-	@Inject(method = "renderSky", at = @At("HEAD"), cancellable = true)
+	@Inject(method = "renderSky(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FLnet/minecraft/client/render/Camera;ZLjava/lang/Runnable;)V", at = @At("HEAD"), cancellable = true)
 	private void flyvisual$hideSky(CallbackInfo ci) {
 		OptimizationModule opt = ModuleManager.optimization();
 		if (opt != null && opt.skySky()) {
