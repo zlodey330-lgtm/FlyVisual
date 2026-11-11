@@ -184,7 +184,7 @@ public class FlyTitleScreen extends Screen {
 		int w = blockW() + 2 * PAD;
 		int h = blockH() + 2 * PAD;
 		UiShapes.roundRect(ctx, x - 1, y - 1, w + 2, h + 2, RADIUS + 5, UiShapes.mulA(0xFFFFFFFF, 0.10f * appear));
-		UiShapes.roundRect(ctx, x, y, w, h, RADIUS + 4, UiShapes.mulA(0xFF08090B, 0.62f * appear));
+		UiShapes.roundRect(ctx, x, y, w, h, RADIUS + 4, UiShapes.mulA(Theme.titlePanelCol(), 0.62f * appear));
 	}
 
 	private void drawLogo(DrawContext ctx, float t) {
@@ -238,8 +238,8 @@ public class FlyTitleScreen extends Screen {
 
 		// Тонкая обводка и стеклянная заливка
 		int border = UiShapes.lerp(primary ? UiShapes.lerp(0xFF3C4046, accent, 0.55f) : 0xFF33363B, accent, hv);
-		int fillBase = primary ? 0xFF1E2023 : 0xFF141518;
-		int fill = UiShapes.lerp(fillBase, 0xFF2A2D31, hv);
+		int fillBase = primary ? UiShapes.lerp(Theme.tileCol(), Theme.tileHoverCol(), 0.5f) : Theme.paneCol();
+		int fill = UiShapes.lerp(fillBase, Theme.tileHoverCol(), hv);
 		UiShapes.roundRect(ctx, x, y, w, h, RADIUS, UiShapes.mulA(border, appear));
 		UiShapes.roundRect(ctx, x + 1, y + 1, w - 2, h - 2, RADIUS - 1, UiShapes.mulA(fill, appear));
 		// Блик сверху

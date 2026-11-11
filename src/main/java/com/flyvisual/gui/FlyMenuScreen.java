@@ -9,7 +9,6 @@ import com.flyvisual.module.ModuleManager;
 import com.flyvisual.module.impl.MacroModule;
 import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.util.math.MatrixStack;
@@ -45,11 +44,6 @@ public class FlyMenuScreen extends Screen {
 	private static final int ROW_H = 24;
 	private static final float OPEN_TIME = 0.22f;
 
-	private static final int COL_PANEL = 0xF0141416;
-	private static final int COL_TILE = 0xFF1C1C20;
-	private static final int COL_TILE_HOVER = 0xFF27272C;
-	private static final int COL_PANE = 0xFF18181C;
-	private static final int COL_OFF = 0xFF3A3A3E;
 
 	private Module selected;
 	private int scroll;
@@ -304,7 +298,7 @@ public class FlyMenuScreen extends Screen {
 		if (on > 0.03f) {
 			rr(ctx, px - 2, py - 2, pw + 4, ph + 4, ph / 2 + 2, mulA(Theme.accent(), 0.28f * on));
 		}
-		rr(ctx, px, py, pw, ph, ph / 2, lerp(COL_OFF, Theme.accent(), on));
+		rr(ctx, px, py, pw, ph, ph / 2, lerp(Theme.offCol(), Theme.accent(), on));
 		int knob = ph - 4;
 		int kx = px + 2 + Math.round((pw - knob - 4) * on);
 		rr(ctx, kx, py + 2, knob, knob, knob / 2, lerp(0xFFB0B0B0, 0xFFFFFFFF, on));
@@ -406,7 +400,7 @@ public class FlyMenuScreen extends Screen {
 		int r = right();
 		int b = bottom();
 
-		rr(ctx, l, t, r - l, b - t, 8, COL_PANEL);
+		rr(ctx, l, t, r - l, b - t, 8, Theme.panelCol());
 		rr(ctx, l + 8, t, r - l - 16, 2, 1, Theme.accent());
 		rect(ctx, l, t + HEAD - 1, r, t + HEAD, 0x22FFFFFF);
 
@@ -470,7 +464,7 @@ public class FlyMenuScreen extends Screen {
 			if (m == selected) {
 				rr(ctx, tx - 1, ty - 1, tw + 2, TILE_H + 2, 7, Theme.accent());
 			}
-			rr(ctx, tx, ty, tw, TILE_H, 6, lerp(COL_TILE, COL_TILE_HOVER, hv));
+			rr(ctx, tx, ty, tw, TILE_H, 6, lerp(Theme.tileCol(), Theme.tileHoverCol(), hv));
 
 			String title = textRenderer.trimToWidth(Lang.module(m.getName()), tw - 14);
 			text(ctx, title, tx + 8, ty + 6, lerp(0xFFB8B8B8, Theme.TEXT, en));
@@ -500,7 +494,7 @@ public class FlyMenuScreen extends Screen {
 		int gy1 = gy1();
 		int gy2 = gy2();
 
-		rr(ctx, px1, gy1, px2 - px1, gy2 - gy1, 6, COL_PANE);
+		rr(ctx, px1, gy1, px2 - px1, gy2 - gy1, 6, Theme.paneCol());
 		if (selected == null) {
 			String hint = "Выбери модуль";
 			text(ctx, hint, px1 + (PANE_W - textRenderer.getWidth(hint)) / 2, gy1 + 20, Theme.TEXT_DIM);
@@ -555,14 +549,14 @@ public class FlyMenuScreen extends Screen {
 				int cy = ry + 17;
 				double frac = (s.get() - s.getMin()) / (s.getMax() - s.getMin());
 				int fx = x1 + (int) Math.round(frac * (x2 - x1));
-				if (s.getName().equals("Color (hue)")) {
+				if (s.getName().endsWith("(hue)")) {
 					// Радужная дорожка: выбирай любой оттенок
 					for (int xx = x1; xx < x2; xx += 2) {
 						float hh = (xx - x1) / (float) (x2 - x1) * 360.0f;
 						rect(ctx, xx, cy - 2, Math.min(xx + 2, x2), cy + 2, 0xFF000000 | ColorUtil.hsv(hh, 0.9f, 1.0f));
 					}
 				} else {
-					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, COL_OFF);
+					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, Theme.offCol());
 					if (fx > x1) {
 						rr(ctx, x1, cy - 2, fx - x1, 4, 2, Theme.accent());
 					}
@@ -574,115 +568,28 @@ public class FlyMenuScreen extends Screen {
 		extra = 1.0f;
 	}
 
-	private static final int MROW = 20;
-	private int macroFocus = -1;
-	private int macroBind = -1;
-
-	private int mFieldX() {
-		return px1() + 8;
+	private boolean overMacroButton(double mx, double my) {
+		return mx >= px1() + 8 && mx < px2() - 8 && my >= settingsTop() && my < settingsTop() + 18;
 	}
 
-	private int mFieldW() {
-		return PANE_W - 16 - 50;
-	}
-
-	private int mKeyX() {
-		return px2() - 8 - 46;
-	}
-
-	private int mRowY(int i) {
-		return settingsTop() + i * MROW;
-	}
-
-	/** Какая строка макросов под мышкой (-1 нет) и что именно: 0 поле, 1 клавиша. */
-	private int[] macroHit(double mx, double my) {
-		for (int i = 0; i < MacroModule.COUNT; i++) {
-			int ry = mRowY(i);
-			if (ry + 16 > gy2()) break;
-			if (my >= ry && my < ry + 16) {
-				if (mx >= mFieldX() && mx < mFieldX() + mFieldW()) return new int[]{i, 0};
-				if (mx >= mKeyX() && mx < mKeyX() + 46) return new int[]{i, 1};
-			}
-		}
-		return new int[]{-1, -1};
-	}
-
-	private String macroText(int i) {
-		String[] m = FlyConfig.get().macros;
-		return m != null && i < m.length && m[i] != null ? m[i] : "";
-	}
-
-	private void setMacroText(int i, String s) {
-		FlyConfig cfg = FlyConfig.get();
-		if (cfg.macros == null || cfg.macros.length < MacroModule.COUNT) {
-			String[] n = new String[MacroModule.COUNT];
-			for (int k = 0; k < n.length; k++) n[k] = macroText(k);
-			cfg.macros = n;
-		}
-		cfg.macros[i] = s;
-		FlyConfig.save();
-	}
-
-	private int macroKey(int i) {
-		int[] k = FlyConfig.get().macroKeys;
-		return k != null && i < k.length ? k[i] : 0;
-	}
-
-	private void setMacroKey(int i, int code) {
-		FlyConfig cfg = FlyConfig.get();
-		if (cfg.macroKeys == null || cfg.macroKeys.length < MacroModule.COUNT) cfg.macroKeys = new int[MacroModule.COUNT];
-		cfg.macroKeys[i] = code;
-		FlyConfig.save();
-	}
-
-	/** Макросы прямо в меню: строка = поле текста/команды + кнопка клавиши. */
+	/** Вместо ползунков у макросов кнопка открытия редактора текстов. */
 	private void drawMacroPane(DrawContext ctx, int mouseX, int mouseY) {
-		boolean blink = (System.currentTimeMillis() / 500) % 2 == 0;
-		for (int i = 0; i < MacroModule.COUNT; i++) {
-			int ry = mRowY(i);
-			if (ry + 16 > gy2()) break;
-			int fx = mFieldX();
-			int fw = mFieldW();
-			boolean focus = macroFocus == i;
-			rr(ctx, fx - 1, ry - 1, fw + 2, 18, 5, focus ? mulA(Theme.accent(), 0.8f) : 0xFF2A2A2E);
-			rr(ctx, fx, ry, fw, 16, 4, 0xFF1C1C20);
-			String s = macroText(i);
-			if (s.isEmpty() && !focus) {
-				text(ctx, "Текст или /команда", fx + 4, ry + 4, 0xFF666670);
-			} else {
-				String shown = s;
-				while (shown.length() > 0 && textRenderer.getWidth(shown) > fw - 10) shown = shown.substring(1);
-				text(ctx, shown, fx + 4, ry + 4, Theme.TEXT);
-				if (focus && blink) {
-					rect(ctx, fx + 4 + textRenderer.getWidth(shown), ry + 3, fx + 5 + textRenderer.getWidth(shown), ry + 13, Theme.TEXT);
-				}
-			}
-			int kx = mKeyX();
-			boolean binding = macroBind == i;
-			boolean hover = mouseX >= kx && mouseX < kx + 46 && mouseY >= ry && mouseY < ry + 16;
-			rr(ctx, kx, ry, 46, 16, 4, binding ? Theme.accent() : (hover ? 0xFF3A3A40 : 0xFF2A2A2E));
-			String label;
-			if (binding) {
-				label = "...";
-			} else if (macroKey(i) == 0) {
-				label = "Клавиша";
-			} else {
-				label = macroKey(i) >= 1000 ? "Мышь " + (macroKey(i) - 999)
-						: InputUtil.fromKeyCode(macroKey(i), 0).getLocalizedText().getString();
-			}
-			label = textRenderer.trimToWidth(label, 40);
-			text(ctx, label, kx + (46 - textRenderer.getWidth(label)) / 2, ry + 4, Theme.TEXT);
-		}
-	}
+		int bx = px1() + 8;
+		int by = settingsTop();
+		int bw = PANE_W - 16;
+		boolean hover = overMacroButton(mouseX, mouseY);
+		rr(ctx, bx, by, bw, 18, 6, hover ? Theme.accent() : 0xFF2A2A2E);
+		String label = "Редактировать макросы";
+		text(ctx, label, bx + (bw - textRenderer.getWidth(label)) / 2, by + 5, Theme.TEXT);
 
-	@Override
-	public boolean charTyped(char chr, int modifiers) {
-		if (macroFocus >= 0 && chr >= 32 && chr != 127) {
-			String s = macroText(macroFocus);
-			if (s.length() < 256) setMacroText(macroFocus, s + chr);
-			return true;
+		List<OrderedText> lines = textRenderer.wrapLines(
+				Text.literal("Клавиши назначаются в Управление, категория FlyVisual."), PANE_W - 16);
+		for (int i = 0; i < Math.min(3, lines.size()); i++) {
+			int c = col(Theme.TEXT_DIM);
+			if (((c >>> 24) & 0xFF) >= 12) {
+				ctx.drawText(textRenderer, lines.get(i), bx, by + 26 + i * 10, c, true);
+			}
 		}
-		return super.charTyped(chr, modifiers);
 	}
 
 	private void drawPicker(DrawContext ctx) {
@@ -799,19 +706,9 @@ public class FlyMenuScreen extends Screen {
 			}
 		}
 
-		if (selected instanceof MacroModule) {
-			if (macroBind >= 0) {
-				// любая мышь отменяет ожидание клавиши (боковые кнопки мыши тоже можно назначить)
-				if (button >= 2) setMacroKey(macroBind, 1000 + button);
-				macroBind = -1;
-				return true;
-			}
-			if (button == 0 && mouseX >= px1() && mouseX < px2()) {
-				int[] hit = macroHit(mouseX, mouseY);
-				macroFocus = hit[1] == 0 ? hit[0] : -1;
-				macroBind = hit[1] == 1 ? hit[0] : -1;
-				return true;
-			}
+		if (button == 0 && selected instanceof MacroModule && overMacroButton(mouseX, mouseY)) {
+			MinecraftClient.getInstance().setScreen(new MacroScreen(this));
+			return true;
 		}
 
 		// Настройки выбранного модуля
@@ -890,36 +787,6 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-		if (selected instanceof MacroModule) {
-			if (macroBind >= 0) {
-				if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-					// отмена
-				} else if (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) {
-					setMacroKey(macroBind, 0);
-				} else {
-					setMacroKey(macroBind, keyCode);
-				}
-				macroBind = -1;
-				return true;
-			}
-			if (macroFocus >= 0) {
-				String s = macroText(macroFocus);
-				if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-					macroFocus = -1;
-				} else if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
-					if (!s.isEmpty()) setMacroText(macroFocus, s.substring(0, s.length() - 1));
-				} else if (Screen.isPaste(keyCode)) {
-					String clip = MinecraftClient.getInstance().keyboard.getClipboard().replaceAll("[\\r\\n]", " ");
-					setMacroText(macroFocus, (s + clip).substring(0, Math.min(256, s.length() + clip.length())));
-				} else if (Screen.isSelectAll(keyCode) || Screen.isCopy(keyCode) || Screen.isCut(keyCode)) {
-					if (Screen.isCopy(keyCode) || Screen.isCut(keyCode)) {
-						MinecraftClient.getInstance().keyboard.setClipboard(s);
-						if (Screen.isCut(keyCode)) setMacroText(macroFocus, "");
-					}
-				}
-				return true;
-			}
-		}
 		if (keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) {
 			close();
 			return true;

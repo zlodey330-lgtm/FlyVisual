@@ -49,7 +49,7 @@ public class WorldRendererMixin {
 	}
 
 	/** Оптимизация: без неба, звёзд, солнца и луны. */
-	@Inject(method = "renderSky(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FLnet/minecraft/client/render/Camera;ZLjava/lang/Runnable;)V", at = @At("HEAD"), cancellable = true)
+	@Inject(method = "renderSky", at = @At("HEAD"), cancellable = true)
 	private void flyvisual$hideSky(CallbackInfo ci) {
 		OptimizationModule opt = ModuleManager.optimization();
 		if (opt != null && opt.skySky()) {

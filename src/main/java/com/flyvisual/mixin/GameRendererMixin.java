@@ -2,6 +2,7 @@ package com.flyvisual.mixin;
 
 import com.flyvisual.module.ModuleManager;
 import com.flyvisual.module.impl.AspectRatioModule;
+import com.flyvisual.module.impl.MotionBlurModule;
 import com.flyvisual.module.impl.NoHurtCamModule;
 import com.flyvisual.module.impl.SaturationModule;
 import com.flyvisual.module.impl.TotemAnimationModule;
@@ -69,29 +70,13 @@ public class GameRendererMixin {
 	/** Aspect Ratio: подменяем соотношение сторон в матрице перспективы. */
 	@ModifyArg(
 			method = "getBasicProjectionMatrix",
-			at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;setPerspective(FFFF)Lorg/joml/Matrix4f;", remap = false),
-			index = 1,
-			require = 0
+			at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;perspective(FFFF)Lorg/joml/Matrix4f;"),
+			index = 1
 	)
 	private float flyvisual$aspect(float aspect) {
-		return flyvisual$aspectValue(aspect);
-	}
-
-	@ModifyArg(
-			method = "getBasicProjectionMatrix",
-			at = @At(value = "INVOKE", target = "Lorg/joml/Matrix4f;perspective(FFFF)Lorg/joml/Matrix4f;", remap = false),
-			index = 1,
-			require = 0
-	)
-	private float flyvisual$aspect2(float aspect) {
-		return flyvisual$aspectValue(aspect);
-	}
-
-	private static float flyvisual$aspectValue(float aspect) {
 		AspectRatioModule module = ModuleManager.aspectRatio();
 		if (module != null && module.isEnabled()) {
-			float r = module.ratio();
-			if (r > 0.0f) return r;
+			return module.ratio();
 		}
 		return aspect;
 	}
@@ -106,6 +91,10 @@ public class GameRendererMixin {
 			)
 	)
 	private void flyvisual$saturation(float tickDelta, long startTime, boolean tick, CallbackInfo ci) {
+		MotionBlurModule blur = ModuleManager.motionBlur();
+		if (blur != null && blur.isEnabled()) {
+			blur.process(tickDelta);
+		}
 		SaturationModule module = ModuleManager.saturation();
 		if (module != null && module.isEnabled()) {
 			module.process(tickDelta);
