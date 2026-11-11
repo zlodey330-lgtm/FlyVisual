@@ -7,8 +7,11 @@ import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.RotationAxis;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,31 +52,47 @@ public class CrosshairModule extends Module {
 		int s = size.getInt();
 		int g = gap.getInt();
 		List<Rect> rects = new ArrayList<>();
-		boolean rotate = false;
 
+		// Центральный пиксель (или квадрат толщиной t) занимает [lo, hi). Все части считаются от него,
+		// поэтому левая и правая, верхняя и нижняя части симметричны при любой толщине и зазоре.
+		int lo = -(t / 2);
+		int hi = lo + t;
 		switch (style.getInt()) {
-			case 0, 1 -> {
-				rotate = style.getInt() == 1;
-				int lo = -(t / 2);
-				int hi = lo + t;
-				rects.add(new Rect(-g - s, lo, -g, hi));
-				rects.add(new Rect(g, lo, g + s, hi));
-				rects.add(new Rect(lo, -g - s, hi, -g));
-				rects.add(new Rect(lo, g, hi, g + s));
+			case 0 -> {
+				rects.add(new Rect(lo - g - s, lo, lo - g, hi));
+				rects.add(new Rect(hi + g, lo, hi + g + s, hi));
+				rects.add(new Rect(lo, lo - g - s, hi, lo - g));
+				rects.add(new Rect(lo, hi + g, hi, hi + g + s));
+			}
+			case 1 -> {
+				// диагональный крест ступеньками из квадратиков, без поворота (поворот делал края кривыми)
+				for (int i = 0; i < s; i++) {
+					int d = g + i;
+					rects.add(new Rect(lo - d - t, lo - d - t, lo - d, lo - d));
+					rects.add(new Rect(hi + d, lo - d - t, hi + d + t, lo - d));
+					rects.add(new Rect(lo - d - t, hi + d, lo - d, hi + d + t));
+					rects.add(new Rect(hi + d, hi + d, hi + d + t, hi + d + t));
+				}
 			}
 			case 2 -> {
 				int d = t + 1;
-				int lo = -(d / 2);
-				rects.add(new Rect(lo, lo, lo + d, lo + d));
+				int l2 = -(d / 2);
+				rects.add(new Rect(l2, l2, l2 + d, l2 + d));
 			}
 			default -> {
 				int points = Math.max(16, s * 6);
-				int lo = -(t / 2);
+				double r = s + g;
+				double half = t / 2.0;
+				int lastX = Integer.MIN_VALUE;
+				int lastY = Integer.MIN_VALUE;
 				for (int i = 0; i < points; i++) {
 					double a = 2.0 * Math.PI * i / points;
-					int px = (int) Math.round(Math.cos(a) * (s + g));
-					int py = (int) Math.round(Math.sin(a) * (s + g));
-					rects.add(new Rect(px + lo, py + lo, px + lo + t, py + lo + t));
+					int px = (int) Math.round(Math.cos(a) * r - half + (t % 2 == 0 ? 0.0 : 0.5));
+					int py = (int) Math.round(Math.sin(a) * r - half + (t % 2 == 0 ? 0.0 : 0.5));
+					if (px == lastX && py == lastY) continue;
+					lastX = px;
+					lastY = py;
+					rects.add(new Rect(px, py, px + t, py + t));
 				}
 			}
 		}
@@ -81,9 +100,6 @@ public class CrosshairModule extends Module {
 		MatrixStack ms = ctx.getMatrices();
 		ms.push();
 		ms.translate(cx, cy, 0.0f);
-		if (rotate) {
-			ms.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(45.0f));
-		}
 
 		if (outline.getBool()) {
 			for (Rect r : rects) {
@@ -96,8 +112,21 @@ public class CrosshairModule extends Module {
 		ms.pop();
 	}
 
+	/** Невидимых не подсвечиваем, кроме тех, на ком надета хоть одна часть брони (её видно). */
+	private static boolean shouldHighlight(Entity entity) {
+		if (!entity.isInvisible()) return true;
+		if (entity instanceof LivingEntity living) {
+			return !living.getEquippedStack(EquipmentSlot.HEAD).isEmpty()
+					|| !living.getEquippedStack(EquipmentSlot.CHEST).isEmpty()
+					|| !living.getEquippedStack(EquipmentSlot.LEGS).isEmpty()
+					|| !living.getEquippedStack(EquipmentSlot.FEET).isEmpty();
+		}
+		return false;
+	}
+
 	private int pickColor(MinecraftClient mc) {
-		if (highlight.getBool() && mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.ENTITY) {
+		if (highlight.getBool() && mc.crosshairTarget instanceof EntityHitResult hit
+				&& hit.getType() == HitResult.Type.ENTITY && shouldHighlight(hit.getEntity())) {
 			return 0xFF3030;
 		}
 		return switch (color.getInt()) {
