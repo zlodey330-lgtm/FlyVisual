@@ -26,13 +26,14 @@
 		"WorldRendererMixin",
 		"ScreenBackgroundMixin",
 		"ItemStackMixin",
+		"SplashOverlayMixin",
+		"PressableWidgetMixin",
+		"ChatHudMixin",
 		"SpriteContentsMixin",
 		"ResourceTextureDataMixin",
 		"SpriteAtlasTextureMixin",
 		"ItemEntityMixin",
-		"SignBlockEntityRendererMixin",
-		"HeldItemShaderMixin",
-		"FramerateLimitMixin"
+		"SignBlockEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0
