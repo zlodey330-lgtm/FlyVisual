@@ -1,0 +1,41 @@
+{
+  "required": true,
+  "package": "com.flyvisual.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "SimpleOptionAccessor",
+    "OverlayTextureAccessor",
+    "MinecraftClientMixin",
+    "ClientWorldPropertiesMixin",
+    "InGameHudMixin",
+    "AbstractClientPlayerEntityMixin",
+    "GameRendererMixin",
+    "MouseMixin",
+    "EntityMixin",
+    "CameraMixin",
+    "InGameOverlayRendererMixin",
+    "HeldItemRendererMixin",
+    "BackgroundRendererMixin",
+    "ClientWorldMixin",
+    "ParticleManagerMixin",
+    "DeathScreenMixin",
+    "EntityRenderDispatcherMixin",
+    "PlayerEntityModelMixin",
+		"BipedEntityModelMixin",
+		"MouseLatencyMixin",
+		"WorldRendererMixin",
+		"ScreenBackgroundMixin",
+		"ItemStackMixin",
+		"SplashOverlayMixin",
+		"PressableWidgetMixin",
+		"ChatHudMixin",
+		"SpriteContentsMixin",
+		"ResourceTextureDataMixin",
+		"SpriteAtlasTextureMixin",
+		"ItemEntityMixin",
+		"SignBlockEntityRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
