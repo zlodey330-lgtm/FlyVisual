@@ -43,7 +43,9 @@ sourceSets {
 	main {
 		java {
 			exclude '**/util/ParticleFx.java', '**/mixin/FpsLimitMixin.java',
-					'**/gui/ItemPickerScreen.java', '**/gui/FlyDeathScreen.java'
+					'**/gui/ItemPickerScreen.java', '**/gui/FlyDeathScreen.java',
+					'**/module/impl/HandsModule.java', '**/module/DeathMenuScreen.java',
+					'**/util/ChibiFactory.java', '**/util/ChibiPet.java', '**/mixin/HeldItemShaderMixin.java'
 		}
 	}
 }
