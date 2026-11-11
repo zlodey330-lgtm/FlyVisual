@@ -25,7 +25,7 @@ public class FlyConfig {
 	public int themeVersion = 2;
 
 	/** Заменять ли ванильное главное меню меню FlyVisual. */
-	public boolean customTitleScreen = true;
+	public boolean customTitleScreen = false;
 
 	/** Колыхание листвы и земли на фоне главного меню. */
 	public boolean titleWave = true;
