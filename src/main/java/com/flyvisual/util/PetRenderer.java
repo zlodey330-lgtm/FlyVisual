@@ -11,9 +11,13 @@ import org.joml.Matrix4f;
  */
 public final class PetRenderer {
 	public static final String[] NAMES = {"Кошка", "Собака", "Лисичка", "Дракончик", "Призрак", "Огонёк", "Сиамская кошка", "Пантера",
-			"Волк", "Ретривер", "Белая лисица", "Далматин", "Рыжий кот"};
-	public static final boolean[] FLYING = {false, false, false, true, true, true, false, false, false, false, false, false, false};
+			"Волк", "Ретривер", "Белая лисица", "Далматин", "Рыжий кот", "Кубокот", "Лисёнок", "Зайка", "Панда", "Совёнок",
+			"Бу", "Слайм", "Дрон", "Тыква-нетопырь"};
+	public static final boolean[] FLYING = {false, false, false, true, true, true, false, false, false, false, false, false, false, false, false, false,
+			false, true, true, false, true, true};
 
+	private static final ChibiPet[] CHIBI = new ChibiPet[9];
+	private static final float[] CHIBI_SCALE = {1.5f, 1.5f, 1.5f, 1.5f, 1.4f, 1.5f, 1.6f, 1.9f, 1.4f};
 	private static final Quadruped[] ANIMALS = new Quadruped[13];
 	/** Масштаб моделей: кошка, хаски, лиса. */
 	private static final float[] SCALE = {1.0f, 1.35f, 1.05f, 1.0f, 1.3f, 1.55f, 1.4f, 0.95f, 1.4f, 1.0f};
@@ -92,6 +96,20 @@ public final class PetRenderer {
 				walk = walkPhase;
 				moving = movingAmount;
 				ghost(GHOST);
+			}
+			case 13, 14, 15, 16, 17, 18, 19, 20, 21 -> {
+				int ci = kind - 13;
+				ChibiPet cp = CHIBI[ci];
+				if (cp == null) {
+					cp = ChibiFactory.create(ci);
+					CHIBI[ci] = cp;
+				}
+				float sc = CHIBI_SCALE[ci];
+				shadow(c, 0.45f * sc);
+				matrices.push();
+				matrices.scale(sc, sc, sc);
+				drawModel(cp, matrices, solid, lightFactor, seconds, walkPhase, movingAmount);
+				matrices.pop();
 			}
 			default -> PetWisp.draw(c);
 		}

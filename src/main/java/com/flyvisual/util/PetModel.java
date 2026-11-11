@@ -66,6 +66,14 @@ public class PetModel {
 		return part;
 	}
 
+	/** То же, но сетка блочная (воксельный арт, без сглаживания). */
+	public Part addBlocky(String name, Part parent, float px, float py, float pz, Voxels voxels) {
+		Voxels.Mesh mesh = voxels == null || voxels.isEmpty() ? null : voxels.bakeBlocky(px, py, pz);
+		Part part = new Part(name, parent, px, py, pz, mesh);
+		parts.add(part);
+		return part;
+	}
+
 	/** Расставляет части для момента time (секунды); walk = фаза шага, moving = 0..1 (стоит или идёт). */
 	public void animate(float time, float walk, float moving) {
 	}
