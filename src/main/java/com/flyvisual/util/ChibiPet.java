@@ -74,23 +74,24 @@ public final class ChibiPet extends PetModel {
 				tailAnim(time, moving);
 			}
 			case WINGS -> {
-				float flap = sin(time * (11.0f + 6.0f * moving));
+				// Стоит: крылья сложены и неподвижны. Идёт: мягкие небольшие взмахи
+				float flap = sin(time * 8.0f);
 				body.ty = 0.03f * sin(time * 1.9f);
 				body.rx = 7.0f * moving;
 				if (wingL != null) {
-					wingL.rz = 18.0f + 38.0f * flap;
-					wingR.rz = -18.0f - 38.0f * flap;
+					wingL.rz = 14.0f + 24.0f * moving * flap;
+					wingR.rz = -14.0f - 24.0f * moving * flap;
 				}
 				head.ry = 12.0f * sin(time * 0.7f) * (1.0f - 0.5f * moving);
 				head.rz = 4.0f * sin(time * 1.1f);
 				if (earL != null) {
-					earL.rz = 6.0f * sin(time * 2.0f);
-					earR.rz = -6.0f * sin(time * 2.0f + 1.0f);
+					earL.rz = 2.0f * sin(time * 1.2f);
+					earR.rz = -2.0f * sin(time * 1.2f + 1.0f);
 				}
 				if (tail != null) tail.rx = 10.0f * sin(time * 2.2f);
 				if (legFL != null) {
-					legFL.rx = -35.0f - 10.0f * sin(time * 2.0f);
-					legFR.rx = -35.0f - 10.0f * sin(time * 2.0f + 0.5f);
+					legFL.rx = -18.0f;
+					legFR.rx = -18.0f;
 				}
 			}
 			case GHOST -> {
@@ -98,8 +99,8 @@ public final class ChibiPet extends PetModel {
 				body.rx = 8.0f * moving;
 				body.rz = 3.0f * sin(time * 1.4f);
 				if (armL != null) {
-					armL.rz = 25.0f + 22.0f * sin(time * 3.0f);
-					armR.rz = -25.0f - 22.0f * sin(time * 3.0f + 1.2f);
+					armL.rz = 25.0f + 14.0f * moving * sin(time * 4.0f);
+					armR.rz = -25.0f - 14.0f * moving * sin(time * 4.0f + 1.2f);
 				}
 				if (hat != null) {
 					hat.rz = 5.0f * sin(time * 1.6f);

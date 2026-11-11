@@ -6,9 +6,9 @@ import com.flyvisual.util.Voxels.Paint;
 /** Сборка мультяшных воксельных питомцев (ChibiPet). Кубики по 2,5 см, пиксельная текстура, большие головы. */
 public final class ChibiFactory {
 	private static final float R = 0.025f;
-	public static final String[] NAMES = {"Кубокот", "Лисёнок", "Зайка", "Панда", "Совёнок", "Бу", "Слайм", "Дрон", "Тыква-нетопырь"};
+	public static final String[] NAMES = {"Кубокот", "Лисёнок", "Зайка", "Панда", "Совёнок", "Бу", "Слайм", "Дрон", "Тыква-нетопырь", "Дракончик", "Пантера"};
 	/** Парит ли питомец в воздухе. */
-	public static final boolean[] FLYING = {false, false, false, false, true, true, false, true, true};
+	public static final boolean[] FLYING = {false, false, false, false, true, true, false, true, true, true, false};
 
 	private ChibiFactory() {
 	}
@@ -23,6 +23,8 @@ public final class ChibiFactory {
 			case 5 -> ghost();
 			case 6 -> slime();
 			case 7 -> drone();
+			case 9 -> dragon();
+			case 10 -> panther();
 			default -> pumpkin();
 		};
 	}
@@ -31,6 +33,11 @@ public final class ChibiFactory {
 
 	private static Voxels vox() {
 		return new Voxels(R, -0.6f, -0.02f, -0.5f, 0.6f, 0.95f, 0.5f);
+	}
+
+	/** Сетка подлиннее вдоль Z: для длинных зверей (пантера). */
+	private static Voxels voxLong() {
+		return new Voxels(R, -0.6f, -0.02f, -1.0f, 0.6f, 0.95f, 0.75f);
 	}
 
 	/** Цвет с пиксельным шумом: каждый кубик чуть светлее или темнее, как текстура. */
@@ -92,18 +99,23 @@ public final class ChibiFactory {
 
 		// Тело
 		Voxels b = vox();
-		rbox(b, 0, 0.26f, -0.03f, type == 3 ? 0.14f : 0.125f, 0.105f, 0.17f, tex(main));
-		rbox(b, 0, 0.2f, 0.0f, 0.09f, 0.07f, 0.15f, tex(light));
+		if (type == 3) {
+			rbox(b, 0, 0.27f, -0.04f, 0.2f, 0.12f, 0.23f, tex(main));
+			rbox(b, 0, 0.2f, -0.02f, 0.14f, 0.08f, 0.2f, tex(light));
+		} else {
+			rbox(b, 0, 0.26f, -0.03f, 0.125f, 0.105f, 0.17f, tex(main));
+			rbox(b, 0, 0.2f, 0.0f, 0.09f, 0.07f, 0.15f, tex(light));
+		}
 		if (type == 3) {
 			// чёрный пояс на плечах панды
-			b.paintOver(-0.2f, 0.1f, 0.03f, 0.2f, 0.45f, 0.14f, (x, y, z) -> true, tex(dark));
-			b.paintOver(-0.2f, 0.1f, 0.03f, 0.2f, 0.2f, 0.14f, (x, y, z) -> y < 0.2f && Math.abs(x) < 0.07f, tex(light));
+			b.paintOver(-0.25f, 0.1f, 0.05f, 0.25f, 0.45f, 0.17f, (x, y, z) -> true, tex(dark));
+			b.paintOver(-0.25f, 0.1f, 0.05f, 0.25f, 0.2f, 0.17f, (x, y, z) -> y < 0.2f && Math.abs(x) < 0.09f, tex(light));
 		}
 		m.body = m.addBlocky("body", null, 0, 0.2f, -0.03f, b);
 
 		// Голова
 		Voxels h = vox();
-		float hrx = type == 1 ? 0.17f : 0.16f;
+		float hrx = type == 1 ? 0.17f : (type == 3 ? 0.2f : 0.16f);
 		rbox(h, 0, 0.44f, 0.12f, hrx, 0.14f, 0.14f, tex(main));
 		float zf = 0.26f;
 		switch (type) {
@@ -132,10 +144,13 @@ public final class ChibiFactory {
 				eye(h, -0.07f, 0.465f, zf, 0.026f, 0.034f, 0x1A1218, 0x1A1218, 0.0f);
 			}
 			default -> {
-				paintBoxOval(h, 0.075f, 0.465f, zf, 0.04f, 0.05f, 0x1E1E24);
-				paintBoxOval(h, -0.075f, 0.465f, zf, 0.04f, 0.05f, 0x1E1E24);
-				h.dot(0.075f, 0.47f, zf + 0.005f, 0xFFFFFF);
-				h.dot(-0.075f, 0.47f, zf + 0.005f, 0xFFFFFF);
+				for (int sg = -1; sg <= 1; sg += 2) {
+					float ex = sg * 0.095f;
+					paintBoxOval(h, ex, 0.465f, zf, 0.06f, 0.07f, 0x1E1E24);
+					paintBox(h, ex - 0.026f, 0.455f, zf - 0.05f, ex + 0.026f, 0.505f, zf + 0.03f, 0xFFFFFF);
+					paintBox(h, ex - 0.014f - sg * 0.004f, 0.46f, zf - 0.05f, ex + 0.014f - sg * 0.004f, 0.5f, zf + 0.03f, 0x0A0A0A);
+					h.dot(ex + 0.008f, 0.49f, zf + 0.005f, 0xFFFFFF);
+				}
 				paintBoxOval(h, 0, 0.405f, zf, 0.055f, 0.04f, 0xF1E6D8);
 				h.dot(0, 0.42f, zf + 0.01f, 0x1E1E24);
 				h.dot(0.0125f, 0.42f, zf + 0.01f, 0x1E1E24);
@@ -147,7 +162,7 @@ public final class ChibiFactory {
 		// Уши
 		for (int s = -1; s <= 1; s += 2) {
 			Voxels e = vox();
-			float ex = s * (type == 3 ? 0.115f : 0.095f);
+			float ex = s * (type == 3 ? 0.15f : 0.095f);
 			float ey = 0.55f;
 			switch (type) {
 				case 0, 1 -> {
@@ -173,14 +188,16 @@ public final class ChibiFactory {
 		}
 
 		// Ноги
-		float[][] legs = {{0.075f, 0.075f}, {-0.075f, 0.075f}, {0.075f, -0.125f}, {-0.075f, -0.125f}};
+		float[][] legs = type == 3
+				? new float[][] {{0.115f, 0.13f}, {-0.115f, 0.13f}, {0.115f, -0.2f}, {-0.115f, -0.2f}}
+				: new float[][] {{0.075f, 0.075f}, {-0.075f, 0.075f}, {0.075f, -0.125f}, {-0.075f, -0.125f}};
 		for (int i = 0; i < 4; i++) {
 			Voxels l = vox();
 			float lx = legs[i][0];
 			float lz = legs[i][1];
 			boolean back = i >= 2;
 			int lc = type == 3 ? dark : (type == 1 ? main : main);
-			float hw = type == 3 ? 0.048f : 0.042f;
+			float hw = type == 3 ? 0.06f : 0.042f;
 			l.box(lx - hw, 0.0f, lz - hw, lx + hw, 0.19f, lz + hw, tex(lc));
 			if (type == 1) {
 				l.paintOver(lx - hw, 0.0f, lz - hw, lx + hw, 0.085f, lz + hw, (x, y, z) -> true, tex(dark));
@@ -210,9 +227,9 @@ public final class ChibiFactory {
 				rbox(t, 0, 0.27f, -0.45f, 0.06f, 0.06f, 0.06f, tex(light));
 			}
 			case 2 -> rbox(t, 0, 0.27f, -0.23f, 0.05f, 0.05f, 0.05f, tex(light));
-			default -> rbox(t, 0, 0.27f, -0.21f, 0.035f, 0.035f, 0.035f, tex(main));
+			default -> rbox(t, 0, 0.27f, type == 3 ? -0.3f : -0.21f, 0.045f, 0.045f, 0.045f, tex(main));
 		}
-		m.tail = m.addBlocky("tail", m.body, 0, 0.27f, -0.18f, t);
+		m.tail = m.addBlocky("tail", m.body, 0, 0.27f, type == 3 ? -0.26f : -0.18f, t);
 		return m;
 	}
 
@@ -445,6 +462,147 @@ public final class ChibiFactory {
 			if (s > 0) m.legFL = leg;
 			else m.legFR = leg;
 		}
+		return m;
+	}
+
+	// ---------- Дракончик ----------
+
+	private static ChibiPet dragon() {
+		ChibiPet m = new ChibiPet();
+		m.mode = ChibiPet.WINGS;
+		final int green = 0x4FA86B;
+				final int cream = 0xF2E2A8;
+		final int orange = 0xE0763A;
+		Voxels b = vox();
+		rbox(b, 0, 0.36f, 0, 0.13f, 0.14f, 0.17f, tex(green));
+		rbox(b, 0, 0.32f, 0.05f, 0.09f, 0.11f, 0.13f, tex(cream));
+		for (int j = 0; j < 5; j++) {
+			float y = 0.24f + j * 0.04f;
+			b.paintOver(-0.1f, y, 0.06f, 0.1f, y + 0.012f, 0.19f, (x, yy, z) -> true, tex(0xD9C789));
+		}
+		// шипы вдоль спины
+		for (int i = 0; i < 4; i++) {
+			cone(b, 0, 0.47f, -0.12f + i * 0.08f, 0.03f, 0.07f - i * 0.008f, 0.02f, tex(orange));
+		}
+		// задние лапки
+		for (int s = -1; s <= 1; s += 2) {
+			b.box(s * 0.08f - 0.04f, 0.16f, -0.1f, s * 0.08f + 0.04f, 0.26f, -0.02f, tex(green));
+			b.box(s * 0.08f - 0.045f, 0.14f, -0.1f, s * 0.08f + 0.045f, 0.17f, 0.0f, tex(cream));
+		}
+		m.body = m.addBlocky("body", null, 0, 0.35f, 0, b);
+
+		Voxels h = vox();
+		rbox(h, 0, 0.62f, 0.03f, 0.15f, 0.12f, 0.13f, tex(green));
+		rbox(h, 0, 0.58f, 0.17f, 0.08f, 0.055f, 0.07f, tex(0x68C183));
+		float zf = 0.15f;
+		for (int s = -1; s <= 1; s += 2) {
+			eye(h, s * 0.075f, 0.65f, zf, 0.045f, 0.055f, 0xFFD23A, 0x0A0A0A, 0.012f);
+			paintBoxOval(h, s * 0.12f, 0.6f, zf - 0.02f, 0.03f, 0.02f, 0xF7A0A8);
+			h.dot(s * 0.03f, 0.6f, 0.245f, 0x1E3A2A);
+		}
+		h.box(-0.06f, 0.55f, 0.2f, 0.06f, 0.565f, 0.245f, flat(cream));
+		m.head = m.addBlocky("head", m.body, 0, 0.52f, 0.0f, h);
+		for (int s = -1; s <= 1; s += 2) {
+			Voxels e = vox();
+			cone(e, s * 0.085f, 0.71f, 0.0f, 0.032f, 0.12f, 0.03f, tex(cream));
+			Part horn = m.addBlocky(s > 0 ? "earL" : "earR", m.head, s * 0.085f, 0.7f, 0.0f, e);
+			if (s > 0) m.earL = horn;
+			else m.earR = horn;
+		}
+		for (int s = -1; s <= 1; s += 2) {
+			final float side = s;
+			Voxels w = vox();
+			w.fill(-0.6f, 0.1f, -0.1f, 0.6f, 0.75f, 0.1f, (x, y, z) -> {
+				float xa = x * side;
+				if (xa < 0.1f || xa > 0.5f) return false;
+				float k = (xa - 0.1f) / 0.4f;
+				float top = 0.47f + 0.14f * k;
+				float scallop = 0.05f * (float) Math.abs(Math.sin(k * 3.0f * Math.PI));
+				float bottom = 0.44f - 0.22f * k + scallop;
+				return y <= top && y >= bottom && Math.abs(z) <= 0.02f;
+			}, (x, y, z) -> {
+				float xa = Math.abs(x);
+				boolean bone = Math.abs(y - (0.47f + 0.14f * (xa - 0.1f) / 0.4f)) < 0.02f || ((int) Math.floor(xa / R)) % 5 == 0;
+				return Voxels.lum(bone ? orange : 0x7CCB8E, 0.92f + 0.14f * Voxels.grain(x, y, z, R));
+			});
+			Part wing = m.addBlocky(s > 0 ? "wingL" : "wingR", m.body, s * 0.12f, 0.44f, -0.02f, w);
+			if (s > 0) m.wingL = wing;
+			else m.wingR = wing;
+		}
+		for (int s = -1; s <= 1; s += 2) {
+			Voxels l = vox();
+			l.box(s * 0.075f - 0.03f, 0.2f, 0.07f, s * 0.075f + 0.03f, 0.3f, 0.13f, tex(green));
+			l.box(s * 0.075f - 0.035f, 0.2f, 0.07f, s * 0.075f + 0.035f, 0.225f, 0.15f, tex(cream));
+			Part leg = m.addBlocky("leg", m.body, s * 0.075f, 0.3f, 0.09f, l);
+			if (s > 0) m.legFL = leg;
+			else m.legFR = leg;
+		}
+		Voxels t = vox();
+		t.tube(0, 0.3f, -0.15f, 0.06f, 0, 0.27f, -0.32f, 0.045f, tex(green));
+		t.tube(0, 0.27f, -0.32f, 0.045f, 0, 0.33f, -0.5f, 0.03f, tex(green));
+		cone(t, 0, 0.33f, -0.52f, 0.045f, 0.1f, 0.03f, tex(orange));
+		t.box(-0.05f, 0.34f, -0.56f, 0.05f, 0.38f, -0.5f, tex(orange));
+		m.tail = m.addBlocky("tail", m.body, 0, 0.3f, -0.14f, t);
+		return m;
+	}
+
+	// ---------- Пантера: длинная, низкая, широкая ----------
+
+	private static ChibiPet panther() {
+		ChibiPet m = new ChibiPet();
+		m.mode = ChibiPet.WALK;
+		m.tailStyle = 2;
+		m.swing = 26.0f;
+		final int main = 0x24242C;
+		final int dark = 0x15151A;
+		final int light = 0x2A2A32;
+		Voxels b = voxLong();
+		rbox(b, 0, 0.31f, -0.02f, 0.125f, 0.115f, 0.34f, tex(main));
+		rbox(b, 0, 0.36f, 0.2f, 0.14f, 0.125f, 0.15f, tex(light));
+		rbox(b, 0, 0.35f, -0.22f, 0.13f, 0.115f, 0.14f, tex(light));
+		b.paintOver(-0.2f, 0.15f, -0.4f, 0.2f, 0.26f, 0.4f, (x, y, z) -> y < 0.24f, tex(dark));
+		m.body = m.addBlocky("body", null, 0, 0.3f, 0, b);
+
+		Voxels h = voxLong();
+		rbox(h, 0, 0.43f, 0.44f, 0.135f, 0.115f, 0.115f, tex(main));
+		rbox(h, 0, 0.385f, 0.55f, 0.07f, 0.05f, 0.05f, tex(0x33333C));
+		float zf = 0.555f;
+		h.box(-0.02f, 0.395f, zf - 0.02f, 0.02f, 0.42f, zf + 0.02f, flat(0xC77B8A));
+		float ez = 0.54f;
+		for (int s = -1; s <= 1; s += 2) {
+			eye(h, s * 0.07f, 0.46f, ez, 0.034f, 0.03f, 0xE6F03A, 0x0A0A0A, 0.01f);
+			h.box(s * 0.025f - 0.01f, 0.35f, 0.57f, s * 0.025f + 0.01f, 0.37f, 0.585f, flat(0xE8E0D8));
+		}
+		m.head = m.addBlocky("head", m.body, 0, 0.4f, 0.33f, h);
+		for (int s = -1; s <= 1; s += 2) {
+			Voxels e = voxLong();
+			float ex = s * 0.09f;
+			rbox(e, ex, 0.555f, 0.4f, 0.04f, 0.04f, 0.025f, tex(dark));
+			rbox(e, ex, 0.55f, 0.42f, 0.02f, 0.025f, 0.008f, flat(0x7A4A55));
+			Part ear = m.addBlocky(s > 0 ? "earL" : "earR", m.head, ex, 0.52f, 0.4f, e);
+			if (s > 0) m.earL = ear;
+			else m.earR = ear;
+		}
+		float[][] legs = {{0.085f, 0.24f}, {-0.085f, 0.24f}, {0.085f, -0.26f}, {-0.085f, -0.26f}};
+		for (int i = 0; i < 4; i++) {
+			Voxels l = voxLong();
+			float lx = legs[i][0];
+			float lz = legs[i][1];
+			l.box(lx - 0.05f, 0.0f, lz - 0.05f, lx + 0.05f, 0.22f, lz + 0.05f, tex(main));
+			l.box(lx - 0.055f, 0.0f, lz - 0.055f, lx + 0.055f, 0.035f, lz + 0.075f, tex(dark));
+			Part leg = m.addBlocky("leg" + i, m.body, lx, 0.22f, lz, l);
+			switch (i) {
+				case 0 -> m.legFL = leg;
+				case 1 -> m.legFR = leg;
+				case 2 -> m.legBL = leg;
+				default -> m.legBR = leg;
+			}
+		}
+		Voxels t = voxLong();
+		t.tube(0, 0.32f, -0.34f, 0.04f, 0, 0.26f, -0.58f, 0.036f, tex(main));
+		t.tube(0, 0.26f, -0.58f, 0.036f, 0, 0.3f, -0.8f, 0.03f, tex(main));
+		t.tube(0, 0.3f, -0.8f, 0.03f, 0, 0.4f, -0.9f, 0.028f, tex(dark));
+		m.tail = m.addBlocky("tail", m.body, 0, 0.32f, -0.34f, t);
 		return m;
 	}
 }

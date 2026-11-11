@@ -10,14 +10,15 @@ import org.joml.Matrix4f;
  * Система координат модели: +Z = вперёд, +Y = вверх.
  */
 public final class PetRenderer {
-	public static final String[] NAMES = {"Кошка", "Собака", "Лисичка", "Дракончик", "Призрак", "Огонёк", "Сиамская кошка", "Пантера",
-			"Волк", "Ретривер", "Белая лисица", "Далматин", "Рыжий кот", "Кубокот", "Лисёнок", "Зайка", "Панда", "Совёнок",
+	/** Что видно в списке выбора. */
+	public static final String[] NAMES = {"Дракончик", "Призрак", "Огонёк", "Пантера", "Кубокот", "Лисёнок", "Зайка", "Панда", "Совёнок",
 			"Бу", "Слайм", "Дрон", "Тыква-нетопырь"};
-	public static final boolean[] FLYING = {false, false, false, true, true, true, false, false, false, false, false, false, false, false, false, false,
-			false, true, true, false, true, true};
+	/** Внутренний номер модели для каждой строки списка. */
+	private static final int[] ID = {22, 4, 5, 23, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+	public static final boolean[] FLYING = {true, true, true, false, false, false, false, false, true, true, false, true, true};
 
-	private static final ChibiPet[] CHIBI = new ChibiPet[9];
-	private static final float[] CHIBI_SCALE = {1.5f, 1.5f, 1.5f, 1.5f, 1.4f, 1.5f, 1.6f, 1.9f, 1.4f};
+	private static final ChibiPet[] CHIBI = new ChibiPet[11];
+	private static final float[] CHIBI_SCALE = {1.5f, 1.5f, 1.5f, 1.7f, 1.4f, 1.5f, 1.6f, 1.9f, 1.4f, 1.5f, 1.5f};
 	private static final Quadruped[] ANIMALS = new Quadruped[13];
 	/** Масштаб моделей: кошка, хаски, лиса. */
 	private static final float[] SCALE = {1.0f, 1.35f, 1.05f, 1.0f, 1.3f, 1.55f, 1.4f, 0.95f, 1.4f, 1.0f};
@@ -61,6 +62,7 @@ public final class PetRenderer {
 	/** Рисует питомца в начале координат текущей матрицы. */
 	public static void draw(int kind, MatrixStack matrices, Draw3d solid, Draw3d glass, float lightFactor, float seconds,
 							float walkPhase, float movingAmount, float lookYaw, float lookPitch) {
+		kind = ID[Math.max(0, Math.min(ID.length - 1, kind))];
 		PetCtx c = new PetCtx();
 		c.ms = matrices;
 		c.solid = solid;
@@ -81,7 +83,6 @@ public final class PetRenderer {
 					ANIMALS[kind] = q;
 				}
 				float sc = SCALE[breed];
-				shadow(c, 0.5f * sc);
 				matrices.push();
 				matrices.scale(sc, sc, sc);
 				drawModel(q, matrices, solid, lightFactor, seconds, walkPhase, movingAmount);
@@ -97,7 +98,7 @@ public final class PetRenderer {
 				moving = movingAmount;
 				ghost(GHOST);
 			}
-			case 13, 14, 15, 16, 17, 18, 19, 20, 21 -> {
+			case 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 -> {
 				int ci = kind - 13;
 				ChibiPet cp = CHIBI[ci];
 				if (cp == null) {
@@ -105,7 +106,6 @@ public final class PetRenderer {
 					CHIBI[ci] = cp;
 				}
 				float sc = CHIBI_SCALE[ci];
-				shadow(c, 0.45f * sc);
 				matrices.push();
 				matrices.scale(sc, sc, sc);
 				drawModel(cp, matrices, solid, lightFactor, seconds, walkPhase, movingAmount);
@@ -121,8 +121,8 @@ public final class PetRenderer {
 		model.animate(seconds, walkPhase, movingAmount);
 		model.updateWorld();
 		Matrix4f base = matrices.peek().getPositionMatrix();
-		Matrix4f m = new Matrix4f();
-		Matrix4f part = new Matrix4f();
+		Matrix4f m = TMP_M;
+		Matrix4f part = TMP_P;
 		for (PetModel.Part p : model.parts) {
 			if (p.mesh == null || !p.visible) continue;
 			part.set(p.world);
@@ -139,14 +139,10 @@ public final class PetRenderer {
 		}
 	}
 
+	private static final Matrix4f TMP_M = new Matrix4f();
+	private static final Matrix4f TMP_P = new Matrix4f();
 	private static float walk;
 	private static float moving;
-
-	/** Мягкая тень на земле под питомцем. */
-	private static void shadow(PetCtx c, float size) {
-		c.cube(0, 0.012f, 0, size * 0.8f, 0.004f, size, 0x000000, 0.22f, 1.0f);
-		c.cube(0, 0.012f, 0, size * 0.55f, 0.005f, size * 0.7f, 0x000000, 0.16f, 1.0f);
-	}
 
 	private static void cube(float cx, float cy, float cz, float sx, float sy, float sz, int rgb) {
 		cubeA(cx, cy, cz, sx, sy, sz, rgb, 1.0f);
@@ -211,7 +207,7 @@ public final class PetRenderer {
 		for (int s = -1; s <= 1; s += 2) {
 			push();
 			tr(s * 0.19f, 0.06f, 0.02f);
-			rz(s * (-25.0f + sin(time * 3.0f + s) * 12.0f));
+			rz(s * (-25.0f + sin(time * 5.0f + s) * 8.0f * moving));
 			cubeA(s * 0.04f, -0.04f, 0, 0.07f, 0.12f, 0.07f, p[MAIN], a);
 			pop();
 		}

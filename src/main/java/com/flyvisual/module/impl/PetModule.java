@@ -18,7 +18,7 @@ import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.world.LightType;
 
 /**
- * Питомец-компаньон: свой реалистичный питомец (кошка, собака, лисичка, дракончик, призрак, огонёк),
+ * Питомец-компаньон: свой реалистичный питомец (дракончик, призрак, огонёк, пантера и воксельные зверьки),
  * который рисуется только у тебя на экране и плавно ходит или летает рядом. Это не моб из Minecraft:
  * нет сущности, ИИ и сетевых пакетов, поэтому он не лагает и другие игроки его не видят.
  */
@@ -26,7 +26,6 @@ public class PetModule extends Module {
 	private final DoubleSetting pet = addChoice("Pet", 0, PetRenderer.NAMES);
 	private final DoubleSetting size = addSetting("Size", 1.0, 0.5, 2.0, 0.1);
 	private final DoubleSetting distance = addSetting("Pet distance", 1.6, 0.8, 4.0, 0.2);
-	private final DoubleSetting quality = addChoice("Quality", 1, "Обычное", "Высокое", "Ультра");
 	private final DoubleSetting side = addChoice("Side", 0, "Справа", "Слева");
 
 	private final Draw3d solid = new Draw3d(false);
@@ -43,6 +42,15 @@ public class PetModule extends Module {
 	private double smoothBase;
 	private float moving;
 	private long lastNanos;
+	/** Скорость питомца и «якорь» направления: цель не болтается при повороте камеры. */
+	private double vx;
+	private double vz;
+	private double anchorYaw;
+	private double lastPx;
+	private double lastPz;
+	private float lightFactor = 1.0f;
+	private float lightTimer;
+	private float lightTarget = 1.0f;
 
 	public PetModule() {
 		super("Pet", "A companion that follows you");
@@ -101,68 +109,96 @@ public class PetModule extends Module {
 		float dt = lastNanos == 0 ? 0.016f : Math.min(0.1f, (now - lastNanos) / 1.0e9f);
 		lastNanos = now;
 
-		PetRenderer.setQuality(quality.getInt());
 		int kind = Math.max(0, Math.min(PetRenderer.NAMES.length - 1, pet.getInt()));
 		boolean flying = PetRenderer.FLYING[kind];
 
 		Vec3d pp = player.getLerpedPos(context.tickDelta());
-		double yawRad = Math.toRadians(player.getYaw());
-		// Вперёд игрока = (-sin, cos); питомец чуть позади и сбоку
+		// Скорость игрока (по кадрам) и плавный «якорь»: питомец ориентируется на куда идёшь, а не на камеру
+		double pvx = dt > 0 ? (pp.x - lastPx) / dt : 0.0;
+		double pvz = dt > 0 ? (pp.z - lastPz) / dt : 0.0;
+		lastPx = pp.x;
+		lastPz = pp.z;
+		double playerSpeed = Math.min(30.0, Math.hypot(pvx, pvz));
+		double playerYaw = Math.toRadians(player.getYaw());
+		if (!placed) anchorYaw = playerYaw;
+		if (playerSpeed > 0.5) {
+			double diff = Math.atan2(Math.sin(playerYaw - anchorYaw), Math.cos(playerYaw - anchorYaw));
+			anchorYaw += diff * (1.0 - Math.exp(-1.6 * dt));
+		}
 		double sideSign = side.getInt() == 0 ? 1.0 : -1.0;
 		double back = distance.get();
-		double tx = pp.x + Math.sin(yawRad) * back - Math.cos(yawRad) * sideSign * 0.9;
-		double tz = pp.z - Math.cos(yawRad) * back - Math.sin(yawRad) * sideSign * 0.9;
+		double tx = pp.x + Math.sin(anchorYaw) * back - Math.cos(anchorYaw) * sideSign * 0.9;
+		double tz = pp.z - Math.cos(anchorYaw) * back - Math.sin(anchorYaw) * sideSign * 0.9;
 
-		if (!placed || lastWorld != world || Math.hypot(tx - px, tz - pz) > 16.0) {
+		if (!placed || lastWorld != world || Math.hypot(tx - px, tz - pz) > 24.0) {
 			px = tx;
 			pz = tz;
+			vx = 0.0;
+			vz = 0.0;
 			smoothBase = groundY(world, pp.x, pp.y, pp.z);
 			py = flying ? smoothBase + 1.4 : groundY(world, tx, pp.y, tz);
 			heading = player.getYaw() * -1.0f;
+			lastPx = pp.x;
+			lastPz = pp.z;
 			placed = true;
 			lastWorld = world;
 		}
 
-		double k = 1.0 - Math.exp(-4.0 * dt);
 		double ox = px;
 		double oz = pz;
 		double dx = tx - px;
 		double dz = tz - pz;
 		double dist = Math.hypot(dx, dz);
-		if (dist > 0.12) {
-			// Скорость ограничена: не телепортируется, а бежит
-			double step = Math.min(dist * k, 6.0 * dt);
-			px += dx / dist * step;
-			pz += dz / dist * step;
+		// Желаемая скорость растёт с расстоянием, но не больше скорости игрока + запас. Скорость меняется плавно
+		double maxSpeed = Math.max(3.5, playerSpeed * 1.25 + 1.0);
+		double wantSpeed = dist < 0.25 ? 0.0 : Math.min(maxSpeed, (dist - 0.15) * 2.6);
+		double wvx = dist > 1.0e-4 ? dx / dist * wantSpeed : 0.0;
+		double wvz = dist > 1.0e-4 ? dz / dist * wantSpeed : 0.0;
+		double kv = 1.0 - Math.exp(-5.0 * dt);
+		vx += (wvx - vx) * kv;
+		vz += (wvz - vz) * kv;
+		px += vx * dt;
+		pz += vz * dt;
+
+		double ty;
+		if (flying) {
+			smoothBase += (groundY(world, pp.x, pp.y, pp.z) - smoothBase) * (1.0 - Math.exp(-1.2 * dt));
+			ty = smoothBase + 1.4 + Math.sin(now / 1.0e9 * 1.8) * 0.1;
+		} else {
+			ty = groundY(world, px, Math.max(py, pp.y) + 0.5, pz);
 		}
-		// Высота земли под игроком (при прыжке она не меняется) плавно догоняется медленно
-		smoothBase += (groundY(world, pp.x, pp.y, pp.z) - smoothBase) * (1.0 - Math.exp(-1.2 * dt));
-		double ty = flying ? smoothBase + 1.4 + Math.sin(now / 1.0e9 * 1.8) * 0.12 : groundY(world, px, Math.max(py, pp.y) + 0.5, pz);
-		py += (ty - py) * (1.0 - Math.exp(-(flying ? 3.0 : 12.0) * dt));
+		py += (ty - py) * (1.0 - Math.exp(-(flying ? 3.0 : 10.0) * dt));
 
 		double moved = Math.hypot(px - ox, pz - oz);
-		float speed = dt > 0 ? (float) (moved / dt) : 0.0f;
-		float wantMove = Math.min(1.0f, speed / 1.0f);
-		moving += (wantMove - moving) * Math.min(1.0f, 8.0f * dt);
+		float speed = Math.min(8.0f, (float) Math.hypot(vx, vz));
+		float wantMove = Math.min(1.0f, speed / 1.2f);
+		if (speed < 0.15f) wantMove = 0.0f;
+		moving += (wantMove - moving) * Math.min(1.0f, 6.0f * dt);
 		walkPhase += (float) moved * 7.5f;
 
-		if (moved > 0.0005) {
-			float want = (float) Math.toDegrees(Math.atan2(px - ox, pz - oz));
-			heading += wrap(want - heading) * Math.min(1.0f, 9.0f * dt);
+		if (speed > 0.3f) {
+			float want = (float) Math.toDegrees(Math.atan2(vx, vz));
+			heading += wrap(want - heading) * Math.min(1.0f, 6.0f * dt);
 		} else {
 			float want = (float) Math.toDegrees(Math.atan2(pp.x - px, pp.z - pz));
-			heading += wrap(want - heading) * Math.min(1.0f, 2.5f * dt);
+			heading += wrap(want - heading) * Math.min(1.0f, 2.0f * dt);
 		}
 		float lookYaw = Math.max(-60.0f, Math.min(60.0f, wrap((float) Math.toDegrees(Math.atan2(pp.x - px, pp.z - pz)) - heading)));
 
 		// От первого лица питомца не рисуем (он двигается и дальше, чтобы не телепортировался при смене вида)
 		if (mc.options.getPerspective().isFirstPerson()) return;
 
-		BlockPos bp = BlockPos.ofFloored(px, py + 0.5, pz);
-		int sky = world.getLightLevel(LightType.SKY, bp);
-		int blk = world.getLightLevel(LightType.BLOCK, bp);
-		float level = Math.max(blk, sky * world.getSkyBrightness(1.0f)) / 15.0f;
-		float lightFactor = 0.45f + 0.55f * Math.max(0.0f, Math.min(1.0f, level));
+		// Освещение считаем не каждый кадр, а 4 раза в секунду, и плавно меняем
+		lightTimer -= dt;
+		if (lightTimer <= 0.0f) {
+			lightTimer = 0.25f;
+			BlockPos bp = BlockPos.ofFloored(px, py + 0.5, pz);
+			int sky = world.getLightLevel(LightType.SKY, bp);
+			int blk = world.getLightLevel(LightType.BLOCK, bp);
+			float level = Math.max(blk, sky * world.getSkyBrightness(1.0f)) / 15.0f;
+			lightTarget = 0.45f + 0.55f * Math.max(0.0f, Math.min(1.0f, level));
+		}
+		lightFactor += (lightTarget - lightFactor) * Math.min(1.0f, 6.0f * dt);
 
 		Vec3d cam = context.camera().getPos();
 		matrices.push();
