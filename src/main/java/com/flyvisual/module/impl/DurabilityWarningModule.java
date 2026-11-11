@@ -46,7 +46,7 @@ public class DurabilityWarningModule extends Module {
 		if (percent <= below.get()) {
 			if (!warned[slot]) {
 				warned[slot] = true;
-				Notifications.push(stack.getName().getString() + ": прочность " + percent + "%", false);
+				Notifications.pushWarning(stack.getName().getString() + ": прочность " + percent + "%");
 			}
 		} else {
 			warned[slot] = false;
