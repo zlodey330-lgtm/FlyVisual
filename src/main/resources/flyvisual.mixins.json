@@ -31,6 +31,7 @@
 		"ChatHudMixin",
 		"SpriteContentsMixin",
 		"ResourceTextureDataMixin",
+		"TextureDataMixin",
 		"SpriteAtlasTextureMixin",
 		"ItemEntityMixin",
 		"SignBlockEntityRendererMixin"
