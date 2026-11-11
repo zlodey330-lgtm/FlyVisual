@@ -11,8 +11,8 @@ import org.lwjgl.glfw.GLFW;
 
 /** Меню эмоций: сетка скруглённых кнопок. Клик или цифры 1-6 запускают эмоцию. */
 public class EmoteScreen extends Screen {
-	private static final int COLS = 2;
-	private static final int BTN_W = 112;
+	private static final int COLS = 4;
+	private static final int BTN_W = 104;
 	private static final int BTN_H = 26;
 	private static final int GAP = 6;
 	private static final int PAD = 12;
@@ -91,7 +91,7 @@ public class EmoteScreen extends Screen {
 			drawButton(ctx, i, a, module != null && module.current() == i);
 		}
 
-		String hint = "Цифры 1-6 или клик  |  Shift: остановить";
+		String hint = "Цифры 1-9 или клик  |  Shift: остановить";
 		int hc = UiShapes.mulA(Theme.TEXT_DIM, a);
 		if (((hc >>> 24) & 0xFF) >= 12) {
 			ctx.drawText(textRenderer, hint, (width - textRenderer.getWidth(hint)) / 2, fy + fh + 6, hc, true);
