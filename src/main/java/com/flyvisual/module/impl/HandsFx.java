@@ -9,6 +9,8 @@ import com.flyvisual.util.ColorUtil;
 import com.flyvisual.util.TintConsumer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.model.BakedModel;
+import org.joml.Vector3f;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.client.texture.SpriteAtlasTexture;
@@ -27,7 +29,7 @@ import java.util.Set;
 /**
  * Hands: шейдер прямо на предмете в руке (18 видов). Предмет ещё раз рисуется светящимися оболочками
  * с цветом и пульсацией. Предметы выбираются через поиск; если ничего не выбрано, эффект у любого предмета.
- * Переключатель «Шейдер» выключает сам эффект, а модуль остаётся, и FPS на него не тратится.
+ * Переключатель «Шейдер» выключает переливы и лишние слои: остаётся один спокойный слой.
  * Рисование вызывается из HeldItemShaderMixin. Виден только тебе.
  */
 public class HandsFx extends Module implements ItemSelection {
@@ -41,11 +43,14 @@ public class HandsFx extends Module implements ItemSelection {
 	private final DoubleSetting style = addChoice("Effect style", 0, STYLES);
 	private final DoubleSetting hue = addSetting("Color (hue)", 280.0, 0.0, 355.0, 5.0);
 	private final DoubleSetting power = addSetting("Intensity", 1.0, 0.3, 2.0, 0.1);
-	private final DoubleSetting light = addToggle("Лёгкий режим (меньше FPS)", false);
 	private final DoubleSetting pick = addToggle("Choose items", false);
 
 	private boolean busy;
 	private int shells;
+	/** true: полный шейдер (несколько слоёв, переливы). false: один спокойный слой без анимации. */
+	private boolean full;
+	/** Центр предмета в системе координат руки: от него растягиваем оболочки, чтобы свечение ложилось ровно вокруг. */
+	private float cx, cy, cz;
 
 	@Override
 	public void onTick(MinecraftClient client) {
@@ -110,18 +115,31 @@ public class HandsFx extends Module implements ItemSelection {
 	/** Рисует оболочки поверх предмета. Вызывается после обычной отрисовки предмета у игрока. */
 	public void renderShader(LivingEntity entity, ItemStack stack, ModelTransformationMode mode, boolean leftHanded,
 							 MatrixStack matrices, VertexConsumerProvider consumers) {
-		if (busy || !isEnabled() || !shader.getBool()) return;
+		if (busy || !isEnabled()) return;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (entity != mc.player || !applies(stack)) return;
 
 		busy = true;
 		shells = 0;
+		full = shader.getBool();
 		try {
-			float t = (System.nanoTime() / 1.0e9f) % 1000.0f;
+			BakedModel bm = mc.getItemRenderer().getModel(stack, entity.getWorld(), entity, 0);
+			Vector3f tr = bm.getTransformation().getTransformation(mode).translation;
+			cx = leftHanded ? -tr.x() : tr.x();
+			cy = tr.y();
+			cz = tr.z();
+		} catch (Throwable e) {
+			cx = 0.0f;
+			cy = 0.0f;
+			cz = 0.0f;
+		}
+		try {
+			// Шейдер выключен: время стоит на месте, переливов и пульсации нет
+			float t = full ? (System.nanoTime() / 1.0e9f) % 1000.0f : 0.0f;
 			float k = power.getFloat();
 			float h = hue.getFloat();
-			float pulse = 0.5f + 0.5f * (float) Math.sin(t * 3.2f);
-			float fast = 0.5f + 0.5f * (float) Math.sin(t * 9.0f);
+			float pulse = full ? 0.5f + 0.5f * (float) Math.sin(t * 3.2f) : 0.5f;
+			float fast = full ? 0.5f + 0.5f * (float) Math.sin(t * 9.0f) : 0.5f;
 
 			switch (style.getInt()) {
 				case 0 -> {
@@ -199,14 +217,16 @@ public class HandsFx extends Module implements ItemSelection {
 
 	private void shell(LivingEntity entity, ItemStack stack, ModelTransformationMode mode, boolean leftHanded,
 					   MatrixStack matrices, VertexConsumerProvider real, float scale, float[] color, float alpha, float dx, float dy) {
-		// Лёгкий режим: рисуем только одну оболочку вместо двух-трёх
-		if (light.getBool() && shells >= 1) return;
+		// Шейдер выключен: только один слой вместо двух-трёх
+		if (!full && shells >= 1) return;
 		shells++;
 		VertexConsumerProvider tinted = layer -> new TintConsumer(
 				real.getBuffer(RenderLayer.getEntityTranslucentCull(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE)),
 				color[0], color[1], color[2], Math.min(1.0f, alpha));
 		matrices.push();
-		matrices.translate(dx, dy, 0.0f);
+		// Растягиваем от центра предмета, а не от руки: свечение обливает предмет со всех сторон поровну
+		float k = scale - 1.0f;
+		matrices.translate(dx - k * cx, dy - k * cy, -k * cz);
 		matrices.scale(scale, scale, scale);
 		MinecraftClient.getInstance().getItemRenderer().renderItem(entity, stack, mode, leftHanded, matrices, tinted,
 				entity.getWorld(), FULL_BRIGHT, net.minecraft.client.render.OverlayTexture.DEFAULT_UV, 0);

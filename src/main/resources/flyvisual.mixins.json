@@ -35,6 +35,8 @@
 		"ItemEntityMixin",
 		"SignBlockEntityRendererMixin",
 		"HandsShaderMixin",
+		"TitleScreenBgMixin",
+		"CubeMapBgMixin",
 		"FramerateLimitMixin"
   ],
   "injectors": {
