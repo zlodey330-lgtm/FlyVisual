@@ -120,8 +120,6 @@ public final class ModuleManager {
 		smoothChat = new SmoothChatModule();
 		hotbar = new HotbarModule();
 		notifications = new NotificationsModule();
-		menuTheme = new MenuThemeModule();
-		pauseScreen = new PauseScreenModule();
 		motionBlur = new MotionBlurModule();
 		menuCursor = new MenuCursorModule();
 		customChat = new CustomChatModule();
@@ -157,8 +155,6 @@ public final class ModuleManager {
 		MODULES.add(damageParticles);
 		MODULES.add(optimization);
 		MODULES.add(notifications);
-		MODULES.add(menuTheme);
-		MODULES.add(pauseScreen);
 		MODULES.add(new HitSoundsModule());
 		MODULES.add(smoothChat);
 		MODULES.add(hotbar);
