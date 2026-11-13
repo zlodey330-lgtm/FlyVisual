@@ -3,7 +3,7 @@ package com.flyvisual.util;
 import com.flyvisual.util.PetModel.Part;
 import com.flyvisual.util.Voxels.Paint;
 
-/** Сборка мультяшных воксельных питомцев (ChibiPet). Кубики по 2,5 см, пиксельная текстура, большие головы. */
+/** Сборка мультяшных воксельных питомцев (ChibiPetFx). Кубики по 2,5 см, пиксельная текстура, большие головы. */
 public final class ChibiFactory {
 	private static final float R = 0.025f;
 	public static final String[] NAMES = {"Кубокот", "Лисёнок", "Зайка", "Панда", "Совёнок", "Бу", "Слайм", "Дрон", "Тыква-нетопырь", "Дракончик", "Пантера"};
@@ -13,7 +13,7 @@ public final class ChibiFactory {
 	private ChibiFactory() {
 	}
 
-	public static ChibiPet create(int kind) {
+	public static ChibiPetFx create(int kind) {
 		return switch (kind) {
 			case 0 -> walker(0);
 			case 1 -> walker(1);
@@ -88,9 +88,9 @@ public final class ChibiFactory {
 
 	// ---------- Ходячие: кот, лис, заяц, панда ----------
 
-	private static ChibiPet walker(int type) {
-		ChibiPet m = new ChibiPet();
-		m.mode = type == 2 ? ChibiPet.HOP : ChibiPet.WALK;
+	private static ChibiPetFx walker(int type) {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = type == 2 ? ChibiPetFx.HOP : ChibiPetFx.WALK;
 		m.tailStyle = type == 0 ? 1 : (type == 1 ? 2 : 3);
 		m.swing = type == 2 ? 30.0f : 32.0f;
 		final int main = type == 0 ? 0x2B2B34 : type == 1 ? 0xE2712B : type == 2 ? 0xF4EEF3 : 0xF4F4F4;
@@ -243,9 +243,9 @@ public final class ChibiFactory {
 
 	// ---------- Сова ----------
 
-	private static ChibiPet owl() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.WINGS;
+	private static ChibiPetFx owl() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.WINGS;
 		int brown = 0x8B5A33;
 		int cream = 0xEBD6AB;
 		Voxels b = vox();
@@ -308,9 +308,9 @@ public final class ChibiFactory {
 
 	// ---------- Призрак Бу ----------
 
-	private static ChibiPet ghost() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.GHOST;
+	private static ChibiPetFx ghost() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.GHOST;
 		int white = 0xEDE8FA;
 		Voxels b = vox();
 		rbox(b, 0, 0.34f, 0, 0.17f, 0.2f, 0.15f, tex(white));
@@ -351,9 +351,9 @@ public final class ChibiFactory {
 
 	// ---------- Слайм ----------
 
-	private static ChibiPet slime() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.SLIME;
+	private static ChibiPetFx slime() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.SLIME;
 		Voxels b = vox();
 		rbox(b, 0, 0.17f, 0, 0.18f, 0.16f, 0.18f, (x, y, z) -> Voxels.lum(Voxels.mix(0x4FC84F, 0x8BF08B, Voxels.smooth(0.0f, 0.34f, y)), 0.92f + 0.14f * Voxels.grain(x, y, z, R)));
 		float zf = 0.18f;
@@ -373,9 +373,9 @@ public final class ChibiFactory {
 
 	// ---------- Дрон ----------
 
-	private static ChibiPet drone() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.DRONE;
+	private static ChibiPetFx drone() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.DRONE;
 		Voxels b = vox();
 		b.box(-0.09f, 0.2f, -0.12f, 0.09f, 0.3f, 0.13f, tex(0x33363C));
 		b.box(-0.05f, 0.3f, -0.08f, 0.05f, 0.34f, 0.08f, tex(0xF4C300));
@@ -409,9 +409,9 @@ public final class ChibiFactory {
 
 	// ---------- Тыква-нетопырь ----------
 
-	private static ChibiPet pumpkin() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.WINGS;
+	private static ChibiPetFx pumpkin() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.WINGS;
 		Voxels b = vox();
 		b.fill(-0.2f, 0.15f, -0.2f, 0.2f, 0.5f, 0.2f, (x, y, z) -> {
 			float a = x / 0.18f;
@@ -467,9 +467,9 @@ public final class ChibiFactory {
 
 	// ---------- Дракончик ----------
 
-	private static ChibiPet dragon() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.WINGS;
+	private static ChibiPetFx dragon() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.WINGS;
 		final int green = 0x4FA86B;
 				final int cream = 0xF2E2A8;
 		final int orange = 0xE0763A;
@@ -548,9 +548,9 @@ public final class ChibiFactory {
 
 	// ---------- Пантера: длинная, низкая, широкая ----------
 
-	private static ChibiPet panther() {
-		ChibiPet m = new ChibiPet();
-		m.mode = ChibiPet.WALK;
+	private static ChibiPetFx panther() {
+		ChibiPetFx m = new ChibiPetFx();
+		m.mode = ChibiPetFx.WALK;
 		m.tailStyle = 2;
 		m.swing = 26.0f;
 		final int main = 0x24242C;

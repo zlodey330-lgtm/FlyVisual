@@ -92,7 +92,7 @@ public final class ModuleManager {
 	private static AspectRatioModule aspectRatio;
 	private static EmoteModule emotes;
 	private static MouseFixModule mouseFix;
-	private static com.flyvisual.module.impl.HandsModule hands;
+	private static com.flyvisual.module.impl.HandsFx hands;
 	private static com.flyvisual.module.impl.KillEffectModule killEffect;
 	private static com.flyvisual.module.impl.JumpEffectModule jumpEffect;
 	private static SaturationModule saturation;
@@ -130,7 +130,7 @@ public final class ModuleManager {
 		aspectRatio = new AspectRatioModule();
 		emotes = new EmoteModule();
 		mouseFix = new MouseFixModule();
-		hands = new com.flyvisual.module.impl.HandsModule();
+		hands = new com.flyvisual.module.impl.HandsFx();
 		killEffect = new com.flyvisual.module.impl.KillEffectModule();
 		jumpEffect = new com.flyvisual.module.impl.JumpEffectModule();
 		saturation = new SaturationModule();
@@ -283,7 +283,7 @@ public final class ModuleManager {
 		return potionHud;
 	}
 
-	public static com.flyvisual.module.impl.HandsModule hands() {
+	public static com.flyvisual.module.impl.HandsFx hands() {
 		return hands;
 	}
 

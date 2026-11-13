@@ -1,7 +1,7 @@
 package com.flyvisual.mixin;
 
 import com.flyvisual.module.ModuleManager;
-import com.flyvisual.module.impl.HandsModule;
+import com.flyvisual.module.impl.HandsFx;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.item.HeldItemRenderer;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
@@ -22,7 +22,7 @@ public class HeldItemShaderMixin {
 	)
 	private void flyvisual$handsShader(LivingEntity entity, ItemStack stack, ModelTransformationMode mode, boolean leftHanded,
 									   MatrixStack matrices, VertexConsumerProvider consumers, int light, CallbackInfo ci) {
-		HandsModule hands = ModuleManager.hands();
+		HandsFx hands = ModuleManager.hands();
 		if (hands != null) {
 			hands.renderShader(entity, stack, mode, leftHanded, matrices, consumers);
 		}

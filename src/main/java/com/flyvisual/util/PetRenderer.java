@@ -17,7 +17,7 @@ public final class PetRenderer {
 	private static final int[] ID = {22, 4, 5, 23, 13, 14, 15, 16, 17, 18, 19, 20, 21};
 	public static final boolean[] FLYING = {true, true, true, false, false, false, false, false, true, true, false, true, true};
 
-	private static final ChibiPet[] CHIBI = new ChibiPet[11];
+	private static final ChibiPetFx[] CHIBI = new ChibiPetFx[11];
 	private static final float[] CHIBI_SCALE = {1.5f, 1.5f, 1.5f, 1.7f, 1.4f, 1.5f, 1.6f, 1.9f, 1.4f, 1.5f, 1.5f};
 	private static final Quadruped[] ANIMALS = new Quadruped[13];
 	/** Масштаб моделей: кошка, хаски, лиса. */
@@ -100,7 +100,7 @@ public final class PetRenderer {
 			}
 			case 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 -> {
 				int ci = kind - 13;
-				ChibiPet cp = CHIBI[ci];
+				ChibiPetFx cp = CHIBI[ci];
 				if (cp == null) {
 					cp = ChibiFactory.create(ci);
 					CHIBI[ci] = cp;
