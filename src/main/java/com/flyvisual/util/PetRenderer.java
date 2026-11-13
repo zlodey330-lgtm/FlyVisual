@@ -102,7 +102,7 @@ public final class PetRenderer {
 				int ci = kind - 13;
 				ChibiPetFx cp = CHIBI[ci];
 				if (cp == null) {
-					cp = ChibiFactory.create(ci);
+					cp = ChibiFactoryFx.create(ci);
 					CHIBI[ci] = cp;
 				}
 				float sc = CHIBI_SCALE[ci];
