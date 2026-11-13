@@ -275,4 +275,49 @@ public final class Voxels {
 		}, nx, ny, nz, res, ox, oy, oz, px, py, pz, 1.0f);
 		return new Mesh(r.pos, r.rgb, r.quads * 4);
 	}
+
+	/** Собирает блочную сетку: каждый кубик виден гранями, как воксельный арт (плоские цвета, тень по сторонам и в углах). */
+	public Mesh bakeBlocky(float px, float py, float pz) {
+		float[] pos = new float[4096];
+		float[] rgb = new float[4096];
+		int n = 0;
+		for (int k = 0; k < nz; k++) {
+			for (int j = 0; j < ny; j++) {
+				for (int i = 0; i < nx; i++) {
+					int cell = cells[index(i, j, k)];
+					if (cell == 0) continue;
+					float cr = ((cell >> 16) & 0xFF) / 255.0f;
+					float cg = ((cell >> 8) & 0xFF) / 255.0f;
+					float cb = (cell & 0xFF) / 255.0f;
+					for (int f = 0; f < 6; f++) {
+						int[] fd = FACE[f];
+						if (solid(i + fd[0], j + fd[1], k + fd[2])) continue;
+						if (n + 12 > pos.length) {
+							pos = Arrays.copyOf(pos, pos.length * 2);
+							rgb = Arrays.copyOf(rgb, rgb.length * 2);
+						}
+						for (int c = 0; c < 4; c++) {
+							int cu = CORNER[c][0];
+							int cv = CORNER[c][1];
+							boolean s1 = solid(i + fd[0] + cu * fd[3], j + fd[1] + cu * fd[4], k + fd[2] + cu * fd[5]);
+							boolean s2 = solid(i + fd[0] + cv * fd[6], j + fd[1] + cv * fd[7], k + fd[2] + cv * fd[8]);
+							boolean sc = solid(i + fd[0] + cu * fd[3] + cv * fd[6], j + fd[1] + cu * fd[4] + cv * fd[7],
+									k + fd[2] + cu * fd[5] + cv * fd[8]);
+							int ao = (s1 && s2) ? 0 : 3 - (s1 ? 1 : 0) - (s2 ? 1 : 0) - (sc ? 1 : 0);
+							float shade = SHADE[f] * AO[ao];
+							float h = res * 0.5f;
+							pos[n] = ox + (i + 0.5f) * res + fd[0] * h + (cu * fd[3] + cv * fd[6]) * h - px;
+							pos[n + 1] = oy + (j + 0.5f) * res + fd[1] * h + (cu * fd[4] + cv * fd[7]) * h - py;
+							pos[n + 2] = oz + (k + 0.5f) * res + fd[2] * h + (cu * fd[5] + cv * fd[8]) * h - pz;
+							rgb[n] = cr * shade;
+							rgb[n + 1] = cg * shade;
+							rgb[n + 2] = cb * shade;
+							n += 3;
+						}
+					}
+				}
+			}
+		}
+		return new Mesh(Arrays.copyOf(pos, n), Arrays.copyOf(rgb, n), n / 3);
+	}
 }

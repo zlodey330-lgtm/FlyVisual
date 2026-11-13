@@ -9,7 +9,7 @@ import java.util.List;
  * Описано для правого крыла (+X наружу), левое получается зеркалом. Корень крыла — у плеча.
  */
 public final class WingModels {
-	public static final String[] NAMES = {"Ангельские", "Драконьи", "Бабочки", "Демонические"};
+	public static final String[] NAMES = {"Ангельские", "Драконьи", "Бабочки", "Демонические", "Кристальные", "Огненные", "Механические"};
 	private static final Wing[] CACHE = new Wing[NAMES.length];
 
 	private WingModels() {
@@ -47,7 +47,15 @@ public final class WingModels {
 	public static Wing get(int index) {
 		int i = Math.max(0, Math.min(NAMES.length - 1, index));
 		if (CACHE[i] == null) {
-			CACHE[i] = i == 1 ? membrane(false) : i == 2 ? butterfly() : i == 3 ? membrane(true) : angel();
+			CACHE[i] = switch (i) {
+				case 1 -> membrane(false);
+				case 2 -> butterfly();
+				case 3 -> membrane(true);
+				case 4 -> fan(0);
+				case 5 -> fan(1);
+				case 6 -> fan(2);
+				default -> angel();
+			};
 		}
 		return CACHE[i];
 	}
@@ -180,6 +188,66 @@ public final class WingModels {
 		};
 		w.parts.add(new Part(VoxelPart.build(0.02f, -0.03f, -0.5f, -0.04f, 0.65f, 0.5f, 0.04f, s, paint, 0, 0, 0),
 				0, 0, 0, 0.0f, 0.0f));
+		return w;
+	}
+
+	// ---------- Новые крылья-веера: кристаллы, огонь, механика (воксельные) ----------
+
+	/** Одно «перо»: вытянутый воксельный клинок вдоль +X. style: 0 кристалл, 1 пламя, 2 механика. */
+	private static VoxelPart blade(int style, float len, float w, float th) {
+		Voxels v = Art.grid(-0.03f, -w - 0.03f, -th - 0.03f, len + 0.03f, w + 0.03f, th + 0.03f);
+		float hz = Math.max(th, Art.R * 0.6f);
+		v.fill(0, -w, -hz, len, w, hz, (x, y, z) -> {
+			float t = x / len;
+			float prof;
+			if (style == 0) {
+				prof = t < 0.3f ? 0.15f + 0.85f * (t / 0.3f) : 1.0f - 0.95f * ((t - 0.3f) / 0.7f);
+			} else if (style == 1) {
+				prof = (float) Math.pow(Math.sin(Math.PI * Math.min(1.0f, t * 0.98f + 0.02f)), 0.7f);
+			} else {
+				prof = t < 0.82f ? 1.0f - 0.3f * t : (1.0f - t) / 0.18f * 0.75f;
+			}
+			return Math.abs(y) <= w * prof;
+		}, (x, y, z) -> {
+			float t = Math.max(0.0f, Math.min(1.0f, x / len));
+			int c;
+			if (style == 0) {
+				c = Voxels.mix(0x3FB6E8, 0xE8FBFF, t);
+				if (Math.abs(y) < 0.014f) c = Voxels.mix(c, 0xFFFFFF, 0.6f);
+			} else if (style == 1) {
+				c = t < 0.5f ? Voxels.mix(0xC81E1E, 0xFF7A1A, t / 0.5f) : Voxels.mix(0xFF7A1A, 0xFFE35A, (t - 0.5f) / 0.5f);
+				if (Math.abs(y) < 0.012f) c = Voxels.mix(c, 0xFFF3B0, 0.5f);
+			} else {
+				c = Voxels.mix(0x8E98A6, 0xC9D1DC, t);
+				if (Math.abs(y) < 0.012f) c = 0x45E0FF;
+				else if (Math.abs(y) > w * 0.8f) c = 0xD9A93A;
+				if (((int) Math.floor(x / 0.1f)) % 2 == 0 && Math.abs(y) >= 0.012f) c = Voxels.lum(c, 0.88f);
+			}
+			return Voxels.lum(c, 0.94f + 0.12f * Voxels.grain(x, y, z, Art.R));
+		});
+		return Art.part(v);
+	}
+
+	private static Wing fan(int style) {
+		Wing w = new Wing();
+		w.restSweep = style == 2 ? 30.0f : 24.0f;
+		w.restUp = 10.0f;
+		w.translucent = style == 0;
+		w.alpha = style == 0 ? 0.82f : 1.0f;
+		int a = style == 0 ? 0xBFEFFF : style == 1 ? 0x7A1010 : 0x7A8492;
+		int b = style == 0 ? 0x8ADBFF : style == 1 ? 0xB43014 : 0x56606E;
+		w.parts.add(new Part(bone(0.38f, 0.045f, 0.03f, a, b), 0, 0, 0, 40.0f, 0.0f));
+		int n = 6;
+		for (int i = 0; i < n; i++) {
+			float f = i / (float) (n - 1);
+			float len = 0.95f - 0.06f * Math.abs(i - 3);
+			w.parts.add(new Part(blade(style, len, 0.08f, 0.02f), 0.05f, 0.03f, (i % 2 == 0) ? -0.012f : 0.012f, 38.0f - f * 118.0f, 1.0f));
+		}
+		int m = 4;
+		for (int i = 0; i < m; i++) {
+			float f = i / (float) (m - 1);
+			w.parts.add(new Part(blade(style, 0.52f, 0.065f, 0.018f), 0.16f, 0.09f, 0.018f, 56.0f - f * 90.0f, 0.7f));
+		}
 		return w;
 	}
 }

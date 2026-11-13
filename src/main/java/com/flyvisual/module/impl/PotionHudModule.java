@@ -1,5 +1,6 @@
 package com.flyvisual.module.impl;
 
+import com.flyvisual.util.Bold;
 import com.flyvisual.config.Theme;
 import com.flyvisual.gui.HudEditorScreen;
 import com.flyvisual.module.DoubleSetting;
@@ -62,7 +63,7 @@ public class PotionHudModule extends HudModule {
 
 			int ry = y + row * (ROW_H + GAP);
 			String label = text.toString();
-			int textW = label.isEmpty() ? 0 : tr.getWidth(label) + 4;
+			int textW = label.isEmpty() ? 0 : Bold.width(tr, label) + 4;
 			int w = 4 + ICON + 4 + textW + 2;
 
 			ctx.fill(x, ry, x + w, ry + ROW_H, bg());
@@ -74,8 +75,8 @@ public class PotionHudModule extends HudModule {
 			ctx.drawSprite(x + 4, ry + (ROW_H - ICON) / 2, 0, ICON, ICON, sprite);
 
 			if (!label.isEmpty()) {
-				ctx.drawText(tr, label, x + 4 + ICON + 4, ry + (ROW_H - 8) / 2,
-						lowTime ? 0xFFFFAA00 : Theme.TEXT, true);
+				Bold.draw(ctx, tr, label, x + 4 + ICON + 4, ry + (ROW_H - 8) / 2,
+						lowTime ? 0xFFFFAA00 : Theme.TEXT);
 			}
 
 			maxW = Math.max(maxW, w);
@@ -85,12 +86,12 @@ public class PotionHudModule extends HudModule {
 		// Образец для HUD-редактора, когда эффектов нет
 		if (row == 0 && mc.currentScreen instanceof HudEditorScreen) {
 			String sample = "Эффекты зелий";
-			int w = tr.getWidth(sample) + 12;
+			int w = Bold.width(tr, sample) + 12;
 			ctx.fill(x, y, x + w, y + ROW_H, bg());
 			if (showAccentBar()) {
 				ctx.fill(x, y, x + 2, y + ROW_H, Theme.accent());
 			}
-			ctx.drawText(tr, sample, x + 6, y + (ROW_H - 8) / 2, Theme.TEXT_DIM, true);
+			Bold.draw(ctx, tr, sample, x + 6, y + (ROW_H - 8) / 2, Theme.TEXT_DIM);
 			maxW = w;
 			row = 1;
 		}

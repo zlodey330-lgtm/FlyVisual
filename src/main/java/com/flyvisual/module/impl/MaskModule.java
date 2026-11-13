@@ -64,10 +64,10 @@ public class MaskModule extends Module {
 		Vec3d cam = context.camera().getPos();
 		matrices.push();
 		// Центр головы, поворот головы
-		matrices.translate(pp.x - cam.x, pp.y + eye + 0.03 - cam.y, pp.z - cam.z);
+		matrices.translate(pp.x - cam.x, pp.y + eye - 0.07 - cam.y, pp.z - cam.z);
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-headYaw));
 		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
-		float s = size.getFloat();
+		float s = size.getFloat() * 0.94f;
 		matrices.scale(s, s, s);
 		part.draw(matrices, solid, light, 1.0f);
 		matrices.pop();

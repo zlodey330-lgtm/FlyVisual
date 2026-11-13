@@ -1,5 +1,6 @@
 package com.flyvisual.module.impl;
 
+import com.flyvisual.util.Bold;
 import com.flyvisual.config.Theme;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.HudModule;
@@ -48,7 +49,7 @@ public class ArmorHudModule extends HudModule {
 				int percent = 100 - stack.getDamage() * 100 / stack.getMaxDamage();
 				int color = percent <= warnBelow.get() ? 0xFFFFAA00 : Theme.TEXT;
 				String text = percent + "%";
-				ctx.drawText(tr, text, cellX + (SLOT - tr.getWidth(text)) / 2, y + 18, color, true);
+				Bold.draw(ctx, tr, text, cellX + (SLOT - Bold.width(tr, text)) / 2, y + 18, color);
 			}
 		}
 	}

@@ -22,6 +22,26 @@ public final class VoxelPart {
 		this.quads = quads;
 	}
 
+	/** Часть из готовой блочной сетки Voxels (так же собраны питомцы). */
+	public static VoxelPart fromMesh(Voxels.Mesh m) {
+		int quads = m.vertices / 4;
+		float[] out = new float[m.vertices * 6];
+		for (int i = 0; i < m.vertices; i++) {
+			out[i * 6] = m.pos[i * 3];
+			out[i * 6 + 1] = m.pos[i * 3 + 1];
+			out[i * 6 + 2] = m.pos[i * 3 + 2];
+			out[i * 6 + 3] = m.rgb[i * 3];
+			out[i * 6 + 4] = m.rgb[i * 3 + 1];
+			out[i * 6 + 5] = m.rgb[i * 3 + 2];
+		}
+		return new VoxelPart(out, quads);
+	}
+
+	/** Вершины для проверки/превью: по 6 чисел (x, y, z, r, g, b) на вершину. */
+	public float[] rawData() {
+		return data;
+	}
+
 	public int quadCount() {
 		return quads;
 	}
@@ -36,8 +56,10 @@ public final class VoxelPart {
 		return build(v, minX, minY, minZ, maxX, maxY, maxZ, sdf, paint, px, py, pz, 1.0f);
 	}
 
-	public static VoxelPart build(float v, float minX, float minY, float minZ, float maxX, float maxY, float maxZ,
+	public static VoxelPart build(float v0, float minX, float minY, float minZ, float maxX, float maxY, float maxZ,
 								  Sdf sdf, Sdf.Paint paint, float px, float py, float pz, float aoStrength) {
+		// Блочная сетка (воксельный арт): клетка чуть крупнее исходной, чтобы кубики читались
+		float v = Math.max(v0 * 1.35f, 0.028f);
 		int nx = Math.max(1, (int) Math.ceil((maxX - minX) / v));
 		int ny = Math.max(1, (int) Math.ceil((maxY - minY) / v));
 		int nz = Math.max(1, (int) Math.ceil((maxZ - minZ) / v));
@@ -53,38 +75,35 @@ public final class VoxelPart {
 					if (sdf.d(x, y, z) < 0.0f) {
 						int idx = (i * ny + j) * nz + k;
 						solid[idx] = true;
-						color[idx] = paint.rgb(x, y, z);
+						// Лёгкая «зернистость» каждого кубика, как пиксельная текстура
+						int h = (i * 73856093) ^ (j * 19349663) ^ (k * 83492791);
+						float grain = 0.94f + 0.12f * (((h >> 8) & 0xFF) / 255.0f);
+						color[idx] = Voxels.lum(paint.rgb(x, y, z), grain);
 					}
 				}
 			}
 		}
 
-		final int fny = ny;
-		final int fnz = nz;
-		SmoothMesher.Result r = SmoothMesher.build(new SmoothMesher.Grid() {
-			@Override
-			public boolean solid(int i, int j, int k) {
-				return is(solid, nx, fny, fnz, i, j, k);
+		float[] out = new float[4096];
+		int count = 0;
+		for (int i = 0; i < nx; i++) {
+			for (int j = 0; j < ny; j++) {
+				for (int k = 0; k < nz; k++) {
+					int idx = (i * ny + j) * nz + k;
+					if (!solid[idx]) continue;
+					int c = color[idx];
+					float cr = ((c >> 16) & 0xFF) / 255.0f;
+					float cg = ((c >> 8) & 0xFF) / 255.0f;
+					float cb = (c & 0xFF) / 255.0f;
+					for (int f = 0; f < 6; f++) {
+						if (is(solid, nx, ny, nz, i + DIR[f][0], j + DIR[f][1], k + DIR[f][2])) continue;
+						if ((count + 1) * 24 > out.length) out = java.util.Arrays.copyOf(out, out.length * 2);
+						count = emit(out, count, f, i, j, k, v, minX, minY, minZ, px, py, pz, cr, cg, cb, solid, nx, ny, nz, aoStrength);
+					}
+				}
 			}
-
-			@Override
-			public int color(int i, int j, int k) {
-				return color[(i * fny + j) * fnz + k];
-			}
-		}, nx, ny, nz, v, minX, minY, minZ, px, py, pz, aoStrength);
-
-		// Раскладываем в формат части: на каждую вершину x, y, z, r, g, b
-		float[] out = new float[r.quads * 24];
-		for (int q = 0; q < r.quads * 4; q++) {
-			int o = q * 6;
-			out[o] = r.pos[q * 3];
-			out[o + 1] = r.pos[q * 3 + 1];
-			out[o + 2] = r.pos[q * 3 + 2];
-			out[o + 3] = r.rgb[q * 3];
-			out[o + 4] = r.rgb[q * 3 + 1];
-			out[o + 5] = r.rgb[q * 3 + 2];
 		}
-		return new VoxelPart(out, r.quads);
+		return new VoxelPart(java.util.Arrays.copyOf(out, count * 24), count);
 	}
 
 	private static boolean is(boolean[] solid, int nx, int ny, int nz, int i, int j, int k) {

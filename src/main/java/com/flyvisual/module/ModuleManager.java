@@ -31,10 +31,8 @@ import com.flyvisual.module.impl.WingsModule;
 import com.flyvisual.module.impl.NotificationsModule;
 import com.flyvisual.module.impl.MenuThemeModule;
 import com.flyvisual.module.impl.PauseScreenModule;
-import com.flyvisual.module.impl.TitleScreenModule;
 import com.flyvisual.module.impl.MenuCursorModule;
 import com.flyvisual.module.impl.MotionBlurModule;
-import com.flyvisual.module.impl.LoadingScreenModule;
 import com.flyvisual.module.impl.TotemCounterModule;
 import com.flyvisual.module.impl.HitSoundsModule;
 import com.flyvisual.module.impl.FpsModule;
@@ -86,16 +84,17 @@ public final class ModuleManager {
 	private static NotificationsModule notifications;
 	private static MenuThemeModule menuTheme;
 	private static PauseScreenModule pauseScreen;
-	private static TitleScreenModule titleScreen;
 	private static MotionBlurModule motionBlur;
 	private static MenuCursorModule menuCursor;
-	private static LoadingScreenModule loadingScreen;
 	private static CustomChatModule customChat;
 	private static PetModule pet;
 	private static HitboxModule hitbox;
 	private static AspectRatioModule aspectRatio;
 	private static EmoteModule emotes;
 	private static MouseFixModule mouseFix;
+	private static com.flyvisual.module.impl.HandsModule hands;
+	private static com.flyvisual.module.impl.KillEffectModule killEffect;
+	private static com.flyvisual.module.impl.JumpEffectModule jumpEffect;
 	private static SaturationModule saturation;
 	private static PotionHudModule potionHud;
 	private static DeathScreenModule deathScreen;
@@ -123,16 +122,17 @@ public final class ModuleManager {
 		notifications = new NotificationsModule();
 		menuTheme = new MenuThemeModule();
 		pauseScreen = new PauseScreenModule();
-		titleScreen = new TitleScreenModule();
 		motionBlur = new MotionBlurModule();
 		menuCursor = new MenuCursorModule();
-		loadingScreen = new LoadingScreenModule();
 		customChat = new CustomChatModule();
 		pet = new PetModule();
 		hitbox = new HitboxModule();
 		aspectRatio = new AspectRatioModule();
 		emotes = new EmoteModule();
 		mouseFix = new MouseFixModule();
+		hands = new com.flyvisual.module.impl.HandsModule();
+		killEffect = new com.flyvisual.module.impl.KillEffectModule();
+		jumpEffect = new com.flyvisual.module.impl.JumpEffectModule();
 		saturation = new SaturationModule();
 		potionHud = new PotionHudModule();
 		deathScreen = new DeathScreenModule();
@@ -158,9 +158,7 @@ public final class ModuleManager {
 		MODULES.add(optimization);
 		MODULES.add(notifications);
 		MODULES.add(menuTheme);
-		MODULES.add(loadingScreen);
 		MODULES.add(pauseScreen);
-		MODULES.add(titleScreen);
 		MODULES.add(new HitSoundsModule());
 		MODULES.add(smoothChat);
 		MODULES.add(hotbar);
@@ -193,6 +191,9 @@ public final class ModuleManager {
 		MODULES.add(new MacroModule());
 		MODULES.add(emotes);
 		MODULES.add(mouseFix);
+		MODULES.add(hands);
+		MODULES.add(killEffect);
+		MODULES.add(jumpEffect);
 		MODULES.add(new TargetEspModule());
 
 		FlyConfig cfg = FlyConfig.get();
@@ -254,21 +255,12 @@ public final class ModuleManager {
 		return smoothChat;
 	}
 
-	/** Включено ли главное меню FlyVisual (по умолчанию нет). */
-	public static boolean titleScreenOn() {
-		return titleScreen != null && titleScreen.isEnabled();
-	}
-
 	public static PauseScreenModule pauseScreen() {
 		return pauseScreen;
 	}
 
 	public static MenuThemeModule menuTheme() {
 		return menuTheme;
-	}
-
-	public static LoadingScreenModule loadingScreen() {
-		return loadingScreen;
 	}
 
 	public static NotificationsModule notifications() {
@@ -289,6 +281,10 @@ public final class ModuleManager {
 
 	public static PotionHudModule potionHud() {
 		return potionHud;
+	}
+
+	public static com.flyvisual.module.impl.HandsModule hands() {
+		return hands;
 	}
 
 	public static MouseFixModule mouseFix() {

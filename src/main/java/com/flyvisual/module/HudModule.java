@@ -1,5 +1,6 @@
 package com.flyvisual.module;
 
+import com.flyvisual.util.Bold;
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.config.Theme;
 import net.minecraft.client.font.TextRenderer;
@@ -93,12 +94,12 @@ public abstract class HudModule extends Module {
 	/** Панель с одной строкой текста в заданной точке. Возвращает ширину панели. */
 	protected int drawPanelAt(DrawContext ctx, String text, int px, int py) {
 		TextRenderer tr = mc().textRenderer;
-		int w = tr.getWidth(text) + 12;
+		int w = Bold.width(tr, text) + 12;
 		ctx.fill(px, py, px + w, py + PANEL_HEIGHT, bg());
 		if (showAccentBar()) {
 			ctx.fill(px, py, px + 2, py + PANEL_HEIGHT, Theme.accent());
 		}
-		ctx.drawText(tr, text, px + 6, py + 3, Theme.TEXT, true);
+		Bold.draw(ctx, tr, text, px + 6, py + 3, Theme.TEXT);
 		return w;
 	}
 
