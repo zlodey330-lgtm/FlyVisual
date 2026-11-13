@@ -138,13 +138,19 @@ public class HandsFx extends Module implements ItemSelection {
 			float t = full ? (System.nanoTime() / 1.0e9f) % 1000.0f : 0.0f;
 			float k = power.getFloat();
 			float h = hue.getFloat();
+			if (full) {
+				// Переливание: оттенок плавно плывёт вокруг выбранного цвета, сила дышит
+				h = (h + 45.0f * (float) Math.sin(t * 1.3f) + 360.0f) % 360.0f;
+				k *= 0.85f + 0.3f * (0.5f + 0.5f * (float) Math.sin(t * 2.3f));
+			}
 			float pulse = full ? 0.5f + 0.5f * (float) Math.sin(t * 3.2f) : 0.5f;
 			float fast = full ? 0.5f + 0.5f * (float) Math.sin(t * 9.0f) : 0.5f;
 
 			switch (style.getInt()) {
 				case 0 -> {
 					shell(entity, stack, mode, leftHanded, matrices, consumers, 1.07f, rgb(h, 0.75f, 1.0f), 0.42f * k, 0, 0);
-					shell(entity, stack, mode, leftHanded, matrices, consumers, 1.15f, rgb(h, 0.18f, 1.0f), 0.30f * k, 0, 0);
+					shell(entity, stack, mode, leftHanded, matrices, consumers, 1.15f + 0.02f * pulse, rgb((h + 50.0f) % 360.0f, 0.35f, 1.0f), 0.30f * k, 0, 0);
+					shell(entity, stack, mode, leftHanded, matrices, consumers, 1.23f - 0.02f * pulse, rgb((h + 110.0f) % 360.0f, 0.5f, 1.0f), 0.14f * k, 0, 0);
 				}
 				case 1 -> shell(entity, stack, mode, leftHanded, matrices, consumers, 1.05f, rgb(h, 0.9f, 1.0f), (0.55f + 0.2f * pulse) * k, 0, 0);
 				case 2 -> {
