@@ -34,7 +34,7 @@
 		"SpriteAtlasTextureMixin",
 		"ItemEntityMixin",
 		"SignBlockEntityRendererMixin",
-		"HeldItemShaderMixin",
+		"HandsShaderMixin",
 		"FramerateLimitMixin"
   ],
   "injectors": {
