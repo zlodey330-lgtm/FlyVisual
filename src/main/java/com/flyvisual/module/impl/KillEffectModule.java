@@ -32,15 +32,14 @@ public class KillEffectModule extends Module {
 	private static final String[] EFFECTS = {"Гроб", "Души", "Молния", "Осколки", "Вихрь", "Фейерверк", "Пентаграмма"};
 	private static final float[] LIFES = {3.7f, 3.3f, 1.7f, 2.6f, 3.0f, 3.1f, 3.6f};
 	private static final String[] STYLES = {"Классика", "Золотой", "Чёрный", "Кровавый", "Ледяной", "Изумруд",
-			"Королевский", "Кость", "Свой цвет"};
+			"Королевский", "Кость"};
 	private static final String[] ANIMS = {"Из земли", "С неба", "Вихрь"};
 	private static final float[][] WOOD = {{0.34f, 0.19f, 0.10f}, {0.82f, 0.63f, 0.16f}, {0.07f, 0.07f, 0.09f},
 			{0.40f, 0.05f, 0.07f}, {0.58f, 0.80f, 0.93f}, {0.07f, 0.36f, 0.23f}, {0.22f, 0.08f, 0.32f},
-			{0.88f, 0.85f, 0.78f}, {0.2f, 0.2f, 0.25f}};
+			{0.88f, 0.85f, 0.78f}};
 	private static final float[][] TRIM = {{0.88f, 0.68f, 0.24f}, {1.0f, 0.92f, 0.55f}, {0.80f, 0.82f, 0.92f},
 			{0.12f, 0.02f, 0.03f}, {0.96f, 0.99f, 1.0f}, {0.88f, 0.78f, 0.32f}, {0.95f, 0.76f, 0.27f},
-			{0.55f, 0.52f, 0.48f}, {1f, 1f, 1f}};
-	private static final float[] GLOW_HUE = {48f, 50f, 270f, 0f, 190f, 140f, 285f, 200f, 200f};
+			{0.55f, 0.52f, 0.48f}};
 
 		private static final float OPEN_ANGLE = 1.85f;
 	private static final float H = 0.42f;
@@ -82,6 +81,7 @@ public class KillEffectModule extends Module {
 		int style;
 		int anim;
 		float hue;
+		boolean beige;
 		int effect;
 		int seed;
 		float life = 3.7f;
@@ -96,8 +96,9 @@ public class KillEffectModule extends Module {
 	}
 
 	private final DoubleSetting effect = addChoice("Effect", 0, EFFECTS);
-	private final DoubleSetting style = addChoice("Color", 0, STYLES);
-	private final DoubleSetting hue = addSetting("Color (hue)", 200.0, 0.0, 355.0, 5.0);
+	private final DoubleSetting style = addChoice("Coffin color", 0, STYLES);
+	private final DoubleSetting beige = addToggle("Beam beige", true);
+	private final DoubleSetting hue = addSetting("Beam (hue)", 200.0, 0.0, 355.0, 5.0);
 	private final DoubleSetting anim = addChoice("Animation", 0, ANIMS);
 	private final DoubleSetting size = addSetting("Size", 1.0, 0.5, 2.0, 0.1);
 	private final DoubleSetting playersOnly = addToggle("Players only", false);
@@ -111,6 +112,7 @@ public class KillEffectModule extends Module {
 	private Matrix4f cm;
 	private float[] cur;
 	private float curHue;
+	private boolean curBeige = true;
 
 	public KillEffectModule() {
 		super("Kill Effect", "Coffin effect where you kill a player or mob");
@@ -156,6 +158,22 @@ public class KillEffectModule extends Module {
 		}
 	}
 
+	/** Высота земли под точкой: гроб и пентаграмма стоят на блоке, а не висят в воздухе. */
+	private static double groundY(net.minecraft.client.world.ClientWorld w, double x, double y, double z) {
+		net.minecraft.util.math.BlockPos.Mutable p = new net.minecraft.util.math.BlockPos.Mutable(
+				net.minecraft.util.math.MathHelper.floor(x), net.minecraft.util.math.MathHelper.floor(y + 0.1),
+				net.minecraft.util.math.MathHelper.floor(z));
+		for (int i = 0; i < 48 && p.getY() > w.getBottomY(); i++) {
+			net.minecraft.block.BlockState state = w.getBlockState(p);
+			net.minecraft.util.shape.VoxelShape shape = state.getCollisionShape(w, p);
+			if (!shape.isEmpty()) {
+				return p.getY() + shape.getMax(net.minecraft.util.math.Direction.Axis.Y);
+			}
+			p.move(net.minecraft.util.math.Direction.DOWN);
+		}
+		return y;
+	}
+
 	private void spawn(MinecraftClient client, Tracked t) {
 		Fx f = new Fx();
 		f.x = t.x;
@@ -168,6 +186,10 @@ public class KillEffectModule extends Module {
 		f.life = LIFES[f.effect];
 		f.seed = (int) (f.start % 1000);
 		f.hue = hue.getFloat();
+		f.beige = beige.getBool();
+		if ((f.effect == 0 || f.effect == 6) && client.world != null) {
+			f.y = groundY(client.world, t.x, t.y, t.z);
+		}
 		// Крышка откидывается от игрока, чтобы внутрь было видно
 		double dx = t.x - client.player.getX();
 		double dz = t.z - client.player.getZ();
@@ -224,10 +246,10 @@ public class KillEffectModule extends Module {
 	private void drawCoffin(Fx f, float t, float cx, float cy, float cz) {
 		float S = size.getFloat();
 		int st = f.style;
-		float h = st == 8 ? f.hue : GLOW_HUE[st];
-		curHue = h;
-		float[] trim = st == 8 ? Fx3d.color(f.hue, 0.85f, 1.0f) : TRIM[st];
-		float[] wood = st == 8 ? Fx3d.color(f.hue, 0.6f, 0.42f) : WOOD[st];
+		curBeige = f.beige;
+		curHue = f.hue;
+		float[] trim = TRIM[st];
+		float[] wood = WOOD[st];
 
 		// --- Время ---
 		float yOff = 0.0f;
@@ -308,8 +330,8 @@ public class KillEffectModule extends Module {
 		float g = openAmt * (t < 2.3f ? 1.0f : clamp01(1.0f - (t - 2.3f) / 0.35f) * 1.0f);
 		g = Math.max(g, 0.0f) * (1.0f - sink);
 		V c0 = base.at(0, H - 0.03f, 0);
-		float[] gc = Fx3d.color(curHue, 0.55f, 1.0f);
-		float[] gl = Fx3d.color(curHue, 0.2f, 1.0f);
+		float[] gc = curBeige ? Fx3d.color(40.0f, 0.32f, 1.0f) : Fx3d.color(curHue, 0.55f, 1.0f);
+		float[] gl = curBeige ? Fx3d.color(42.0f, 0.10f, 1.0f) : Fx3d.color(curHue, 0.2f, 1.0f);
 		if (g > 0.02f) {
 			capGlow(base, 0.84f, H - 0.02f, gc, 0.8f * g);
 			float bh = 3.0f * S * clamp01(g * 1.3f);
@@ -459,10 +481,17 @@ public class KillEffectModule extends Module {
 	private float[] gAcc = {1, 1, 1};
 
 	private void palette(Fx f) {
-		float h = f.style == 8 ? f.hue : GLOW_HUE[f.style];
-		gMain = Fx3d.color(h, 0.6f, 1.0f);
-		gLight = Fx3d.color(h, 0.15f, 1.0f);
-		gAcc = Fx3d.color(h + 30.0f, 0.75f, 1.0f);
+		if (f.beige) {
+			// По умолчанию всё бежевое, без зелёных оттенков
+			gMain = Fx3d.color(40.0f, 0.32f, 1.0f);
+			gLight = Fx3d.color(42.0f, 0.10f, 1.0f);
+			gAcc = Fx3d.color(34.0f, 0.48f, 1.0f);
+		} else {
+			float h = f.hue;
+			gMain = Fx3d.color(h, 0.6f, 1.0f);
+			gLight = Fx3d.color(h, 0.15f, 1.0f);
+			gAcc = Fx3d.color(h + 20.0f, 0.7f, 1.0f);
+		}
 	}
 
 	/** Светящаяся палка между двумя точками: два перекрёстных прямоугольника, выглядит объёмно с любой стороны. */
