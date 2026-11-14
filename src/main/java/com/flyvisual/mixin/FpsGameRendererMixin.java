@@ -10,16 +10,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** FPS Boost: тряска камеры при уроне и анимация тотема на экране. */
 @Mixin(GameRenderer.class)
 public class FpsGameRendererMixin {
-	@Inject(method = "tiltViewWhenHurt", at = @At("HEAD"), cancellable = true)
-	private void fpsboost$noHurtShake(CallbackInfo ci) {
-		if (MobConfig.hideHurtCam) {
-			ci.cancel();
-		}
-	}
-
 	@Inject(method = "showFloatingItem", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noTotem(CallbackInfo ci) {
-		if (MobConfig.hideTotemAnim) {
+		if (MobConfig.on() && MobConfig.hideTotemAnim) {
 			ci.cancel();
 		}
 	}

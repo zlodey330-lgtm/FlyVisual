@@ -26,7 +26,7 @@ public class FpsHandMixin {
 									 float swingProgress, ItemStack item, float equipProgress, MatrixStack matrices,
 									 VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
 		this.fpsboost$pushed = false;
-		if (!MobConfig.handScalingActive()) return;
+		if (!(MobConfig.on() && MobConfig.handScalingActive())) return;
 		float scale = HandScale.scaleFor(player, hand, item);
 		if (scale >= 0.999f) return;
 		Arm arm = hand == Hand.MAIN_HAND ? player.getMainArm() : player.getMainArm().getOpposite();

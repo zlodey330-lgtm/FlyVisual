@@ -21,10 +21,6 @@ public class FpsParticleMixin {
 			at = @At("HEAD"), cancellable = true)
 	private void fpsboost$hideParticle(ParticleEffect parameters, double x, double y, double z,
 									   double vx, double vy, double vz, CallbackInfoReturnable<Particle> cir) {
-		if (MobConfig.on() && com.flyvisual.fpsboost.FpsExtra.warmupActive()) {
-			cir.setReturnValue(null);
-			return;
-		}
 		if (MobConfig.on() && MobConfig.hideBlockParticles && parameters instanceof BlockStateParticleEffect) {
 			cir.setReturnValue(null);
 			return;

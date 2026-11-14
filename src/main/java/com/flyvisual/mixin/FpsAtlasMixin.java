@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class FpsAtlasMixin {
 	@Inject(method = "tickAnimatedSprites", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$freeze(CallbackInfo ci) {
-		if (MobConfig.freezeAnimations()) {
+		if ((MobConfig.on() && MobConfig.freezeAnimations())) {
 			ci.cancel();
 		}
 	}

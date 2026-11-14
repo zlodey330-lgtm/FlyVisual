@@ -30,7 +30,10 @@ public class OptimizationModule extends Module {
 	public static boolean ownSpawn;
 
 	/** Кнопка «Настроить»: открывает меню FPS Boost (дальность мобов, эффекты, частицы, конфиги). */
-	private final DoubleSetting configure = addToggle("Настроить", false);
+	private final DoubleSetting configure = addButton("Настроить", () -> {
+		MinecraftClient c = MinecraftClient.getInstance();
+		c.setScreen(new com.flyvisual.fpsboost.FpsBoostScreen(c.currentScreen));
+	});
 	private final DoubleSetting allOn = addToggle("All on", false);
 	private final DoubleSetting allOff = addToggle("All off", false);
 
@@ -228,10 +231,6 @@ public class OptimizationModule extends Module {
 
 	@Override
 	public void onTick(MinecraftClient client) {
-		if (configure.getBool()) {
-			configure.set(0.0);
-			client.setScreen(new com.flyvisual.fpsboost.FpsBoostScreen(client.currentScreen));
-		}
 		if (allOn.getBool()) {
 			for (DoubleSetting s : features) s.set(1.0);
 			allOn.set(0.0);

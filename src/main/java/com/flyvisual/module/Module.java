@@ -53,6 +53,13 @@ public abstract class Module {
 		return setting;
 	}
 
+	/** Добавляет обычную кнопку (работает, даже если модуль выключен). */
+	protected DoubleSetting addButton(String settingName, Runnable action) {
+		DoubleSetting setting = DoubleSetting.createButton(name, settingName, action);
+		settings.add(setting);
+		return setting;
+	}
+
 	/** Добавляет выбор из списка (например, тип частиц). */
 	protected DoubleSetting addChoice(String settingName, int defIndex, String... labels) {
 		DoubleSetting setting = DoubleSetting.createChoice(name, settingName, defIndex, labels);

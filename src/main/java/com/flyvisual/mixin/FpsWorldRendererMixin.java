@@ -25,35 +25,35 @@ public class FpsWorldRendererMixin {
 	@Inject(method = "renderClouds(Lnet/minecraft/client/util/math/MatrixStack;Lorg/joml/Matrix4f;FDDD)V",
 			at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noClouds(CallbackInfo ci) {
-		if (MobConfig.hideClouds) {
+		if (MobConfig.on() && MobConfig.hideClouds) {
 			ci.cancel();
 		}
 	}
 
 	@Inject(method = "renderWeather", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noWeather(CallbackInfo ci) {
-		if (MobConfig.hideWeather) {
+		if (MobConfig.on() && MobConfig.hideWeather) {
 			ci.cancel();
 		}
 	}
 
 	@Inject(method = "tickRainSplashing", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noRainSplash(CallbackInfo ci) {
-		if (MobConfig.hideWeather) {
+		if (MobConfig.on() && MobConfig.hideWeather) {
 			ci.cancel();
 		}
 	}
 
 	@Inject(method = "setBlockBreakingInfo", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noCracks(CallbackInfo ci) {
-		if (MobConfig.hideBreakAnim) {
+		if (MobConfig.on() && MobConfig.hideBreakAnim) {
 			ci.cancel();
 		}
 	}
 
 	@Inject(method = SKY, at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noSky(CallbackInfo ci) {
-		if (MobConfig.hideSky) {
+		if (MobConfig.on() && MobConfig.hideSky) {
 			ci.cancel();
 		}
 	}
@@ -64,7 +64,7 @@ public class FpsWorldRendererMixin {
 					target = "Lnet/minecraft/client/gl/VertexBuffer;draw(Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lnet/minecraft/client/gl/ShaderProgram;)V"),
 			require = 0)
 	private void fpsboost$skyDraw(VertexBuffer buffer, Matrix4f modelView, Matrix4f projection, ShaderProgram program) {
-		if (MobConfig.hideSunMoonStars && buffer == this.starsBuffer) {
+		if (MobConfig.on() && MobConfig.hideSunMoonStars && buffer == this.starsBuffer) {
 			return;
 		}
 		buffer.draw(modelView, projection, program);
@@ -73,12 +73,12 @@ public class FpsWorldRendererMixin {
 	/** Солнце: размер квадрата 30 превращаем в 0, и оно не видно. */
 	@ModifyConstant(method = SKY, constant = @Constant(floatValue = 30.0F), require = 0)
 	private float fpsboost$sun(float original) {
-		return MobConfig.hideSunMoonStars ? 0.0f : original;
+		return MobConfig.on() && MobConfig.hideSunMoonStars ? 0.0f : original;
 	}
 
 	/** Луна: размер квадрата 20 превращаем в 0. */
 	@ModifyConstant(method = SKY, constant = @Constant(floatValue = 20.0F), require = 0)
 	private float fpsboost$moon(float original) {
-		return MobConfig.hideSunMoonStars ? 0.0f : original;
+		return MobConfig.on() && MobConfig.hideSunMoonStars ? 0.0f : original;
 	}
 }

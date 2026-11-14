@@ -37,8 +37,6 @@
 		"HandsShaderMixin",
 		"TitleScreenBgMixin",
 		"CubeMapBgMixin",
-		"FpsBlockEntityMixin",
-		"FpsLimbMixin",
 		"FpsArmorMixin",
 		"FpsAtlasMixin",
 		"FpsEntityDispatcherMixin",

@@ -16,7 +16,7 @@ public class FpsFogMixin {
 	@Inject(method = "applyFog", at = @At("RETURN"))
 	private static void fpsboost$noLiquidFog(Camera camera, BackgroundRenderer.FogType fogType, float viewDistance,
 											 boolean thickFog, float tickDelta, CallbackInfo ci) {
-		if (!MobConfig.hideFog) return;
+		if (!(MobConfig.on() && MobConfig.hideFog)) return;
 		CameraSubmersionType type = camera.getSubmersionType();
 		if (type == CameraSubmersionType.WATER || type == CameraSubmersionType.LAVA) {
 			RenderSystem.setShaderFogStart(100000.0f);

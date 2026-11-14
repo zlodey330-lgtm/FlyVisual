@@ -193,7 +193,6 @@ public final class MobConfig {
 		for (ParticleType<?> type : HIDDEN_PARTICLES) {
 			hidden.add(Registries.PARTICLE_TYPE.getId(type).toString());
 		}
-		FpsExtra.write(root);
 		root.add("hiddenParticles", hidden);
 		root.add("mobDistances", distances);
 		return root;
@@ -239,7 +238,6 @@ public final class MobConfig {
 		hideWeather = flag(root, "hideWeather");
 		hideBlockParticles = flag(root, "hideBlockParticles");
 
-		FpsExtra.read(root);
 		HIDDEN_PARTICLES.clear();
 		if (root.has("hiddenParticles")) {
 			Set<String> ids = new HashSet<>();

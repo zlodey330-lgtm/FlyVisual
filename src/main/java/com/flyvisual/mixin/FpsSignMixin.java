@@ -21,7 +21,7 @@ public class FpsSignMixin {
 	private void fpsboost$signDistance(BlockPos pos, SignText text, MatrixStack matrices, VertexConsumerProvider provider,
 								   int light, int lineHeight, int lineWidth, boolean front, CallbackInfo ci) {
 		int limit = MobConfig.signDistance;
-		if (limit >= MobConfig.SIGN_MAX) return;
+		if (!MobConfig.on() || limit >= MobConfig.SIGN_MAX) return;
 		ClientPlayerEntity player = MinecraftClient.getInstance().player;
 		if (player == null) return;
 		double d = (double) limit * limit;

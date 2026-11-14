@@ -17,6 +17,7 @@ public class DoubleSetting {
 	private final boolean toggle;
 	private final String[] labels;
 	private double value;
+	private Runnable action;
 
 	public DoubleSetting(String moduleName, String name, double def, double min, double max, double step) {
 		this(moduleName, name, def, min, max, step, false, null);
@@ -39,6 +40,21 @@ public class DoubleSetting {
 	/** Переключатель Вкл/Выкл. */
 	public static DoubleSetting createToggle(String moduleName, String name, boolean def) {
 		return new DoubleSetting(moduleName, name, def ? 1.0 : 0.0, 0.0, 1.0, 1.0, true, null);
+	}
+
+	/** Обычная кнопка: по нажатию просто выполняет действие. */
+	public static DoubleSetting createButton(String moduleName, String name, Runnable action) {
+		DoubleSetting b = new DoubleSetting(moduleName, name, 0.0, 0.0, 1.0, 1.0, false, null);
+		b.action = action;
+		return b;
+	}
+
+	public boolean isButton() {
+		return action != null;
+	}
+
+	public void press() {
+		if (action != null) action.run();
 	}
 
 	/** Выбор из списка (например, тип частиц). */

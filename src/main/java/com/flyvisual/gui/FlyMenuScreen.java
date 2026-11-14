@@ -536,7 +536,12 @@ public class FlyMenuScreen extends Screen {
 			if (ry + ROW_H > gy2) break;
 
 			String label = Lang.setting(s.getName());
-			if (s.isToggle()) {
+			if (s.isButton()) {
+				rr(ctx, px1 + 8, ry + 2, px2 - px1 - 16, ROW_H - 4, 4, Theme.offCol());
+				rr(ctx, px1 + 8, ry + 2, 3, ROW_H - 4, 1, Theme.accent());
+				text(ctx, label, px1 + 18, ry + 6, Theme.TEXT);
+				textRight(ctx, ">", px2 - 14, ry + 6, Theme.TEXT_DIM);
+			} else if (s.isToggle()) {
 				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
 				text(ctx, label, px1 + 8, ry + 8, Theme.TEXT);
 
@@ -817,7 +822,9 @@ public class FlyMenuScreen extends Screen {
 				if (ry + ROW_H > gy2()) break;
 				if (mouseY >= ry && mouseY < ry + ROW_H) {
 					DoubleSetting s = settings.get(k);
-					if (s.isToggle()) {
+					if (s.isButton()) {
+						s.press();
+					} else if (s.isToggle()) {
 						s.flip();
 						FlyConfig.save();
 					} else if (s.getName().equals("Quality level")) {

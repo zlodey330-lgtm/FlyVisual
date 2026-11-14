@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class FpsHudMixin {
 	@Inject(method = "renderOverlay", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noPumpkin(CallbackInfo ci) {
-		if (!MobConfig.hidePumpkin) return;
+		if (!(MobConfig.on() && MobConfig.hidePumpkin)) return;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc.player != null && mc.player.getInventory().getArmorStack(3).isOf(Items.CARVED_PUMPKIN)) {
 			ci.cancel();
@@ -23,7 +23,7 @@ public class FpsHudMixin {
 
 	@Inject(method = "renderPortalOverlay", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noPortal(CallbackInfo ci) {
-		if (MobConfig.hidePortalOverlay) {
+		if (MobConfig.on() && MobConfig.hidePortalOverlay) {
 			ci.cancel();
 		}
 	}

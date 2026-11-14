@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class FpsItemStackMixin {
 	@Inject(method = "hasGlint", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noGlint(CallbackInfoReturnable<Boolean> cir) {
-		if (MobConfig.hideEnchantGlint) {
+		if (MobConfig.on() && MobConfig.hideEnchantGlint) {
 			cir.setReturnValue(false);
 		}
 	}

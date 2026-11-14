@@ -15,7 +15,6 @@ public final class FpsHooks {
 	}
 
 	public static boolean isFar(Entity entity) {
-		if (MobConfig.on() && entity instanceof PlayerEntity player && FpsExtra.playerOutsideCap(player)) return true;
 		if (!MobConfig.on() || !MobConfig.simplifyFar || !(entity instanceof LivingEntity) || entity instanceof PlayerEntity) return false;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc == null || mc.gameRenderer == null || mc.gameRenderer.getCamera() == null) return false;

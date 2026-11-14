@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class FpsItemEntityMixin {
 	@Inject(method = "getRotation", at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noSpin(CallbackInfoReturnable<Float> cir) {
-		if (MobConfig.hideItemSpin) {
+		if (MobConfig.on() && MobConfig.hideItemSpin) {
 			cir.setReturnValue(0.0f);
 		}
 	}
