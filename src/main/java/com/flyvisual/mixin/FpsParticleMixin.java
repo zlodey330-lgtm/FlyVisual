@@ -21,11 +21,15 @@ public class FpsParticleMixin {
 			at = @At("HEAD"), cancellable = true)
 	private void fpsboost$hideParticle(ParticleEffect parameters, double x, double y, double z,
 									   double vx, double vy, double vz, CallbackInfoReturnable<Particle> cir) {
-		if (MobConfig.hideBlockParticles && parameters instanceof BlockStateParticleEffect) {
+		if (MobConfig.on() && com.flyvisual.fpsboost.FpsExtra.warmupActive()) {
 			cir.setReturnValue(null);
 			return;
 		}
-		if (MobConfig.hasHiddenParticles() && MobConfig.isParticleHidden(parameters.getType())) {
+		if (MobConfig.on() && MobConfig.hideBlockParticles && parameters instanceof BlockStateParticleEffect) {
+			cir.setReturnValue(null);
+			return;
+		}
+		if ((MobConfig.on() && MobConfig.hasHiddenParticles()) && MobConfig.isParticleHidden(parameters.getType())) {
 			cir.setReturnValue(null);
 		}
 	}
@@ -33,12 +37,12 @@ public class FpsParticleMixin {
 	@Inject(method = "addBlockBreakParticles(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;)V",
 			at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noBreakParticles(BlockPos pos, BlockState state, CallbackInfo ci) {
-		if (MobConfig.hideBlockParticles) ci.cancel();
+		if (MobConfig.on() && MobConfig.hideBlockParticles) ci.cancel();
 	}
 
 	@Inject(method = "addBlockBreakingParticles(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)V",
 			at = @At("HEAD"), cancellable = true)
 	private void fpsboost$noBreakingParticles(BlockPos pos, Direction direction, CallbackInfo ci) {
-		if (MobConfig.hideBlockParticles) ci.cancel();
+		if (MobConfig.on() && MobConfig.hideBlockParticles) ci.cancel();
 	}
 }

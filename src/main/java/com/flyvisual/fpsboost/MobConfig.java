@@ -32,8 +32,6 @@ public final class MobConfig {
 
 	private static final Map<EntityType<?>, Integer> LIMITS = new HashMap<>();
 
-	public static boolean hideFireSelf = false;
-	public static boolean hideFireOthers = false;
 	public static boolean hideGlow = false;
 	public static boolean hideWaterAnim = false;
 	public static boolean hideLavaAnim = false;
@@ -41,7 +39,6 @@ public final class MobConfig {
 	public static boolean hideTotemAnim = false;
 	public static boolean hideBreakAnim = false;
 	public static boolean hideItemSpin = false;
-	public static boolean hideHurtCam = false;
 	public static boolean hideEnchantGlint = false;
 	public static boolean hideFog = false;
 	public static boolean hideShadows = false;
@@ -83,6 +80,12 @@ public final class MobConfig {
 
 	private static Path profilesDir() {
 		return FabricLoader.getInstance().getConfigDir().resolve("fpsboost-configs");
+	}
+
+	/** Работает ли функция «Оптимизация». Пока она выключена, ни один эффект FPS Boost не применяется. */
+	public static boolean on() {
+		com.flyvisual.module.impl.OptimizationModule m = com.flyvisual.module.ModuleManager.optimization();
+		return m != null && m.isEnabled();
 	}
 
 	public static boolean handScalingActive() {
@@ -160,8 +163,6 @@ public final class MobConfig {
 			distances.addProperty(Registries.ENTITY_TYPE.getId(entry.getKey()).toString(), entry.getValue());
 		}
 		JsonObject root = new JsonObject();
-		root.addProperty("hideFireSelf", hideFireSelf);
-		root.addProperty("hideFireOthers", hideFireOthers);
 		root.addProperty("hideGlow", hideGlow);
 		root.addProperty("hideWaterAnim", hideWaterAnim);
 		root.addProperty("hideLavaAnim", hideLavaAnim);
@@ -169,7 +170,6 @@ public final class MobConfig {
 		root.addProperty("hideTotemAnim", hideTotemAnim);
 		root.addProperty("hideBreakAnim", hideBreakAnim);
 		root.addProperty("hideItemSpin", hideItemSpin);
-		root.addProperty("hideHurtCam", hideHurtCam);
 		root.addProperty("hideEnchantGlint", hideEnchantGlint);
 		root.addProperty("hideFog", hideFog);
 		root.addProperty("hideShadows", hideShadows);
@@ -193,6 +193,7 @@ public final class MobConfig {
 		for (ParticleType<?> type : HIDDEN_PARTICLES) {
 			hidden.add(Registries.PARTICLE_TYPE.getId(type).toString());
 		}
+		FpsExtra.write(root);
 		root.add("hiddenParticles", hidden);
 		root.add("mobDistances", distances);
 		return root;
@@ -209,8 +210,6 @@ public final class MobConfig {
 
 	private static void fromJson(JsonObject root) {
 		LIMITS.clear();
-		hideFireSelf = flag(root, "hideFireSelf");
-		hideFireOthers = flag(root, "hideFireOthers");
 		hideGlow = flag(root, "hideGlow");
 		hideWaterAnim = flag(root, "hideWaterAnim");
 		hideLavaAnim = flag(root, "hideLavaAnim");
@@ -218,7 +217,6 @@ public final class MobConfig {
 		hideTotemAnim = flag(root, "hideTotemAnim");
 		hideBreakAnim = flag(root, "hideBreakAnim");
 		hideItemSpin = flag(root, "hideItemSpin");
-		hideHurtCam = flag(root, "hideHurtCam");
 		hideEnchantGlint = flag(root, "hideEnchantGlint");
 		hideFog = flag(root, "hideFog");
 		hideShadows = flag(root, "hideShadows");
@@ -241,6 +239,7 @@ public final class MobConfig {
 		hideWeather = flag(root, "hideWeather");
 		hideBlockParticles = flag(root, "hideBlockParticles");
 
+		FpsExtra.read(root);
 		HIDDEN_PARTICLES.clear();
 		if (root.has("hiddenParticles")) {
 			Set<String> ids = new HashSet<>();

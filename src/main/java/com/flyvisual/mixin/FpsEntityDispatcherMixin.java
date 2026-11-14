@@ -1,5 +1,6 @@
 package com.flyvisual.mixin;
 
+import com.flyvisual.fpsboost.FpsExtra;
 import com.flyvisual.fpsboost.MobConfig;
 import com.flyvisual.fpsboost.OcclusionCuller;
 import net.minecraft.client.render.Frustum;
@@ -18,7 +19,11 @@ public class FpsEntityDispatcherMixin {
 			at = @At("HEAD"), cancellable = true)
 	private <E extends Entity> void fpsboost$distance(E entity, Frustum frustum, double x, double y, double z,
 													  CallbackInfoReturnable<Boolean> cir) {
-		if (MobConfig.hasLimits()) {
+		if (MobConfig.on() && FpsExtra.hideByDistance(entity, x, y, z)) {
+			cir.setReturnValue(false);
+			return;
+		}
+		if ((MobConfig.on() && MobConfig.hasLimits())) {
 			Integer limit = MobConfig.limit(entity.getType());
 			if (limit != null) {
 				if (limit <= 0) {
@@ -35,14 +40,14 @@ public class FpsEntityDispatcherMixin {
 				}
 			}
 		}
-		if (MobConfig.occlusionCull && OcclusionCuller.shouldHide(entity, x, y, z)) {
+		if (MobConfig.on() && MobConfig.occlusionCull && OcclusionCuller.shouldHide(entity, x, y, z)) {
 			cir.setReturnValue(false);
 		}
 	}
 
 	@Inject(method = "renderShadow", at = @At("HEAD"), cancellable = true)
 	private static void fpsboost$noShadow(CallbackInfo ci) {
-		if (MobConfig.hideShadows) {
+		if (MobConfig.on() && MobConfig.hideShadows) {
 			ci.cancel();
 		}
 	}

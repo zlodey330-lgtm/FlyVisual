@@ -175,9 +175,7 @@ public class FpsBoostScreen extends Screen {
 	}
 
 	private void buildVisual() {
-		rows.add(new Heading("ОГОНЬ И СВЕЧЕНИЕ", TEXT_DIM));
-		toggle("Убрать огонь на мне", () -> MobConfig.hideFireSelf, v -> MobConfig.hideFireSelf = v);
-		toggle("Убрать огонь на других", () -> MobConfig.hideFireOthers, v -> MobConfig.hideFireOthers = v);
+		rows.add(new Heading("СВЕЧЕНИЕ", TEXT_DIM));
 		toggle("Убрать свечение (эффект «Свечение»)", () -> MobConfig.hideGlow, v -> MobConfig.hideGlow = v);
 		rows.add(new Heading("АНИМАЦИИ", TEXT_DIM));
 		toggle("Остановить анимацию воды, лавы, портала", MobConfig::freezeAnimations, MobConfig::setFreezeAnimations);
@@ -186,7 +184,6 @@ public class FpsBoostScreen extends Screen {
 		toggle("Убрать трещины при ломании блока", () -> MobConfig.hideBreakAnim, v -> MobConfig.hideBreakAnim = v);
 		toggle("Предметы на земле без вращения", () -> MobConfig.hideItemSpin, v -> MobConfig.hideItemSpin = v);
 		rows.add(new Heading("КАМЕРА И КАРТИНКА", TEXT_DIM));
-		toggle("Убрать тряску камеры при уроне", () -> MobConfig.hideHurtCam, v -> MobConfig.hideHurtCam = v);
 		toggle("Убрать блеск зачарований", () -> MobConfig.hideEnchantGlint, v -> MobConfig.hideEnchantGlint = v);
 		toggle("Убрать туман под водой и в лаве", () -> MobConfig.hideFog, v -> MobConfig.hideFog = v);
 		toggle("Убрать тени под мобами", () -> MobConfig.hideShadows, v -> MobConfig.hideShadows = v);
@@ -201,7 +198,21 @@ public class FpsBoostScreen extends Screen {
 		rows.add(new Slider("Щит", () -> MobConfig.scaleShield, v -> MobConfig.scaleShield = v, 20, 100, v -> v + "%"));
 		rows.add(new Slider("Зелье (пока пьёшь)", () -> MobConfig.scalePotion, v -> MobConfig.scalePotion = v, 20, 100, v -> v + "%"));
 		rows.add(new Slider("Еда (пока ешь)", () -> MobConfig.scaleFood, v -> MobConfig.scaleFood = v, 20, 100, v -> v + "%"));
+		rows.add(new Heading("ГРАФИКА И ДАЛЬНОСТЬ ЧАНКОВ", TEXT_DIM));
+		toggle("Быстрая графика (листва и вода проще)", () -> FpsExtra.fastGfx, v -> FpsExtra.fastGfx = v);
+		rows.add(new Note(() -> "Включает режим «Быстро» в настройках игры, при выключении возвращает прежний."));
+		toggle("Динамическая дальность прорисовки", () -> FpsExtra.dynDist, v -> FpsExtra.dynDist = v);
+		rows.add(new Slider("Держать FPS не ниже", () -> FpsExtra.dynTarget, v -> FpsExtra.dynTarget = Math.max(20, v), 20, 240,
+				v -> String.valueOf(v)));
+		rows.add(new Slider("Не меньше чанков", () -> FpsExtra.dynMin, v -> FpsExtra.dynMin = Math.max(2, v), 2, 16,
+				v -> String.valueOf(v)));
+		rows.add(new Note(() -> "Если FPS ниже порога, дальность уменьшается на 1 чанк раз в 5 сек, потом возвращается."));
+		rows.add(new Heading("ПРОГРЕВ", TEXT_DIM));
+		toggle("Умный прогрев при входе в мир", () -> FpsExtra.warmup, v -> FpsExtra.warmup = v);
+		rows.add(new Note(() -> "Первые 8 сек после входа не рисуются частицы и блок-сущности: меньше подвисаний."));
 		rows.add(new Heading("ПАМЯТЬ", TEXT_DIM));
+		rows.add(new Slider("Автоочистка памяти", () -> FpsExtra.autoCleanMin, v -> FpsExtra.autoCleanMin = v, 0, 30,
+				v -> v == 0 ? "выкл" : "каждые " + v + " мин"));
 		rows.add(new Action("Очистка памяти", "Очистить", MemoryCleaner::run,
 				() -> "занято " + MemoryCleaner.usedMb() + " / " + MemoryCleaner.maxMb() + " МБ"));
 		rows.add(new Note(() -> "Клавишу очистки памяти можно назначить в Настройки > Управление > FlyVisual."));
@@ -219,6 +230,28 @@ public class FpsBoostScreen extends Screen {
 		rows.add(new Note(() -> "Мобы в пещерах и за постройками не рисуются, пока их не видно."));
 		rows.add(new Note(() -> "Пропадают с задержкой 0,5 сек, чтобы не выскакивать при повороте."));
 		rows.add(new Note(() -> "Игроки и боссы всегда видны."));
+		rows.add(new Heading("СУНДУКИ, ТАБЛИЧКИ, КРОВАТИ И ДР.", TEXT_DIM));
+		toggle("Не рисовать блок-сущности", () -> FpsExtra.beHide, v -> FpsExtra.beHide = v);
+		rows.add(new Slider("Скрывать только дальше", () -> FpsExtra.beDist, v -> FpsExtra.beDist = v, 0, 64,
+				v -> v == 0 ? "везде" : v + " бл."));
+		rows.add(new Note(() -> "Сам блок виден, пропадает только то, что рисуется отдельно: крышка сундука, текст, голова."));
+		rows.add(new Heading("ДАЛЬНОСТЬ ОТРИСОВКИ (0 = выкл)", TEXT_DIM));
+		rows.add(new Slider("Все мобы", () -> FpsExtra.mobMaxDist, v -> FpsExtra.mobMaxDist = v, 0, 128,
+				v -> v == 0 ? "выкл" : v + " бл."));
+		rows.add(new Slider("Предметы на земле", () -> FpsExtra.itemMaxDist, v -> FpsExtra.itemMaxDist = v, 0, 64,
+				v -> v == 0 ? "выкл" : v + " бл."));
+		rows.add(new Slider("Лодки и вагонетки", () -> FpsExtra.vehicleMaxDist, v -> FpsExtra.vehicleMaxDist = v, 0, 128,
+				v -> v == 0 ? "выкл" : v + " бл."));
+		rows.add(new Heading("ИГРОКИ (PvP, спавн)", TEXT_DIM));
+		toggle("Лимит полностью видимых игроков", () -> FpsExtra.playerCap, v -> FpsExtra.playerCap = v);
+		rows.add(new Slider("Рисовать полностью", () -> FpsExtra.playerFull, v -> FpsExtra.playerFull = Math.max(1, v), 1, 30,
+				v -> String.valueOf(v)));
+		rows.add(new Note(() -> "Остальные игроки рисуются без брони, предметов и ника. Ты и тот, на кого смотришь, всегда полностью."));
+		rows.add(new Slider("Скрывать игроков дальше", () -> FpsExtra.playerHideDist, v -> FpsExtra.playerHideDist = v, 0, 128,
+				v -> v == 0 ? "выкл" : v + " бл."));
+		rows.add(new Heading("АНИМАЦИЯ ВДАЛИ", TEXT_DIM));
+		toggle("Далёкие мобы и игроки без движения рук и ног", () -> FpsExtra.farNoAnim, v -> FpsExtra.farNoAnim = v);
+		rows.add(new Note(() -> "Далёкие = дальше значения «Считать далёким от» выше."));
 	}
 
 	private void buildMobs() {
@@ -352,6 +385,9 @@ public class FpsBoostScreen extends Screen {
 			}
 			y += r.h;
 		}
+		if (!MobConfig.on()) {
+			ctx.fill(vx, vy, vx + vw, vy + vh, 0x77000000);
+		}
 		ctx.disableScissor();
 
 		if (maxScroll() > 0) {
@@ -362,8 +398,12 @@ public class FpsBoostScreen extends Screen {
 			UiShapes.roundRect(ctx, sx, barY, SB_W, barH, 3, accent);
 		}
 
-		String foot = status.isEmpty() ? "Esc — закрыть. Изменения сохраняются сразу." : status;
-		ctx.drawText(this.textRenderer, foot, px + 12, py + ph - 12, status.isEmpty() ? TEXT_DIM : TEXT, false);
+		if (!MobConfig.on()) {
+			ctx.drawText(this.textRenderer, "Включите функцию «Оптимизация», чтобы менять настройки", px + 12, py + ph - 12, 0xFFFF6B6B, false);
+		} else {
+			String foot = status.isEmpty() ? "Esc — закрыть. Изменения сохраняются сразу." : status;
+			ctx.drawText(this.textRenderer, foot, px + 12, py + ph - 12, status.isEmpty() ? TEXT_DIM : TEXT, false);
+		}
 
 		super.render(ctx, mx, my, delta);
 	}
@@ -405,7 +445,7 @@ public class FpsBoostScreen extends Screen {
 				dragBar(my);
 				return true;
 			}
-			if (mx >= vx && mx < vx + vw && my >= vy && my < vy + vh) {
+			if (mx >= vx && mx < vx + vw && my >= vy && my < vy + vh && MobConfig.on()) {
 				int y = vy + 2 - (int) scroll;
 				for (Row r : rows) {
 					if (my >= y && my < y + r.h) {
