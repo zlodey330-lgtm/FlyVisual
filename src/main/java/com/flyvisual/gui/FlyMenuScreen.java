@@ -263,7 +263,7 @@ public class FlyMenuScreen extends Screen {
 		if (descMod != selected) {
 			descMod = selected;
 			String d = Lang.description(selected.getName(), selected.getDescription());
-			descLines = Math.max(1, Math.min(4, textRenderer.wrapLines(Text.literal(d), PANE_W - 16).size()));
+			descLines = Math.max(1, Math.min(5, textRenderer.wrapLines(Text.literal(d), PANE_W - 16).size()));
 		}
 		return descLines;
 	}
@@ -360,6 +360,12 @@ public class FlyMenuScreen extends Screen {
 		int c = Math.round(cx + (x2 - cx) * scale);
 		int d = Math.round(cy + (y2 - cy) * scale);
 		ctx.enableScissor(a, b, c, d);
+	}
+
+	/** Обрезает текст с «…», если он шире max пикселей. */
+	private String fit(String s, int max) {
+		if (textRenderer.getWidth(s) <= max) return s;
+		return textRenderer.trimToWidth(s, Math.max(0, max - textRenderer.getWidth("…"))) + "…";
 	}
 
 	private void select(Module m) {
@@ -532,7 +538,7 @@ public class FlyMenuScreen extends Screen {
 
 		String desc = Lang.description(selected.getName(), selected.getDescription());
 		List<OrderedText> lines = textRenderer.wrapLines(Text.literal(desc), PANE_W - 16);
-		for (int i = 0; i < Math.min(4, lines.size()); i++) {
+		for (int i = 0; i < Math.min(5, lines.size()); i++) {
 			int c = col(Theme.TEXT_DIM);
 			if (((c >>> 24) & 0xFF) >= 12) {
 				ctx.draw();
@@ -574,12 +580,13 @@ public class FlyMenuScreen extends Screen {
 				text(ctx, bl, bx1 + (bw - textRenderer.getWidth(bl)) / 2, ry + 8, 0xFFFFFFFF);
 			} else if (s.isToggle()) {
 				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
-				text(ctx, label, px1 + 8, ry + 8, Theme.TEXT);
+				text(ctx, fit(label, px2 - px1 - 16 - 26 - 8), px1 + 8, ry + 8, Theme.TEXT);
 
 				pill(ctx, px2 - 8 - 26, ry + 6, 26, 12, on);
 			} else {
-				text(ctx, label, px1 + 8, ry + 3, Theme.TEXT);
-				textRight(ctx, s.format(), px2 - 8, ry + 3, Theme.TEXT_DIM);
+				String val = fit(s.format(), 70);
+				text(ctx, fit(label, px2 - px1 - 16 - textRenderer.getWidth(val) - 8), px1 + 8, ry + 3, Theme.TEXT);
+				textRight(ctx, val, px2 - 8, ry + 3, Theme.TEXT_DIM);
 
 				int x1 = px1 + 8;
 				int x2 = px2 - 8;
@@ -754,14 +761,14 @@ public class FlyMenuScreen extends Screen {
 	private void drawFooter(DrawContext ctx, String hoverDesc) {
 		int fy = bottom() - FOOT + 4;
 		if (hoverDesc != null) {
-			text(ctx, hoverDesc, left() + PAD, fy, Theme.TEXT);
+			text(ctx, fit(hoverDesc, right() - left() - 2 * PAD), left() + PAD, fy, Theme.TEXT);
 		} else if (selected != null && !selected.isEnabled() && !selected.getSettings().isEmpty()
 				&& !(selected instanceof MacroModule)) {
-			text(ctx, "Включи функцию «" + Lang.module(selected.getName()) + "», чтобы менять её настройки",
-					left() + PAD, fy, 0xFFFF6B6B);
+			text(ctx, fit("Включи функцию «" + Lang.module(selected.getName()) + "», чтобы менять её настройки",
+					right() - left() - 2 * PAD), left() + PAD, fy, 0xFFFF6B6B);
 		} else {
-			text(ctx, "ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
-					left() + PAD, fy, Theme.TEXT_DIM);
+			text(ctx, fit("ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
+					right() - left() - 2 * PAD), left() + PAD, fy, Theme.TEXT_DIM);
 		}
 	}
 

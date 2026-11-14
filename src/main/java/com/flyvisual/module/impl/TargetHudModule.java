@@ -136,7 +136,7 @@ public class TargetHudModule extends HudModule {
 		int textX = px + (showAccentBar() ? 11 : 8);
 		int nameColor = UiShapes.mulA(Theme.TEXT, alpha);
 		if (((nameColor >>> 24) & 0xFF) >= 12) {
-			Bold.draw(ctx, tr, shownName, textX, py + 5, nameColor);
+			Bold.draw(ctx, tr, Bold.fit(tr, shownName, px + W - 8 - textX), textX, py + 5, nameColor);
 		}
 
 		// Полоска здоровья со скруглением: след, затем текущее здоровье

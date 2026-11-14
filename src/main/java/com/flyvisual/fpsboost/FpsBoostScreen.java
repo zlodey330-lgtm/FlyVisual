@@ -212,7 +212,7 @@ public class FpsBoostScreen extends Screen {
 		rows.add(new Note(() -> "Первые 8 сек после входа не рисуются частицы и блок-сущности: меньше подвисаний."));
 		rows.add(new Heading("ПАМЯТЬ", TEXT_DIM));
 		rows.add(new Slider("Автоочистка памяти", () -> FpsExtra.autoCleanMin, v -> FpsExtra.autoCleanMin = v, 0, 30,
-				v -> v == 0 ? "выкл" : "каждые " + v + " мин"));
+				v -> v == 0 ? "выкл" : v + " мин"));
 		rows.add(new Action("Очистка памяти", "Очистить", MemoryCleaner::run,
 				() -> "занято " + MemoryCleaner.usedMb() + " / " + MemoryCleaner.maxMb() + " МБ"));
 		rows.add(new Note(() -> "Клавишу очистки памяти можно назначить в Настройки > Управление > FlyVisual."));
@@ -540,14 +540,19 @@ public class FpsBoostScreen extends Screen {
 	private final class Note extends Row {
 		private final Supplier<String> text;
 
+		private final List<net.minecraft.text.OrderedText> lines;
+
 		Note(Supplier<String> text) {
-			super(14);
+			super(Math.max(14, 4 + 10 * textRenderer.wrapLines(net.minecraft.text.Text.literal(text.get()), viewW() - 14).size()));
 			this.text = text;
+			this.lines = textRenderer.wrapLines(net.minecraft.text.Text.literal(text.get()), viewW() - 14);
 		}
 
 		@Override
 		void render(DrawContext c, int x, int y, int w, int mx, int my) {
-			c.drawText(textRenderer, fit(text.get(), w - 8), x + 4, y + 3, TEXT_DIM, false);
+			for (int i = 0; i < lines.size(); i++) {
+				c.drawText(textRenderer, lines.get(i), x + 4, y + 3 + i * 10, TEXT_DIM, false);
+			}
 		}
 	}
 
@@ -626,7 +631,7 @@ public class FpsBoostScreen extends Screen {
 			UiShapes.roundRect(c, tx, ty, fill, 4, 2, accent);
 			UiShapes.roundRect(c, tx + fill - 3, ty - 3, 6, 10, 3, 0xFFFFFFFF);
 			String txt = fmt.apply(v);
-			c.drawText(textRenderer, txt, x + w - 56, y + (h - 2 - 8) / 2, TEXT, false);
+			c.drawText(textRenderer, txt, x + w - 8 - textRenderer.getWidth(txt), y + (h - 2 - 8) / 2, TEXT, false);
 		}
 
 		@Override
@@ -666,8 +671,8 @@ public class FpsBoostScreen extends Screen {
 		@Override
 		void render(DrawContext c, int x, int y, int w, int mx, int my) {
 			UiShapes.roundRect(c, x, y, w, h - 2, 4, ROW);
-			c.drawText(textRenderer, label, x + 8, y + 7, TEXT, false);
-			c.drawText(textRenderer, info.get(), x + 110, y + 7, TEXT_DIM, false);
+			c.drawText(textRenderer, fit(label, 98), x + 8, y + 7, TEXT, false);
+			c.drawText(textRenderer, fit(info.get(), w - 210), x + 110, y + 7, TEXT_DIM, false);
 			int bx = x + w - 96;
 			boolean hover = mx >= bx && mx < bx + 90 && my >= y + 2 && my < y + h - 4;
 			UiShapes.roundRect(c, bx, y + 2, 90, h - 6, 4, hover ? (Theme.accent() | 0xFF000000) : ROW_HOVER);

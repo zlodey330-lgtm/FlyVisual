@@ -4,6 +4,7 @@ import com.flyvisual.config.Theme;
 import com.flyvisual.gui.HudEditorScreen;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.HudModule;
+import com.flyvisual.util.Bold;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -165,10 +166,10 @@ public class KillFeedModule extends HudModule {
 		String wordText = "убил";
 		int pad = 6;
 		int gap = 5;
-		int w = pad + tr.getWidth(e.killer);
-		if (word) w += gap + tr.getWidth(wordText);
+		int w = pad + Bold.width(tr, e.killer);
+		if (word) w += gap + Bold.width(tr, wordText);
 		if (icon) w += gap + 16;
-		w += gap + tr.getWidth(e.victim) + pad;
+		w += gap + Bold.width(tr, e.victim) + pad;
 
 		float bgAlpha = (float) (opacity.get() / 100.0) * fade;
 		ctx.fill(px, py, px + w, py + ROW_H, withAlpha(0x000000, bgAlpha));
@@ -183,12 +184,12 @@ public class KillFeedModule extends HudModule {
 		boolean visible = fade > 0.12f;
 		int ty = py + (ROW_H - 8) / 2;
 		int cx = px + pad;
-		if (visible) ctx.drawText(tr, e.killer, cx, ty, withAlpha(Theme.accent(), fade), true);
-		cx += tr.getWidth(e.killer);
+		if (visible) Bold.draw(ctx, tr, e.killer, cx, ty, withAlpha(Theme.accent(), fade));
+		cx += Bold.width(tr, e.killer);
 		if (word) {
 			cx += gap;
-			if (visible) ctx.drawText(tr, wordText, cx, ty, withAlpha(0xB8B8B8, fade), true);
-			cx += tr.getWidth(wordText);
+			if (visible) Bold.draw(ctx, tr, wordText, cx, ty, withAlpha(0xB8B8B8, fade));
+			cx += Bold.width(tr, wordText);
 		}
 		if (icon) {
 			cx += gap;
@@ -198,7 +199,7 @@ public class KillFeedModule extends HudModule {
 			cx += 16;
 		}
 		cx += gap;
-		if (visible) ctx.drawText(tr, e.victim, cx, ty, withAlpha(0xFF5555, fade), true);
+		if (visible) Bold.draw(ctx, tr, e.victim, cx, ty, withAlpha(0xFF5555, fade));
 		return w;
 	}
 }
