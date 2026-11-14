@@ -48,6 +48,10 @@ public class FlyMenuScreen extends Screen {
 
 	private Module selected;
 	private int scroll;
+	private float scrollF;
+	private float scrollTarget;
+	private Module descMod;
+	private int descLines = 2;
 	private DoubleSetting dragging;
 
 	// Выбор любого цвета темы
@@ -96,6 +100,8 @@ public class FlyMenuScreen extends Screen {
 				}
 			}
 			scroll = Math.max(0, FlyConfig.get().lastScroll);
+			scrollF = scroll;
+			scrollTarget = scroll;
 		}
 	}
 
@@ -248,7 +254,18 @@ public class FlyMenuScreen extends Screen {
 	}
 
 	private int settingsTop() {
-		return gy1() + 48;
+		return gy1() + 30 + descLineCount() * 10;
+	}
+
+	/** Сколько строк занимает описание выбранной функции (до 4), считаем один раз на функцию. */
+	private int descLineCount() {
+		if (selected == null) return 2;
+		if (descMod != selected) {
+			descMod = selected;
+			String d = Lang.description(selected.getName(), selected.getDescription());
+			descLines = Math.max(1, Math.min(4, textRenderer.wrapLines(Text.literal(d), PANE_W - 16).size()));
+		}
+		return descLines;
 	}
 
 	private int rowY(int k) {
@@ -316,7 +333,9 @@ public class FlyMenuScreen extends Screen {
 		int c = col(argb);
 		// Ванильный шрифт считает почти прозрачный цвет непрозрачным, поэтому такой текст не рисуем
 		if (((c >>> 24) & 0xFF) < 12) return;
+		ctx.draw(); // порядок слоёв: всё нарисованное раньше уходит на экран до текста
 		ctx.drawText(textRenderer, s, x, y, c, true);
+		ctx.draw();
 	}
 
 	private void textRight(DrawContext ctx, String s, int xRight, int y, int argb) {
@@ -372,7 +391,10 @@ public class FlyMenuScreen extends Screen {
 		alpha = 1.0f - inv * inv * inv;
 		scale = 0.9f + 0.1f * alpha;
 		paneAlpha += (1.0f - paneAlpha) * (1.0f - (float) Math.exp(-16.0f * dt));
-		scroll = Math.max(0, Math.min(scroll, maxScroll()));
+		scrollTarget = Math.max(0, Math.min(scrollTarget, maxScroll()));
+		scrollF += (scrollTarget - scrollF) * (1.0f - (float) Math.exp(-14.0f * dt));
+		if (Math.abs(scrollTarget - scrollF) < 0.4f) scrollF = scrollTarget;
+		scroll = Math.max(0, Math.min(maxScroll(), Math.round(scrollF)));
 		extra = 1.0f;
 
 		ctx.fill(0, 0, width, height, mulA(0x99000000, alpha));
@@ -385,10 +407,12 @@ public class FlyMenuScreen extends Screen {
 		ms.scale(scale, scale, 1.0f);
 		ms.translate(-cx, -cy, 0.0f);
 
-		drawFrame(ctx, mouseX, mouseY);
-		String hoverDesc = drawTiles(ctx, mouseX, mouseY, dt);
-		drawPane(ctx, mouseX, mouseY, dt);
-		drawFooter(ctx, hoverDesc);
+		// Рисуем пачками: меньше вызовов отрисовки, меню не роняет FPS
+		ctx.draw(() -> drawFrame(ctx, mouseX, mouseY));
+		String[] hoverBox = new String[1];
+		ctx.draw(() -> hoverBox[0] = drawTiles(ctx, mouseX, mouseY, dt));
+		ctx.draw(() -> drawPane(ctx, mouseX, mouseY, dt));
+		drawFooter(ctx, hoverBox[0]);
 		drawPicker(ctx);
 
 		ms.pop();
@@ -508,10 +532,12 @@ public class FlyMenuScreen extends Screen {
 
 		String desc = Lang.description(selected.getName(), selected.getDescription());
 		List<OrderedText> lines = textRenderer.wrapLines(Text.literal(desc), PANE_W - 16);
-		for (int i = 0; i < Math.min(2, lines.size()); i++) {
+		for (int i = 0; i < Math.min(4, lines.size()); i++) {
 			int c = col(Theme.TEXT_DIM);
 			if (((c >>> 24) & 0xFF) >= 12) {
+				ctx.draw();
 				ctx.drawText(textRenderer, lines.get(i), px1 + 8, gy1 + 22 + i * 10, c, true);
+				ctx.draw();
 			}
 		}
 		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, 0x22FFFFFF);
@@ -537,10 +563,15 @@ public class FlyMenuScreen extends Screen {
 
 			String label = Lang.setting(s.getName());
 			if (s.isButton()) {
-				rr(ctx, px1 + 8, ry + 2, px2 - px1 - 16, ROW_H - 4, 4, Theme.offCol());
-				rr(ctx, px1 + 8, ry + 2, 3, ROW_H - 4, 1, Theme.accent());
-				text(ctx, label, px1 + 18, ry + 6, Theme.TEXT);
-				textRight(ctx, ">", px2 - 14, ry + 6, Theme.TEXT_DIM);
+				int bx1 = px1 + 8;
+				int bw = px2 - px1 - 16;
+				boolean bh = mouseX >= bx1 && mouseX < bx1 + bw && mouseY >= ry + 1 && mouseY < ry + ROW_H - 1
+						&& mouseY >= gy1 && mouseY < gy2;
+				float hv = animate(selected.getName() + "." + s.getName() + "#b", bh ? 1.0f : 0.0f, dt, 18.0f);
+				rr(ctx, bx1 - 1, ry + 1, bw + 2, ROW_H - 2, 7, mulA(Theme.accent(), 0.20f + 0.35f * hv));
+				rr(ctx, bx1, ry + 2, bw, ROW_H - 4, 6, lerp(Theme.tileCol(), Theme.accent(), 0.45f + 0.4f * hv));
+				String bl = label + "  >";
+				text(ctx, bl, bx1 + (bw - textRenderer.getWidth(bl)) / 2, ry + 8, 0xFFFFFFFF);
 			} else if (s.isToggle()) {
 				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
 				text(ctx, label, px1 + 8, ry + 8, Theme.TEXT);
@@ -568,6 +599,10 @@ public class FlyMenuScreen extends Screen {
 					}
 				}
 				rr(ctx, fx - 4, cy - 4, 8, 8, 4, 0xFFFFFFFF);
+			}
+			if (!selected.isEnabled() && !s.isButton()) {
+				// Функция выключена: настройки затемнены и не меняются
+				rect(ctx, px1 + 4, ry, px2 - 4, ry + ROW_H, 0x99141418);
 			}
 		}
 		ctx.disableScissor();
@@ -720,6 +755,10 @@ public class FlyMenuScreen extends Screen {
 		int fy = bottom() - FOOT + 4;
 		if (hoverDesc != null) {
 			text(ctx, hoverDesc, left() + PAD, fy, Theme.TEXT);
+		} else if (selected != null && !selected.isEnabled() && !selected.getSettings().isEmpty()
+				&& !(selected instanceof MacroModule)) {
+			text(ctx, "Включи функцию «" + Lang.module(selected.getName()) + "», чтобы менять её настройки",
+					left() + PAD, fy, 0xFFFF6B6B);
 		} else {
 			text(ctx, "ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
 					left() + PAD, fy, Theme.TEXT_DIM);
@@ -824,6 +863,9 @@ public class FlyMenuScreen extends Screen {
 					DoubleSetting s = settings.get(k);
 					if (s.isButton()) {
 						s.press();
+					} else if (!selected.isEnabled()) {
+						// Настройки работают только у включённой функции (подсказка внизу)
+						return true;
 					} else if (s.isToggle()) {
 						s.flip();
 						FlyConfig.save();
@@ -884,7 +926,7 @@ public class FlyMenuScreen extends Screen {
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
 		if (mouseX >= gx1() && mouseX < gx2() + 6 && mouseY >= gy1() && mouseY < gy2()) {
-			scroll = Math.max(0, Math.min(maxScroll(), scroll - (int) Math.round(amount * 16)));
+			scrollTarget = Math.max(0, Math.min(maxScroll(), scrollTarget - (float) (amount * 40.0)));
 			return true;
 		}
 		return super.mouseScrolled(mouseX, mouseY, amount);
