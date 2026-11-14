@@ -32,6 +32,11 @@ public final class FpsBoostInit {
 			cleanMemoryKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("FPS Boost: очистить память",
 					InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "FlyVisual"));
 			ClientTickEvents.END_CLIENT_TICK.register(client -> {
+				try {
+					FpsExtra.tick(client);
+				} catch (Throwable t) {
+					LOGGER.warn("FPS Boost: ошибка в тике", t);
+				}
 				while (openMenuKey.wasPressed()) {
 					if (client.currentScreen == null) {
 						client.setScreen(new FpsBoostScreen(null));

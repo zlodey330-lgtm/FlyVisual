@@ -145,6 +145,7 @@ public final class ModuleManager {
 		MODULES.add(new ArmorHudModule());
 		MODULES.add(potionHud);
 		MODULES.add(new TargetHudModule());
+		MODULES.add(new com.flyvisual.module.impl.KillFeedModule());
 		MODULES.add(fullbright);
 		MODULES.add(noHurtCam);
 		MODULES.add(lowerFire);
