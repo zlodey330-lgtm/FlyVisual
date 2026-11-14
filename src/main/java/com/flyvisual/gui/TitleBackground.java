@@ -1,5 +1,5 @@
 package com.flyvisual.gui;
 
-/** Удалено: функция убрана. Пустой файл, можно удалить вручную. */
+/** Удалено. */
 final class TitleBackground {
 }

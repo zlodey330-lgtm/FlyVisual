@@ -29,8 +29,8 @@ public class OptimizationModule extends Module {
 	/** Наши частицы удара (Damage Particles) рисуются, даже если выключены «остальные частицы». */
 	public static boolean ownSpawn;
 
-	private final DoubleSetting level = addChoice("Quality level", 0,
-			"1 — обычный", "2 — меньше пикселей", "3 — совсем мало");
+	/** Кнопка «Настроить»: открывает меню FPS Boost (дальность мобов, эффекты, частицы, конфиги). */
+	private final DoubleSetting configure = addToggle("Настроить", false);
 	private final DoubleSetting allOn = addToggle("All on", false);
 	private final DoubleSetting allOff = addToggle("All off", false);
 
@@ -73,6 +73,7 @@ public class OptimizationModule extends Module {
 
 	public OptimizationModule() {
 		super("Optimization", "Turns off effects that cost FPS");
+		com.flyvisual.fpsboost.FpsBoostInit.init();
 	}
 
 	// ---------- Запросы из миксинов ----------
@@ -119,20 +120,17 @@ public class OptimizationModule extends Module {
 
 	/** Сколько пикселей на сторону блока оставить: 0 = не трогать, 8 = уровень 2, 4 = уровень 3. */
 	public int pixelTarget() {
-		if (!isEnabled()) return 0;
-		int l = level.getInt();
-		return l == 1 ? 8 : l >= 2 ? 4 : 0;
+		return 0; // уровни качества убраны
 	}
 
 	/** Индекс уровня: 0 — обычный, 1 — уровень 2, 2 — уровень 3 (0, если модуль выключен). */
 	public int levelIndex() {
-		return isEnabled() ? level.getInt() : 0;
+		return 0;
 	}
 
 	/** Сила размытия мобов и предметов: уровень 2 чуть-чуть, уровень 3 заметно, но узнаваемо. */
 	public double softenMix() {
-		int l = levelIndex();
-		return l == 1 ? 0.3 : l >= 2 ? 0.85 : 0.0;
+		return 0.0;
 	}
 
 	/** Не показывать частицы удара: ванильный индикатор урона и наши Damage Particles. */
@@ -230,6 +228,10 @@ public class OptimizationModule extends Module {
 
 	@Override
 	public void onTick(MinecraftClient client) {
+		if (configure.getBool()) {
+			configure.set(0.0);
+			client.setScreen(new com.flyvisual.fpsboost.FpsBoostScreen(client.currentScreen));
+		}
 		if (allOn.getBool()) {
 			for (DoubleSetting s : features) s.set(1.0);
 			allOn.set(0.0);
