@@ -38,6 +38,8 @@
 		"TitleScreenBgMixin",
 		"CubeMapBgMixin",
 		"FpsBlockEntityMixin",
+		"FlySkinTextureMixin",
+		"FlySkinRenderMixin",
 		"FpsLimbMixin",
 		"FpsArmorMixin",
 		"FpsAtlasMixin",

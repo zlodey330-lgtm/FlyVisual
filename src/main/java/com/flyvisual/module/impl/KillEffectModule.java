@@ -146,7 +146,13 @@ public class KillEffectModule extends Module {
 			LivingEntity e = t.entity;
 			boolean dead = e.isDead() || e.getHealth() <= 0.0f;
 			if (dead) {
-				if (isEnabled()) spawn(client, t);
+				if (isEnabled()) {
+					try {
+						spawn(client, t);
+					} catch (Throwable e) {
+						com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка при создании эффекта", e);
+					}
+				}
 				it.remove();
 			} else if (e.isRemoved() || tick - t.lastHit > 200) {
 				it.remove();
@@ -188,7 +194,11 @@ public class KillEffectModule extends Module {
 		f.hue = hue.getFloat();
 		f.beige = beige.getBool();
 		if ((f.effect == 0 || f.effect == 6) && client.world != null) {
-			f.y = groundY(client.world, t.x, t.y, t.z);
+			try {
+				f.y = groundY(client.world, t.x, t.y, t.z);
+			} catch (Throwable e) {
+				com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: не удалось найти землю", e);
+			}
 		}
 		// Крышка откидывается от игрока, чтобы внутрь было видно
 		double dx = t.x - client.player.getX();
@@ -229,14 +239,19 @@ public class KillEffectModule extends Module {
 			palette(f);
 			V g = new V(gx, gy + 0.02f, gz);
 			float sz = size.getFloat();
-			switch (f.effect) {
-				case 0 -> drawCoffin(f, t, gx, gy + 0.02f, gz);
-				case 1 -> drawSouls(t, g, sz);
-				case 2 -> drawLightning(f, t, g, sz);
-				case 3 -> drawShards(t, g, sz);
-				case 4 -> drawVortex(t, g, sz);
-				case 5 -> drawFirework(t, g, sz);
-				default -> drawPentagram(t, g, sz);
+			try {
+				switch (f.effect) {
+					case 0 -> drawCoffin(f, t, gx, gy + 0.02f, gz);
+					case 1 -> drawSouls(t, g, sz);
+					case 2 -> drawLightning(f, t, g, sz);
+					case 3 -> drawShards(t, g, sz);
+					case 4 -> drawVortex(t, g, sz);
+					case 5 -> drawFirework(t, g, sz);
+					default -> drawPentagram(t, g, sz);
+				}
+			} catch (Throwable e) {
+				com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка отрисовки", e);
+				f.start = 0L;
 			}
 		}
 		solid.flush();
