@@ -51,7 +51,7 @@ public final class MemoryCleaner {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		try {
 			// То, что можно безопасно сбросить в игре
-			if (mc.particleManager != null) mc.particleManager.clearParticles();
+			if (mc.particleManager != null) ((com.flyvisual.mixin.ParticleManagerAccessor) mc.particleManager).flyvisual$clearParticles();
 			com.flyvisual.module.ModuleManager.clearCaches();
 		} catch (Throwable ignored) {
 		}

@@ -18,6 +18,7 @@
     "BackgroundRendererMixin",
     "ClientWorldMixin",
     "ParticleManagerMixin",
+    "ParticleManagerAccessor",
     "DeathScreenMixin",
     "EntityRenderDispatcherMixin",
     "PlayerEntityModelMixin",

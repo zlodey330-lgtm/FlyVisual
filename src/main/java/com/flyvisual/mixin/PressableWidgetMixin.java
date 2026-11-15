@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Экран паузы: кнопки рисуются в стиле FlyVisual (скруглённые, цвета темы). Логика кнопок не меняется. */
 @Mixin(PressableWidget.class)
 public class PressableWidgetMixin {
-	@Inject(method = "renderWidget(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At("HEAD"), cancellable = true)
+	@Inject(method = "renderButton(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At("HEAD"), cancellable = true)
 	private void flyvisual$pauseButton(DrawContext ctx, int mouseX, int mouseY, float delta, CallbackInfo ci) {
 		PauseScreenModule m = ModuleManager.pauseScreen();
 		if (m == null || !m.restylesButtons()) return;
