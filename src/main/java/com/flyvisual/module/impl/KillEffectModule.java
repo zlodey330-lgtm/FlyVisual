@@ -149,8 +149,8 @@ public class KillEffectModule extends Module {
 				if (isEnabled()) {
 					try {
 						spawn(client, t);
-					} catch (Throwable e) {
-						com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка при создании эффекта", e);
+					} catch (Throwable fxErr) {
+						com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка при создании эффекта", fxErr);
 					}
 				}
 				it.remove();
@@ -196,8 +196,8 @@ public class KillEffectModule extends Module {
 		if ((f.effect == 0 || f.effect == 6) && client.world != null) {
 			try {
 				f.y = groundY(client.world, t.x, t.y, t.z);
-			} catch (Throwable e) {
-				com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: не удалось найти землю", e);
+			} catch (Throwable fxErr) {
+				com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: не удалось найти землю", fxErr);
 			}
 		}
 		// Крышка откидывается от игрока, чтобы внутрь было видно
@@ -249,8 +249,8 @@ public class KillEffectModule extends Module {
 					case 5 -> drawFirework(t, g, sz);
 					default -> drawPentagram(t, g, sz);
 				}
-			} catch (Throwable e) {
-				com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка отрисовки", e);
+			} catch (Throwable fxErr) {
+				com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка отрисовки", fxErr);
 				f.start = 0L;
 			}
 		}
