@@ -57,6 +57,10 @@ public class SplashOverlayMixin {
 		TextRenderer tr = mc.textRenderer;
 		ctx.fill(0, 0, w, h, (a << 24) | 0x1F1F23);
 
+		// В первые кадры запуска шрифты игры ещё не загружены, и вместо букв рисуются квадратики
+		// (символ-заглушка, у него все буквы одной ширины). Пока шрифт не готов, текст не рисуем.
+		boolean fontReady = tr.getWidth("W") != tr.getWidth("i");
+
 		long ms = now;
 		int ta = Math.max(4, a);
 
@@ -65,6 +69,7 @@ public class SplashOverlayMixin {
 			String name = mc.getSession() != null ? mc.getSession().getUsername() : "";
 			String hello = "Приветствую, " + name;
 			String sub = "Во FlyVisual";
+			if (fontReady) {
 			ctx.getMatrices().push();
 			ctx.getMatrices().translate(w / 2.0f, h / 2.0f - 22, 0);
 			ctx.getMatrices().scale(2.0f, 2.0f, 1.0f);
@@ -75,6 +80,7 @@ public class SplashOverlayMixin {
 			ctx.getMatrices().scale(1.5f, 1.5f, 1.0f);
 			ctx.drawText(tr, sub, -tr.getWidth(sub) / 2, 0, (ta << 24) | 0x9A9AA2, false);
 			ctx.getMatrices().pop();
+			}
 
 			int cx = w / 2;
 			int cy = h - 40;
@@ -95,6 +101,7 @@ public class SplashOverlayMixin {
 			}
 		} else {
 			// Перезагрузка (ресурспак, F3+T): FlyVisual и «Загрузка» с плавными точками
+			if (fontReady) {
 			String title = "FlyVisual";
 			ctx.getMatrices().push();
 			ctx.getMatrices().translate(w / 2.0f, h / 2.0f - 8, 0);
@@ -114,6 +121,7 @@ public class SplashOverlayMixin {
 				float k = (float) (0.5 + 0.5 * Math.sin(ph * Math.PI));
 				int da = Math.max(4, Math.round(a * k));
 				ctx.drawText(tr, ".", dx + i * dw, y0, (da << 24) | 0xB4B4BA, false);
+			}
 			}
 		}
 	}
