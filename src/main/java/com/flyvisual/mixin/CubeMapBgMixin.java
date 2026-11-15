@@ -14,7 +14,7 @@ public class CubeMapBgMixin {
 	@Inject(method = "render", at = @At("HEAD"), cancellable = true)
 	private void flyvisual$skipPanorama(float delta, float alpha, CallbackInfo ci) {
 		MinecraftClient mc = MinecraftClient.getInstance();
-		if (mc != null && mc.currentScreen instanceof TitleScreen) {
+		if (mc != null && mc.currentScreen instanceof TitleScreen && com.flyvisual.module.impl.MenuStyleModule.current() != 1) {
 			ci.cancel();
 		}
 	}

@@ -18,6 +18,8 @@ public class TitleScreenBgMixin {
 		if (mc == null) return;
 		int w = mc.getWindow().getScaledWidth();
 		int h = mc.getWindow().getScaledHeight();
+		if (com.flyvisual.module.impl.MenuStyleModule.current() == 1) return;
+		if (com.flyvisual.gui.TitleStyles.draw(context, w, h, mouseX, mouseY)) return;
 		LiveBackground.shared().render(context, w, h, mouseX, mouseY, true);
 	}
 }

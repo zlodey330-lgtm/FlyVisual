@@ -27,7 +27,10 @@ public class ScreenBackgroundMixin {
 		int h = mc.getWindow().getScaledHeight();
 		int mx = (int) (mc.mouse.getX() * w / Math.max(1, mc.getWindow().getWidth()));
 		int my = (int) (mc.mouse.getY() * h / Math.max(1, mc.getWindow().getHeight()));
-		LiveBackground.shared().render(context, w, h, mx, my, true);
+		if (com.flyvisual.module.impl.MenuStyleModule.current() == 1) return;
+		if (!com.flyvisual.gui.TitleStyles.draw(context, w, h, mx, my)) {
+			LiveBackground.shared().render(context, w, h, mx, my, true);
+		}
 		ci.cancel();
 	}
 }

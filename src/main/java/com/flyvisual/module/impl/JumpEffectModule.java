@@ -67,7 +67,8 @@ public class JumpEffectModule extends Module {
 
 	private void render(WorldRenderContext context) {
 		if (!isEnabled() || list.isEmpty()) return;
-		if (MinecraftClient.getInstance().options.getPerspective().isFirstPerson()) return;
+		MinecraftClient mcl = MinecraftClient.getInstance();
+		if (mcl.options.getPerspective().isFirstPerson() && (mcl.player == null || mcl.player.getPitch() < 35.0f)) return;
 		MatrixStack matrices = context.matrixStack();
 		if (matrices == null) return;
 		Vec3d cam = context.camera().getPos();
