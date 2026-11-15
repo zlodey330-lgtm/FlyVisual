@@ -174,7 +174,6 @@ public final class ModuleManager {
 		MODULES.add(new AuraModule());
 		MODULES.add(new com.flyvisual.module.impl.OwnNametagModule());
 		MODULES.add(new com.flyvisual.module.impl.MenuStyleModule());
-		MODULES.add(new com.flyvisual.module.impl.SwingAnimModule());
 		MODULES.add(new TrailModule());
 		MODULES.add(sky);
 		MODULES.add(customChat);
@@ -285,6 +284,10 @@ public final class ModuleManager {
 		return hotbar;
 	}
 
+	public static void clearCaches() {
+		if (optimization != null) optimization.clearCaches();
+	}
+
 	public static OptimizationModule optimization() {
 		return optimization;
 	}
@@ -366,7 +369,12 @@ public final class ModuleManager {
 					ms.scale(s, s, 1.0f);
 					ms.translate((float) -hud.getX(), (float) -hud.getY(), 0.0f);
 				}
-				hud.render(ctx, tickDelta);
+				com.flyvisual.util.Bold.smooth = s != 1.0f;
+				try {
+					hud.render(ctx, tickDelta);
+				} finally {
+					com.flyvisual.util.Bold.smooth = false;
+				}
 				ms.pop();
 			} else if (m.isEnabled()) {
 				m.renderOverlay(ctx, tickDelta);

@@ -13,11 +13,14 @@ import net.minecraft.util.Identifier;
 public final class Bold {
 	private static final Style STYLE = Style.EMPTY.withFont(new Identifier("flyvisual", "ui"));
 
+	/** Гладкий шрифт включается только пока рисуется HUD-модуль с масштабом не 1 (иначе ванильный). */
+	public static boolean smooth;
+
 	private Bold() {
 	}
 
 	public static Text of(String s) {
-		return Text.literal(s).setStyle(STYLE);
+		return smooth ? Text.literal(s).setStyle(STYLE) : Text.literal(s);
 	}
 
 	public static int width(TextRenderer tr, String s) {

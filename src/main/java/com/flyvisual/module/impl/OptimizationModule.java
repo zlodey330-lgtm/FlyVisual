@@ -285,6 +285,10 @@ public class OptimizationModule extends Module {
 		}
 	}
 
+	public void clearCaches() {
+		wallCache.clear();
+	}
+
 	@Override
 	public void onDisable() {
 		restoreShadows();
