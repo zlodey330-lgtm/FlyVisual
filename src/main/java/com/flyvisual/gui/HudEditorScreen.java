@@ -55,56 +55,29 @@ public class HudEditorScreen extends Screen {
 	public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
 		ctx.fill(0, 0, width, height, 0x40000000);
 
-		String hint = "Перетаскивай модули мышкой. ESC: назад в меню.";
+		String hint = "ЛКМ: двигать. ПКМ: настройки. ESC: назад в меню.";
 		ctx.drawText(textRenderer, hint, (width - textRenderer.getWidth(hint)) / 2, height / 2, Theme.TEXT, true);
 
-		for (HudModule hud : hudModules()) {
-			boolean active = hud == dragging || (dragging == null && hud.contains(mouseX, mouseY));
-			int color = active ? Theme.accent() : 0xFFFFFFFF;
-			outline(ctx, hud.getX() - 1, hud.getY() - 1, hud.getBoxW() + 2, hud.getBoxH() + 2, color);
-		}
+		HudOverlay.render(ctx, mouseX, mouseY, width, height, true);
 
 		super.render(ctx, mouseX, mouseY, delta);
 	}
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
-		if (button == 0) {
-			List<HudModule> list = hudModules();
-			for (int i = list.size() - 1; i >= 0; i--) {
-				HudModule hud = list.get(i);
-				if (hud.contains(mouseX, mouseY)) {
-					dragging = hud;
-					dragOffsetX = (int) mouseX - hud.getX();
-					dragOffsetY = (int) mouseY - hud.getY();
-					return true;
-				}
-			}
-		}
+		if (HudOverlay.click(mouseX, mouseY, button, width, height)) return true;
 		return super.mouseClicked(mouseX, mouseY, button);
 	}
 
 	@Override
-	public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-		if (dragging != null) {
-			int nx = (int) mouseX - dragOffsetX;
-			int ny = (int) mouseY - dragOffsetY;
-			nx = Math.max(0, Math.min(nx, width - dragging.getBoxW()));
-			ny = Math.max(0, Math.min(ny, height - dragging.getBoxH()));
-			dragging.setPosition(nx, ny);
-			return true;
-		}
-		return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+	public boolean mouseReleased(double mouseX, double mouseY, int button) {
+		HudOverlay.release();
+		return super.mouseReleased(mouseX, mouseY, button);
 	}
 
 	@Override
-	public boolean mouseReleased(double mouseX, double mouseY, int button) {
-		if (dragging != null) {
-			dragging.savePosition();
-			dragging = null;
-			return true;
-		}
-		return super.mouseReleased(mouseX, mouseY, button);
+	protected void init() {
+		HudOverlay.reset();
 	}
 
 	@Override

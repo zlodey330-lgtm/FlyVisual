@@ -94,6 +94,13 @@ public abstract class Module {
 		enabled = value;
 	}
 
+	/** Применить состояние без уведомления (загрузка набора настроек). */
+	void applyState(boolean value) {
+		if (enabled == value) return;
+		enabled = value;
+		if (value) onEnable(); else onDisable();
+	}
+
 	protected MinecraftClient mc() {
 		return MinecraftClient.getInstance();
 	}

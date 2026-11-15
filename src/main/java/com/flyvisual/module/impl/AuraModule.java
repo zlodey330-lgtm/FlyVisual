@@ -19,6 +19,7 @@ import org.joml.Matrix4f;
  * (сфера, кольцо, спираль или орбиты). Рисуется только на твоей стороне.
  */
 public class AuraModule extends Module {
+	private static final String[] SHAPES = {"Кубики", "Бриллианты", "Иглы", "Звёзды", "Микс"};
 	private static final String[] PATTERNS = {"Сфера", "Кольцо", "Спираль", "Орбиты"};
 
 	private final DoubleSetting pattern = addChoice("Pattern", 0, PATTERNS);
@@ -29,7 +30,7 @@ public class AuraModule extends Module {
 	private final DoubleSetting hue = addSetting("Color (hue)", 0.0, 0.0, 355.0, 5.0);
 	private final DoubleSetting rainbow = addToggle("Rainbow", false);
 	private final DoubleSetting glow = addToggle("Glow", true);
-	private final DoubleSetting firstPerson = addToggle("Show in first person", true);
+	private final DoubleSetting shape = addChoice("Shape", 4, SHAPES);
 
 	private float cachedHue = -1.0f;
 	private int cachedRgb;
@@ -43,7 +44,7 @@ public class AuraModule extends Module {
 		if (!isEnabled()) return;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc.player == null || context.world() == null) return;
-		if (!firstPerson.getBool() && mc.options.getPerspective().isFirstPerson()) return;
+		if (mc.options.getPerspective().isFirstPerson()) return;
 
 		VertexConsumerProvider consumers = context.consumers();
 		MatrixStack matrices = context.matrixStack();
@@ -118,9 +119,31 @@ public class AuraModule extends Module {
 			}
 			rgb = cachedRgb;
 		}
-		Shape3D.cube(vc, m, x, y, z, half, yaw, rgb, 0.95f);
-		if (glow.getBool()) {
-			Shape3D.cube(vc, m, x, y, z, half * 2.4, yaw, rgb, 0.16f);
+		int sh = shape.getInt();
+		if (sh == 4) sh = index % 4;
+		double pulse = 1.0 + 0.2 * Math.sin(t * 3.0 + index);
+		double hs = half * pulse;
+		switch (sh) {
+			case 1 -> {
+				Shape3D.diamond(vc, m, x, y, z, hs * 1.3, yaw + t, rgb, 0.95f);
+				if (glow.getBool()) Shape3D.diamond(vc, m, x, y, z, hs * 3.0, yaw + t, rgb, 0.14f);
+			}
+			case 2 -> {
+				double dx = Math.cos(yaw + 1.57), dz = Math.sin(yaw + 1.57);
+				Shape3D.needle(vc, m, x, y, z, dx, 0.5 * Math.sin(t + index), dz, hs * 5.0, hs * 0.45, rgb, 0.95f);
+				if (glow.getBool()) Shape3D.needle(vc, m, x, y, z, dx, 0.5 * Math.sin(t + index), dz, hs * 6.5, hs * 1.2, rgb, 0.14f);
+			}
+			case 3 -> {
+				double s = hs * 2.6, th = hs * 0.4;
+				Shape3D.needle(vc, m, x, y, z, 1, 0, 0, s, th, rgb, 0.95f);
+				Shape3D.needle(vc, m, x, y, z, 0, 1, 0, s, th, rgb, 0.95f);
+				Shape3D.needle(vc, m, x, y, z, 0, 0, 1, s, th, rgb, 0.95f);
+				if (glow.getBool()) Shape3D.cube(vc, m, x, y, z, hs * 1.2, yaw, rgb, 0.18f);
+			}
+			default -> {
+				Shape3D.cube(vc, m, x, y, z, hs, yaw, rgb, 0.95f);
+				if (glow.getBool()) Shape3D.cube(vc, m, x, y, z, hs * 2.4, yaw, rgb, 0.16f);
+			}
 		}
 	}
 }

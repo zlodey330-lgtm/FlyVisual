@@ -19,7 +19,7 @@ import java.util.List;
 /** Объёмный эффект под ногами при прыжке (10 видов). Виден только тебе. */
 public class JumpEffectModule extends Module {
 	private static final String[] STYLES = {"Кольцо", "Двойное кольцо", "Ударная волна", "Купол", "Столб света",
-			"Спираль", "Руны", "Лотос", "Искры", "Шипы"};
+			"Спираль", "Руны", "Лотос", "Искры", "Шипы", "Звезда", "Квадраты", "Кристаллы", "Соты", "Солнце", "Случайный"};
 	private static final float LIFE = 1.2f;
 
 	private static final class Fx {
@@ -28,9 +28,10 @@ public class JumpEffectModule extends Module {
 		double z;
 		long start;
 		float hue;
+		int style;
 	}
 
-	private final DoubleSetting style = addChoice("Effect style", 0, STYLES);
+	private final DoubleSetting style = addChoice("Effect style", 10, STYLES);
 	private final DoubleSetting hue = addSetting("Color (hue)", 200.0, 0.0, 355.0, 5.0);
 	private final DoubleSetting rainbow = addToggle("Rainbow", false);
 	private final DoubleSetting size = addSetting("Size", 1.0, 0.5, 2.0, 0.1);
@@ -55,6 +56,8 @@ public class JumpEffectModule extends Module {
 			fx.y = p.getY();
 			fx.z = p.getZ();
 			fx.start = System.nanoTime();
+			int st = style.getInt();
+			fx.style = st >= 15 ? (int) (Math.random() * 15) : st;
 			fx.hue = rainbow.getBool() ? (float) ((System.nanoTime() / 1.0e7) % 360.0) : hue.getFloat();
 			list.add(fx);
 			if (list.size() > 8) list.remove(0);
@@ -64,6 +67,7 @@ public class JumpEffectModule extends Module {
 
 	private void render(WorldRenderContext context) {
 		if (!isEnabled() || list.isEmpty()) return;
+		if (MinecraftClient.getInstance().options.getPerspective().isFirstPerson()) return;
 		MatrixStack matrices = context.matrixStack();
 		if (matrices == null) return;
 		Vec3d cam = context.camera().getPos();
@@ -74,12 +78,12 @@ public class JumpEffectModule extends Module {
 		for (Fx f : list) {
 			float t = (now - f.start) / 1.0e9f / LIFE;
 			V c = new V((float) (f.x - cam.x), (float) (f.y - cam.y) + 0.02f, (float) (f.z - cam.z));
-			draw(m, c, t, f.hue);
+			draw(m, c, t, f.hue, f.style);
 		}
 		draw.flush();
 	}
 
-	private void draw(Matrix4f m, V c, float t, float hueDeg) {
+	private void draw(Matrix4f m, V c, float t, float hueDeg, int styleId) {
 		float e = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
 		float fade = Math.max(0.0f, 1.0f - t);
 		float late = Math.min(1.0f, (1.0f - t) / 0.35f);
@@ -88,7 +92,7 @@ public class JumpEffectModule extends Module {
 		float[] light = Fx3d.color(hueDeg, 0.25f, 1.0f);
 		int seg = 48;
 
-		switch (style.getInt()) {
+		switch (styleId) {
 			case 0 -> {
 				float r = 0.25f + 1.5f * R * e;
 				Fx3d.band(draw, m, c, Fx3d.X, Fx3d.Z, Fx3d.Y, r - 0.22f * R, 0, r, 0, seg, col, 0.0f, 0.85f * fade);
@@ -186,6 +190,85 @@ public class JumpEffectModule extends Module {
 					Fx3d.spark(draw, m, pos, 0.07f, k % 3 == 0 ? light : col, 0.95f * late);
 				}
 				Fx3d.band(draw, m, c, Fx3d.X, Fx3d.Z, Fx3d.Y, 0.2f + 0.8f * R * e - 0.1f, 0, 0.2f + 0.8f * R * e, 0, seg, col, 0.0f, 0.6f * fade);
+			}
+			case 10 -> {
+				float appear = Math.min(1.0f, t * 5.0f);
+				float rr = (0.5f + 1.1f * R) * appear;
+				float a = 0.9f * late;
+				float rot = t * 2.5f;
+				for (int ring = 0; ring < 2; ring++) {
+					float rs = ring == 0 ? rr : rr * 0.55f;
+					float rotr = ring == 0 ? rot : -rot * 1.4f;
+					V[] pt = new V[5];
+					for (int k = 0; k < 5; k++) {
+						double an = rotr + k * Math.PI * 2.0 / 5.0;
+						pt[k] = new V(c.x() + (float) Math.cos(an) * rs, c.y() + 0.02f, c.z() + (float) Math.sin(an) * rs);
+					}
+					for (int k = 0; k < 5; k++) {
+						Fx3d.ribbon(draw, m, pt[k], pt[(k + 2) % 5], 0.05f, ring == 0 ? col : light, a);
+						Fx3d.spark(draw, m, new V(pt[k].x(), pt[k].y() + 0.05f, pt[k].z()), 0.07f, light, a);
+					}
+				}
+			}
+			case 11 -> {
+				float a = 0.85f * late;
+				for (int k = 0; k < 3; k++) {
+					float rs = (0.4f + 0.55f * k) * R * (0.3f + 0.7f * e);
+					float rot = t * (k % 2 == 0 ? 2.0f : -2.0f) + k * 0.4f;
+					V[] pt = new V[4];
+					for (int q = 0; q < 4; q++) {
+						double an = rot + Math.PI / 4.0 + q * Math.PI / 2.0;
+						pt[q] = new V(c.x() + (float) Math.cos(an) * rs * 1.414f, c.y() + 0.02f + 0.03f * k, c.z() + (float) Math.sin(an) * rs * 1.414f);
+					}
+					for (int q = 0; q < 4; q++) {
+						Fx3d.ribbon(draw, m, pt[q], pt[(q + 1) % 4], 0.06f, k == 1 ? light : col, a);
+					}
+				}
+			}
+			case 12 -> {
+				float a = 0.85f * late;
+				int n = 9;
+				for (int k = 0; k < n; k++) {
+					double ang = k * Math.PI * 2.0 / n + t * 1.2;
+					float rr = (0.35f + 1.0f * Fx3d.rnd(k, 5)) * R * e + 0.2f;
+					float hh = (0.15f + 0.9f * Fx3d.rnd(k, 6)) * e + 0.1f;
+					float sz = (0.07f + 0.07f * Fx3d.rnd(k, 7)) * R;
+					V base = new V(c.x() + (float) Math.cos(ang) * rr, c.y() + hh, c.z() + (float) Math.sin(ang) * rr);
+					V up = new V(base.x(), base.y() + sz * 2.6f, base.z());
+					V down = new V(base.x(), base.y() - sz * 2.6f, base.z());
+					float[] cc = k % 2 == 0 ? col : light;
+					Fx3d.pyramid(draw, m, base, Fx3d.X, Fx3d.Z, sz, up, cc, a, a * 0.6f);
+					Fx3d.pyramid(draw, m, base, Fx3d.X, Fx3d.Z, sz, down, cc, a, a * 0.6f);
+				}
+			}
+			case 13 -> {
+				float a = 0.85f * late;
+				for (int k = 0; k < 3; k++) {
+					float rs = (0.35f + 0.5f * k) * R * (0.3f + 0.7f * e);
+					float rot = t * 0.8f * (k % 2 == 0 ? 1 : -1);
+					V[] pt = new V[6];
+					for (int q = 0; q < 6; q++) {
+						double an = rot + q * Math.PI / 3.0;
+						pt[q] = new V(c.x() + (float) Math.cos(an) * rs, c.y() + 0.02f, c.z() + (float) Math.sin(an) * rs);
+					}
+					for (int q = 0; q < 6; q++) {
+						Fx3d.ribbon(draw, m, pt[q], pt[(q + 1) % 6], 0.05f, k == 1 ? light : col, a);
+						if (k == 2) Fx3d.ribbon(draw, m, c, pt[q], 0.025f, light, a * 0.6f);
+					}
+				}
+			}
+			case 14 -> {
+				float a = 0.9f * late;
+				int rays = 16;
+				for (int k = 0; k < rays; k++) {
+					double ang = k * Math.PI * 2.0 / rays + t * 0.6;
+					float len = (k % 2 == 0 ? 1.9f : 1.0f) * R * e;
+					float r0 = 0.25f * R;
+					V s0 = new V(c.x() + (float) Math.cos(ang) * r0, c.y() + 0.02f, c.z() + (float) Math.sin(ang) * r0);
+					V s1 = new V(c.x() + (float) Math.cos(ang) * (r0 + len), c.y() + 0.02f, c.z() + (float) Math.sin(ang) * (r0 + len));
+					Fx3d.ribbon(draw, m, s0, s1, k % 2 == 0 ? 0.07f : 0.04f, k % 2 == 0 ? col : light, a);
+				}
+				Fx3d.spark(draw, m, new V(c.x(), c.y() + 0.05f, c.z()), 0.25f * R, light, a);
 			}
 			default -> {
 				int n = 14;

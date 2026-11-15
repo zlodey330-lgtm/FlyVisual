@@ -146,7 +146,6 @@ public final class ModuleManager {
 		MODULES.add(potionHud);
 		MODULES.add(new TargetHudModule());
 		MODULES.add(new com.flyvisual.module.impl.KillFeedModule());
-		MODULES.add(new com.flyvisual.module.impl.SkinModule());
 		MODULES.add(fullbright);
 		MODULES.add(noHurtCam);
 		MODULES.add(lowerFire);
@@ -173,6 +172,7 @@ public final class ModuleManager {
 		MODULES.add(crosshair);
 		MODULES.add(capes);
 		MODULES.add(new AuraModule());
+		MODULES.add(new com.flyvisual.module.impl.OwnNametagModule());
 		MODULES.add(new TrailModule());
 		MODULES.add(sky);
 		MODULES.add(customChat);
@@ -194,6 +194,7 @@ public final class ModuleManager {
 		MODULES.add(jumpEffect);
 		MODULES.add(new TargetEspModule());
 
+		com.flyvisual.gui.HudOverlay.init();
 		FlyConfig cfg = FlyConfig.get();
 		for (Module m : MODULES) {
 			boolean on = cfg.modules.getOrDefault(m.getName(), m.enabledByDefault());
@@ -204,6 +205,19 @@ public final class ModuleManager {
 				if (pos != null && pos.length == 2) {
 					hud.setPosition(pos[0], pos[1]);
 				}
+			}
+		}
+	}
+
+	/** Применяет заново всё из FlyConfig: включение, настройки, позиции HUD. */
+	public static void reloadAll() {
+		FlyConfig cfg = FlyConfig.get();
+		for (Module m : MODULES) {
+			m.applyState(cfg.modules.getOrDefault(m.getName(), m.enabledByDefault()));
+			for (DoubleSetting st : m.getSettings()) st.reload();
+			if (m instanceof HudModule hud) {
+				int[] pos = cfg.positions.get(m.getName());
+				if (pos != null && pos.length == 2) hud.setPosition(pos[0], pos[1]);
 			}
 		}
 	}

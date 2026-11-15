@@ -17,6 +17,7 @@ public class DoubleSetting {
 	private final boolean toggle;
 	private final String[] labels;
 	private double value;
+	private final double def;
 	private Runnable action;
 
 	public DoubleSetting(String moduleName, String name, double def, double min, double max, double step) {
@@ -32,6 +33,7 @@ public class DoubleSetting {
 		this.step = step;
 		this.toggle = toggle;
 		this.labels = labels;
+		this.def = def;
 
 		Double saved = FlyConfig.get().settings.get(key);
 		this.value = normalize(saved != null ? saved : def);
@@ -69,6 +71,12 @@ public class DoubleSetting {
 		return Math.round(stepped * 10000.0) / 10000.0;
 	}
 
+	/** Перечитать значение из конфига (после загрузки сохранённого набора настроек). */
+	public void reload() {
+		Double saved = FlyConfig.get().settings.get(key);
+		this.value = normalize(saved != null ? saved : def);
+	}
+
 	public String getName() {
 		return name;
 	}
@@ -79,6 +87,10 @@ public class DoubleSetting {
 
 	public double getMax() {
 		return max;
+	}
+
+	public boolean isChoice() {
+		return labels != null;
 	}
 
 	public boolean isToggle() {

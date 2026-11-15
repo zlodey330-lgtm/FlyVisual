@@ -188,6 +188,12 @@ public class FlyMenuScreen extends Screen {
 		return right() - PAD - BTN_W;
 	}
 
+	private static final int CFG_W = 64;
+
+	private int cfgX() {
+		return swatchX(0) - 10 - CFG_W;
+	}
+
 	private int btnY() {
 		return top() + 6;
 	}
@@ -470,6 +476,12 @@ public class FlyMenuScreen extends Screen {
 		rr(ctx, bx, by, BTN_W, BTN_H, 6, hover ? 0xFF3A3A3E : 0xFF2A2A2E);
 		String label = "Редактор HUD";
 		text(ctx, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 4, Theme.TEXT);
+
+		int cx = cfgX();
+		boolean hov2 = mouseX >= cx && mouseX < cx + CFG_W && mouseY >= by && mouseY < by + BTN_H;
+		rr(ctx, cx, by, CFG_W, BTN_H, 6, hov2 ? 0xFF3A3A3E : 0xFF2A2A2E);
+		String l2 = "Конфиги";
+		text(ctx, l2, cx + (CFG_W - textRenderer.getWidth(l2)) / 2, by + 4, Theme.TEXT);
 	}
 
 	/** Рисует сетку плиток. Возвращает описание модуля под курсором (или null). */
@@ -822,6 +834,11 @@ public class FlyMenuScreen extends Screen {
 			// HUD-редактор
 			int bx = btnX();
 			int by = btnY();
+			int cx = cfgX();
+			if (mouseX >= cx && mouseX < cx + CFG_W && mouseY >= by && mouseY < by + BTN_H) {
+				MinecraftClient.getInstance().setScreen(new ConfigsScreen(this));
+				return true;
+			}
 			if (mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H) {
 				MinecraftClient.getInstance().setScreen(new HudEditorScreen(parent));
 				return true;
