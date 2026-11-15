@@ -68,7 +68,8 @@ public final class Lang {
 			Map.entry("Kill Effect", "Эффект убийства"),
 			Map.entry("Jump Effect", "Эффект прыжка"),
 			Map.entry("Optimization", "Оптимизация"),
-			Map.entry("TargetESP", "TargetESP")
+			Map.entry("TargetESP", "TargetESP"),
+			Map.entry("FakePlayer", "FakePlayer")
 	);
 
 	private static final Map<String, String> MODULE_DESCRIPTIONS = Map.ofEntries(
@@ -132,7 +133,8 @@ public final class Lang {
 			Map.entry("Jump Effect", "Красивый 3D-эффект под ногами, когда ты прыгаешь"),
 			Map.entry("Mouse Fix", "Уменьшает задержку мыши при просадках FPS и в полноэкранном режиме"),
 			Map.entry("Optimization", "Повышает FPS: убирает лишнее (небо, частицы, мобов за стенами и др.). Кнопка «Настроить» открывает FPS Boost"),
-			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб или спираль")
+			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб или спираль"),
+			Map.entry("FakePlayer", "Манекен-игрок для тестов: бей его, он сразу возрождается. Броня, бесконечный тотем, здоровье. Виден только тебе")
 	);
 
 	private static final Map<String, String> SETTINGS = Map.ofEntries(

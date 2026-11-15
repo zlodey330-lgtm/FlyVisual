@@ -194,6 +194,7 @@ public final class ModuleManager {
 		MODULES.add(killEffect);
 		MODULES.add(jumpEffect);
 		MODULES.add(new TargetEspModule());
+		MODULES.add(new com.flyvisual.module.impl.FakePlayerModule());
 
 		com.flyvisual.gui.HudOverlay.init();
 		FlyConfig cfg = FlyConfig.get();
