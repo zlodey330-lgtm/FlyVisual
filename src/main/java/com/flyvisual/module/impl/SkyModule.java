@@ -16,7 +16,7 @@ import java.awt.Color;
  * Подмена цвета происходит в ClientWorldMixin. Видно только тебе.
  */
 public class SkyModule extends Module {
-	private static final String[] STYLES = {"Радуга", "Аврора", "Красный закат", "Цвет темы", "Космос", "Реалистичное 3D", "Розовый рассвет", "Тропики", "Туман", "Грозовое", "Золотой час", "Лавандовое"};
+	private static final String[] STYLES = {"Радуга", "Аврора", "Красный закат", "Цвет темы", "Космос", "Реалистичное 3D", "Розовый рассвет", "Тропики", "Туман", "Грозовое", "Золотой час", "Лавандовое", "Живое небо"};
 
 	private final DoubleSetting style = addChoice("Sky style", 5, STYLES);
 	private final DoubleSetting intensity = addSetting("Intensity", 100.0, 10.0, 100.0, 5.0);
@@ -31,6 +31,9 @@ public class SkyModule extends Module {
 			if (isRealistic()) {
 				try {
 					SkyRenderer.render(context, cloudAmount.getFloat(), cloudSpeed.getFloat());
+					if (style.getInt() == 12) {
+						com.flyvisual.util.LiveSky.render(context, speed.getFloat());
+					}
 				} catch (Throwable t) {
 					// Ошибка в 3D-небе: переключаемся на простой стиль, чтобы игра не вылетала
 					safeMode();
@@ -46,7 +49,7 @@ public class SkyModule extends Module {
 
 	/** Включён режим «Реалистичное 3D»: настоящие облака и ореол солнца рисует SkyRenderer. */
 	public boolean isRealistic() {
-		return isEnabled() && style.getInt() == 5;
+		return isEnabled() && (style.getInt() == 5 || style.getInt() == 12);
 	}
 
 	/** Цвет стиля в данный момент, brightness = множитель яркости. */
@@ -130,12 +133,12 @@ public class SkyModule extends Module {
 	}
 
 	public Vec3d applySky(Vec3d vanilla) {
-		if (style.getInt() == 5) return vanilla;
+		if (style.getInt() == 5 || style.getInt() == 12) return vanilla;
 		return mix(vanilla, custom(1.0));
 	}
 
 	public Vec3d applyClouds(Vec3d vanilla) {
-		if (style.getInt() == 5) return vanilla;
+		if (style.getInt() == 5 || style.getInt() == 12) return vanilla;
 		return tintClouds.getBool() ? mix(vanilla, custom(0.85)) : vanilla;
 	}
 }

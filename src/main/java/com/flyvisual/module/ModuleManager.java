@@ -174,6 +174,7 @@ public final class ModuleManager {
 		MODULES.add(new AuraModule());
 		MODULES.add(new com.flyvisual.module.impl.OwnNametagModule());
 		MODULES.add(new com.flyvisual.module.impl.MenuStyleModule());
+		MODULES.add(new com.flyvisual.module.impl.SwingAnimModule());
 		MODULES.add(new TrailModule());
 		MODULES.add(sky);
 		MODULES.add(customChat);

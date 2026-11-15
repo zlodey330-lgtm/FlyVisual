@@ -22,6 +22,12 @@ public class HeldItemRendererMixin {
 	private void flyvisual$handStart(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
 									 float swingProgress, ItemStack item, float equipProgress, MatrixStack matrices,
 									 VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
+		com.flyvisual.module.impl.SwingAnimModule sw = com.flyvisual.module.impl.SwingAnimModule.INSTANCE;
+		if (sw != null && sw.isEnabled() && hand == Hand.MAIN_HAND && swingProgress > 0.0f) {
+			matrices.push();
+			float sd = player.getMainArm() == Arm.RIGHT ? 1.0f : -1.0f;
+			sw.apply(matrices, swingProgress, sd);
+		}
 		HandOffsetModule module = ModuleManager.handOffset();
 		if (module == null || !module.isEnabled()) return;
 
@@ -40,6 +46,10 @@ public class HeldItemRendererMixin {
 								   VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
 		HandOffsetModule module = ModuleManager.handOffset();
 		if (module != null && module.isEnabled()) {
+			matrices.pop();
+		}
+		com.flyvisual.module.impl.SwingAnimModule sw = com.flyvisual.module.impl.SwingAnimModule.INSTANCE;
+		if (sw != null && sw.isEnabled() && hand == Hand.MAIN_HAND && swingProgress > 0.0f) {
 			matrices.pop();
 		}
 	}
