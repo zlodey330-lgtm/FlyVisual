@@ -12,7 +12,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Фоны главного меню: звёзды, закат, минимал и своя картинка (config/flyvisual/menu.png). */
+/** Фоны главного меню: звёзды, закат, минимал, фиолетовый луч и своя картинка (config/flyvisual/menu.png). */
 public final class TitleStyles {
 	private static final Identifier CUSTOM = new Identifier("flyvisual", "custom_menu");
 	private static int customState; // 0 не пробовали, 1 загружена, -1 нет файла
@@ -53,6 +53,60 @@ public final class TitleStyles {
 		h = (h ^ (h >>> 13)) * 1274126177;
 		h ^= h >>> 16;
 		return (h & 0xFFFF) / 65535.0f;
+	}
+
+	/** Фиолетовый фон: широкий луч света из левого верхнего угла, пылинки и мягкие огоньки внизу. */
+	private static void drawBeam(DrawContext ctx, int w, int h, float t) {
+		ctx.fillGradient(0, 0, w, h, 0xFF06050D, 0xFF150D2B);
+
+		// Луч: полосы по строкам, каждая из нескольких слоёв, поэтому центр ярче краёв
+		float sway = (float) Math.sin(t * 0.35f) * w * 0.012f;
+		float x0 = w * 0.07f;
+		for (int y = 0; y < h; y += 3) {
+			float fy = y / (float) h;
+			float fade = 1.0f - fy * 0.92f;
+			float cx = x0 + sway * fy + y * 0.55f;
+			float half = w * 0.010f + y * 0.20f;
+			int a = Math.round(15 * fade);
+			if (a <= 0) continue;
+			for (int k = 0; k < 4; k++) {
+				int hw = Math.round(half * (1.0f - k * 0.25f));
+				if (hw <= 0) continue;
+				ctx.fill(Math.round(cx - hw), y, Math.round(cx + hw), y + 3, (a << 24) | 0xA774FF);
+			}
+		}
+
+		// Яркое пятно у источника света
+		int sx = Math.round(w * 0.05f);
+		int sy = Math.round(h * 0.01f);
+		for (int k = 0; k < 6; k++) {
+			int r = 14 + k * 14;
+			UiShapes.roundRect(ctx, sx - r, sy - r, r * 2, r * 2, r, ((10 + (5 - k) * 3) << 24) | 0xE2B8FF);
+		}
+
+		// Пылинки: медленно плывут и мерцают
+		for (int i = 0; i < 110; i++) {
+			float sp = 3.0f + rnd(i, 3) * 9.0f;
+			float x = (rnd(i, 1) * w + t * sp * 0.5f) % w;
+			float y = rnd(i, 2) * h - t * sp * 0.35f;
+			y = ((y % h) + h) % h;
+			float tw = 0.5f + 0.5f * (float) Math.sin(t * (0.6f + rnd(i, 4) * 1.8f) + i * 1.7f);
+			int a = (int) (40 + 190 * tw * (0.35f + 0.65f * rnd(i, 5)));
+			int size = rnd(i, 6) > 0.93f ? 2 : 1;
+			int col = rnd(i, 7) > 0.55f ? 0xFFFFFF : 0xC9B3FF;
+			ctx.fill((int) x, (int) y, (int) x + size, (int) y + size, (a << 24) | col);
+		}
+
+		// Крупные мягкие огоньки в нижней части
+		for (int i = 0; i < 16; i++) {
+			float x = (rnd(i, 11) * w + t * (2 + rnd(i, 12) * 4)) % w;
+			float y = h * (0.62f + 0.38f * rnd(i, 13)) - ((t * (3 + rnd(i, 14) * 5)) % (h * 0.4f));
+			int r = 2 + (int) (rnd(i, 15) * 4);
+			int a = 30 + (int) (60 * (0.5f + 0.5f * Math.sin(t * 0.8f + i)));
+			UiShapes.roundRect(ctx, (int) x - r, (int) y - r, r * 2, r * 2, r, (a << 24) | 0x9B6BFF);
+		}
+
+		ctx.fillGradient(0, h * 3 / 4, w, h, 0x00000000, 0x88050310);
 	}
 
 	/** Рисует фон выбранного стиля. Возвращает false, если нужно оставить ванильное (или лес рисует LiveBackground). */
@@ -122,6 +176,10 @@ public final class TitleStyles {
 				int rh = ta > sa ? ch : Math.round(cw / sa);
 				ctx.drawTexture(CUSTOM, 0, 0, w, h, (cw - rw) / 2.0f, (ch - rh) / 2.0f, rw, rh, cw, ch);
 				ctx.fill(0, 0, w, h, 0x30000000);
+				return true;
+			}
+			case 6 -> {
+				drawBeam(ctx, w, h, t);
 				return true;
 			}
 			default -> {

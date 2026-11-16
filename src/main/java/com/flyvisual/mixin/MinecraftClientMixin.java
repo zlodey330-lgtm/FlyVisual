@@ -6,6 +6,7 @@ import com.flyvisual.module.impl.DeathScreenModule;
 import net.minecraft.client.gui.screen.DeathScreen;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.TitleScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
@@ -13,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 @Mixin(MinecraftClient.class)
 public class MinecraftClientMixin {
 
-	/** Подмена ванильного экрана смерти на свой (если включён модуль). */
+	/** Подмена ванильных экранов смерти и главного меню на свои (если включено). */
 	@ModifyVariable(method = "setScreen", at = @At("HEAD"), argsOnly = true)
 	private Screen flyvisual$replaceScreen(Screen screen) {
 		if (screen != null && screen.getClass() == DeathScreen.class) {
@@ -21,6 +22,11 @@ public class MinecraftClientMixin {
 			if (module != null && module.isEnabled()) {
 				return module.createScreen();
 			}
+		}
+		// Новое главное меню вместо ванильного (если включено в настройках «Main Menu»)
+		if (screen != null && screen.getClass() == TitleScreen.class
+				&& com.flyvisual.module.impl.MenuStyleModule.glassMenu()) {
+			return new com.flyvisual.gui.FlyTitleScreen();
 		}
 		return screen;
 	}
