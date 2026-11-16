@@ -116,4 +116,13 @@ public class GameRendererMixin {
 			module.process(tickDelta);
 		}
 	}
+
+	/** Запись: в самом конце кадра (мир, интерфейс и меню уже нарисованы) забираем картинку. */
+	@Inject(method = "render", at = @At("TAIL"))
+	private void flyvisual$record(float tickDelta, long startTime, boolean tick, CallbackInfo ci) {
+		com.flyvisual.module.impl.RecordingModule recording = com.flyvisual.module.impl.RecordingModule.INSTANCE;
+		if (recording != null) {
+			recording.onFrame();
+		}
+	}
 }

@@ -27,6 +27,9 @@ public class FlyConfig {
 	/** Заменять ли ванильное главное меню меню FlyVisual. */
 	public boolean customTitleScreen = false;
 
+	/** Папка для записей видео (пусто = Видео/FlyVisual или папка игры). */
+	public String recordingFolder = "";
+
 	/** Колыхание листвы и земли на фоне главного меню. */
 	public boolean titleWave = true;
 
@@ -76,6 +79,7 @@ public class FlyConfig {
 			FlyConfig loaded = GSON.fromJson(reader, FlyConfig.class);
 			if (loaded != null) {
 				if (loaded.modules == null) loaded.modules = new LinkedHashMap<>();
+				if (loaded.recordingFolder == null) loaded.recordingFolder = "";
 				if (loaded.highlightItems == null) loaded.highlightItems = new java.util.ArrayList<>();
 				if (loaded.handItems == null) loaded.handItems = new java.util.ArrayList<>();
 				if (loaded.positions == null) loaded.positions = new LinkedHashMap<>();

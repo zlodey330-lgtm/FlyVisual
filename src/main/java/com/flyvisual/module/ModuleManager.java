@@ -195,6 +195,7 @@ public final class ModuleManager {
 		MODULES.add(jumpEffect);
 		MODULES.add(new TargetEspModule());
 		MODULES.add(new com.flyvisual.module.impl.FakePlayerModule());
+		MODULES.add(new com.flyvisual.module.impl.RecordingModule());
 
 		com.flyvisual.gui.HudOverlay.init();
 		FlyConfig cfg = FlyConfig.get();
@@ -385,6 +386,7 @@ public final class ModuleManager {
 
 	/** Вызывается при закрытии игры: возвращаем яркость, чтобы она не сохранилась в options.txt. */
 	public static void shutdown() {
+		com.flyvisual.module.impl.RecordingModule.shutdown();
 		if (fullbright != null) {
 			fullbright.restore();
 		}

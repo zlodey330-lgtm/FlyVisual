@@ -58,7 +58,9 @@
 		"FpsParticleMixin",
 		"FpsSignMixin",
 		"FpsWorldRendererMixin",
-		"FramerateLimitMixin"
+		"FramerateLimitMixin",
+		"SourceAudioMixin",
+		"StaticSoundAudioMixin"
   ],
   "injectors": {
     "defaultRequire": 0
