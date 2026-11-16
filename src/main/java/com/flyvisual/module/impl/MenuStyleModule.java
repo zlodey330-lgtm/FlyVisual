@@ -9,6 +9,7 @@ public class MenuStyleModule extends Module {
 
 	private final com.flyvisual.module.DoubleSetting style = addChoice("Menu style", 6, STYLES);
 	private final com.flyvisual.module.DoubleSetting glass = addToggle("Круглые кнопки (новое меню)", true);
+	private final com.flyvisual.module.DoubleSetting intro = addToggle("Интро при запуске", true);
 
 	public MenuStyleModule() {
 		super("Main Menu", "Changes the look of the main menu");
@@ -18,6 +19,12 @@ public class MenuStyleModule extends Module {
 	@Override
 	protected boolean enabledByDefault() {
 		return true;
+	}
+
+	/** Интро (частицы, логотип, вспышка) при первом открытии меню после запуска игры. */
+	public static boolean introEnabled() {
+		MenuStyleModule m = INSTANCE;
+		return m != null && m.isEnabled() && m.intro.getBool() && glassMenu();
 	}
 
 	/** Новое главное меню с круглыми кнопками. Для ванильной панорамы оставляем ванильное меню. */

@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screen.world.SelectWorldScreen;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.sound.SoundEvents;
+import com.flyvisual.module.impl.MenuStyleModule;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -47,9 +48,21 @@ public class FlyTitleScreen extends Screen {
 	private final long start = System.nanoTime();
 	private long lastNanos = start;
 	private float time;
+	/** Время для плавного появления меню (после интро отсчитывается от вспышки). */
+	private float menuT;
+
+	// Интро: показывается один раз за запуск игры
+	private static boolean introPlayed;
+	private static final float INTRO_FLASH = 3.6f;
+	private static final float INTRO_END = 4.7f;
+	private static final float INTRO_SKIP_TO = 3.3f;
+	private boolean intro;
+	private long introStart = -1L;
+	private boolean introChime;
 
 	public FlyTitleScreen() {
 		super(Text.literal(NAME));
+		this.intro = !introPlayed && MenuStyleModule.introEnabled();
 	}
 
 	@Override
@@ -98,7 +111,7 @@ public class FlyTitleScreen extends Screen {
 	}
 
 	private float appear(float delay) {
-		return ease((time - delay) / 0.55f);
+		return ease((menuT - delay) / 0.55f);
 	}
 
 	// ------------------------------------------------------------------ отрисовка
@@ -110,9 +123,29 @@ public class FlyTitleScreen extends Screen {
 		lastNanos = now;
 		time = (now - start) / 1.0e9f;
 
-		// Фон выбранного стиля
-		if (!TitleStyles.draw(ctx, width, height, mouseX, mouseY)) {
-			LiveBackground.shared().render(ctx, width, height, mouseX, mouseY, true);
+		float ti = 0.0f;
+		if (intro) {
+			// Пока идёт загрузка игры (красный экран Mojang), интро ждёт
+			if (MinecraftClient.getInstance().getOverlay() != null) {
+				ctx.fill(0, 0, width, height, 0xFF000000);
+				return;
+			}
+			if (introStart < 0L) introStart = now;
+			ti = (now - introStart) / 1.0e9f;
+			if (ti >= INTRO_END) {
+				intro = false;
+				introPlayed = true;
+			}
+		}
+		menuT = introStart >= 0L ? (now - introStart) / 1.0e9f - INTRO_FLASH : time;
+
+		// Фон выбранного стиля (пока идёт начало интро, он закрыт чёрным, поэтому не рисуем)
+		if (!intro || ti > INTRO_FLASH - 0.5f) {
+			if (!TitleStyles.draw(ctx, width, height, mouseX, mouseY)) {
+				LiveBackground.shared().render(ctx, width, height, mouseX, mouseY, true);
+			}
+		} else {
+			ctx.fill(0, 0, width, height, 0xFF000000);
 		}
 
 		float s = uiScale();
@@ -136,6 +169,8 @@ public class FlyTitleScreen extends Screen {
 
 		drawClock(ctx);
 		drawFooter(ctx);
+
+		if (intro) drawIntro(ctx, ti);
 	}
 
 	private void drawHeader(DrawContext ctx) {
@@ -238,16 +273,21 @@ public class FlyTitleScreen extends Screen {
 
 	/** Диск или его верхняя половина, рисуется построчно в удвоенном разрешении. */
 	private static void ellipse(DrawContext ctx, float cx, float cy, float rx, float ry, boolean topOnly, int argb) {
+		ellipseRes(ctx, cx, cy, rx, ry, topOnly, argb, 2);
+	}
+
+	/** То же, но с выбором чёткости: 1 = обычная (быстрее, для мягкого свечения), 2 = чёткая. */
+	private static void ellipseRes(DrawContext ctx, float cx, float cy, float rx, float ry, boolean topOnly, int argb, int res) {
 		if ((argb >>> 24) == 0 || rx <= 0.0f || ry <= 0.0f) return;
-		float x = cx * 2.0f;
-		float y = cy * 2.0f;
-		float rx2 = rx * 2.0f;
-		float ry2 = ry * 2.0f;
+		float x = cx * res;
+		float y = cy * res;
+		float rx2 = rx * res;
+		float ry2 = ry * res;
 		int rows = (int) Math.ceil(ry2);
 		int yBase = Math.round(y);
 		MatrixStack m = ctx.getMatrices();
 		m.push();
-		m.scale(0.5f, 0.5f, 1.0f);
+		m.scale(1.0f / res, 1.0f / res, 1.0f);
 		for (int i = -rows; i < (topOnly ? 0 : rows); i++) {
 			float dy = i + 0.5f;
 			float t = 1.0f - (dy * dy) / (ry2 * ry2);
@@ -331,6 +371,168 @@ public class FlyTitleScreen extends Screen {
 		}
 	}
 
+
+	// ------------------------------------------------------------------ интро
+
+	private void skipIntro() {
+		if (!intro || introStart < 0L) return;
+		float ti = (System.nanoTime() - introStart) / 1.0e9f;
+		if (ti < INTRO_SKIP_TO) {
+			introStart -= (long) ((INTRO_SKIP_TO - ti) * 1.0e9f);
+		}
+	}
+
+	private static float clamp01(float x) {
+		return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
+	}
+
+	private static float smooth(float e0, float e1, float x) {
+		float t = clamp01((x - e0) / (e1 - e0));
+		return t * t * (3.0f - 2.0f * t);
+	}
+
+	private static float rnd(int i, int k) {
+		float v = (float) Math.sin(i * 12.9898 + k * 78.233) * 43758.5453f;
+		return v - (float) Math.floor(v);
+	}
+
+	/** Ромб (контур или заливка): для логотипа. */
+	private static void diamond(DrawContext ctx, float cx, float cy, float hw, float hh, float thick, boolean fill, int argb) {
+		if ((argb >>> 24) == 0 || hw <= 0.0f || hh <= 0.0f) return;
+		float x = cx * 2.0f;
+		float y = cy * 2.0f;
+		float w2 = hw * 2.0f;
+		float h2 = hh * 2.0f;
+		float t2 = thick * 2.0f;
+		int rows = (int) Math.ceil(h2);
+		int yBase = Math.round(y);
+		MatrixStack m = ctx.getMatrices();
+		m.push();
+		m.scale(0.5f, 0.5f, 1.0f);
+		for (int i = -rows; i < rows; i++) {
+			float dy = Math.abs(i + 0.5f);
+			float ho = w2 * (1.0f - dy / h2);
+			if (ho <= 0.0f) continue;
+			if (fill || ho <= t2) {
+				ctx.fill(Math.round(x - ho), yBase + i, Math.round(x + ho), yBase + i + 1, argb);
+			} else {
+				ctx.fill(Math.round(x - ho), yBase + i, Math.round(x - ho + t2), yBase + i + 1, argb);
+				ctx.fill(Math.round(x + ho - t2), yBase + i, Math.round(x + ho), yBase + i + 1, argb);
+			}
+		}
+		m.pop();
+	}
+
+	/**
+	 * Интро: частицы летят к центру и собираются в светящийся шар, на нём тянется полоса пыли,
+	 * шар превращается в логотип, потом вспышка, и проявляются фон с меню. Всё считается по реальному времени.
+	 */
+	private void drawIntro(DrawContext ctx, float ti) {
+		float s = uiScale();
+		float cx = width / 2.0f;
+		float cy = height / 2.0f;
+
+		// Чёрная завеса: прячет фон и меню, пока идёт интро, потом тает
+		float veil = ti < INTRO_FLASH ? 1.0f : 1.0f - smooth(0.0f, 1.0f, (ti - INTRO_FLASH) / 0.9f);
+		int va = (int) (255.0f * veil);
+		if (va > 0) ctx.fill(0, 0, width, height, va << 24);
+
+		// 1. Частицы летят к центру по спирали
+		float fadeP = 1.0f - smooth(1.55f, 2.1f, ti);
+		if (fadeP > 0.01f) {
+			float rmax = Math.max(width, height) * 0.62f;
+			float gather = ti / 1.7f;
+			for (int i = 0; i < 240; i++) {
+				float r0 = rmax * (0.25f + 0.75f * rnd(i, 1));
+				float a0 = rnd(i, 2) * 6.2831855f;
+				float p = clamp01((gather - rnd(i, 3) * 0.30f) / 0.70f);
+				p = p < 0.5f ? 4.0f * p * p * p : 1.0f - (float) Math.pow(-2.0f * p + 2.0f, 3.0) / 2.0f;
+				float rt = rnd(i, 4) * 6.0f * s;
+				float r = r0 + (rt - r0) * p;
+				float ang = a0 + p * 2.2f;
+				int x = Math.round(cx + (float) Math.cos(ang) * r);
+				int y = Math.round(cy + (float) Math.sin(ang) * r);
+				int a = (int) ((0.2f + 0.8f * p) * fadeP * 255.0f);
+				if (a <= 0) continue;
+				int size = rnd(i, 5) > 0.9f ? 2 : 1;
+				ctx.fill(x, y, x + size, y + size, (a << 24) | (rnd(i, 6) > 0.5f ? 0xFFFFFF : 0xC9B3FF));
+			}
+		}
+
+		// 2. Светящийся шар
+		float coreIn = smooth(0.0f, 1.7f, ti);
+		float shrink = 1.0f - smooth(2.5f, 3.2f, ti);
+		float inten = coreIn * shrink;
+		if (inten > 0.01f) {
+			float pulse = ti > 1.7f ? 0.5f + 0.5f * (float) Math.sin(ti * 7.0f) : 0.0f;
+			float rc = (4.0f + 10.0f * coreIn + 2.5f * pulse) * s * shrink;
+			for (int k = 5; k >= 1; k--) {
+				int a = (int) (inten * (10 + (5 - k) * 5));
+				ellipseRes(ctx, cx, cy, rc * (1.0f + k * 0.7f), rc * (1.0f + k * 0.7f), false, (a << 24) | 0x9B6BFF, 1);
+			}
+			ellipseRes(ctx, cx, cy, rc * 1.25f, rc * 1.25f, false, ((int) (inten * 120.0f) << 24) | 0xC9B3FF, 1);
+			ellipseRes(ctx, cx, cy, rc * 0.8f, rc * 0.8f, false, ((int) (inten * 255.0f) << 24) | 0xFFFFFF, 2);
+		}
+
+		// 3. Полоса пыли через центр
+		float band = smooth(1.9f, 2.8f, ti) * (1.0f - smooth(3.3f, 3.6f, ti));
+		if (band > 0.01f) {
+			float half = width * 0.36f * band;
+			for (int k = 0; k < 3; k++) {
+				int a = (int) (band * (14 - k * 4));
+				ctx.fill(Math.round(cx - half), Math.round(cy) - 1 - k, Math.round(cx + half), Math.round(cy) + 1 + k, (a << 24) | 0xB89CFF);
+			}
+			for (int i = 0; i < 150; i++) {
+				float u = rnd(i, 7) * 2.0f - 1.0f;
+				float x = cx + u * half + (float) Math.sin(ti * 0.8f + i) * 3.0f;
+				float y = cy + (rnd(i, 8) - 0.5f) * (rnd(i, 9) - 0.5f) * 44.0f * s;
+				float tw = 0.5f + 0.5f * (float) Math.sin(ti * (2.0f + rnd(i, 10) * 3.0f) + i);
+				int a = (int) (band * (40.0f + 190.0f * tw) * (1.0f - Math.abs(u) * 0.6f));
+				if (a <= 0) continue;
+				int xi = Math.round(x);
+				int yi = Math.round(y);
+				ctx.fill(xi, yi, xi + (rnd(i, 11) > 0.8f ? 2 : 1), yi + 1, (a << 24) | 0xD8C8FF);
+			}
+		}
+
+		// 4. Логотип с неоновым контуром
+		float la = smooth(2.3f, 3.0f, ti) * (1.0f - smooth(3.5f, 3.75f, ti));
+		if (la > 0.01f) {
+			float sz = 30.0f * s * (0.8f + 0.2f * smooth(2.3f, 3.2f, ti));
+			float hw = sz * 0.62f;
+			for (int k = 4; k >= 1; k--) {
+				diamond(ctx, cx, cy, hw + k * 1.6f * s, sz + k * 1.6f * s, 1.6f * s + k * 1.4f * s, false,
+						((int) (la * 20.0f) << 24) | 0x9B6BFF);
+			}
+			diamond(ctx, cx, cy, hw, sz, 2.4f * s, false, ((int) (la * 255.0f) << 24) | 0xEFE8FF);
+			diamond(ctx, cx, cy, hw * 0.30f, sz * 0.30f, 0.0f, true, ((int) (la * 255.0f) << 24) | 0xFFFFFF);
+			diamond(ctx, cx, cy, hw * 0.52f, sz * 0.52f, 1.0f * s, false, ((int) (la * 110.0f) << 24) | 0xC9B3FF);
+		}
+
+		// 5. Вспышка
+		float fl = Math.max(0.0f, 1.0f - Math.abs(ti - (INTRO_FLASH - 0.02f)) / 0.32f);
+		if (fl > 0.0f) {
+			ctx.fill(0, 0, width, height, ((int) (fl * 235.0f) << 24) | 0xEDE6FF);
+			if (!introChime) {
+				introChime = true;
+				try {
+					MinecraftClient.getInstance().getSoundManager()
+							.play(PositionedSoundInstance.master(SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f));
+				} catch (Throwable ignored) {
+				}
+			}
+		}
+
+		// Подсказка про пропуск
+		if (ti > 0.8f && ti < INTRO_SKIP_TO) {
+			int ha = (int) (110.0f * smooth(0.8f, 1.4f, ti));
+			if (ha >= 8) {
+				Text hint = Text.literal("Нажми любую клавишу, чтобы пропустить").setStyle(UI);
+				ctx.drawText(textRenderer, hint, (width - textRenderer.getWidth(hint)) / 2, height - 22, (ha << 24) | 0xFFFFFF, false);
+			}
+		}
+	}
+
 	// ------------------------------------------------------------------ управление
 
 	private void activate(int i) {
@@ -349,6 +551,10 @@ public class FlyTitleScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		if (intro) {
+			skipIntro();
+			return true;
+		}
 		if (button == 0 && hoveredIdx >= 0) {
 			activate(hoveredIdx);
 			return true;
@@ -358,6 +564,10 @@ public class FlyTitleScreen extends Screen {
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+		if (intro) {
+			skipIntro();
+			return true;
+		}
 		switch (keyCode) {
 			case GLFW.GLFW_KEY_LEFT -> {
 				if (kbFocus < 3) kbFocus = Math.max(0, kbFocus - 1);
