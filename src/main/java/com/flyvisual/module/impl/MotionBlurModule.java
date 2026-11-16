@@ -3,22 +3,23 @@ package com.flyvisual.module.impl;
 import com.flyvisual.hud.Notifications;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.PostEffectPass;
-import net.minecraft.client.gl.PostEffectProcessor;
-import net.minecraft.client.gl.Uniform;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.util.math.Vec3d;
+import org.lwjgl.opengl.GL14;
 
 /**
  * Размытие в движении: картинка плавно «тянется» за движением камеры, как в кино. Смешиваем текущий кадр с прошлым
- * своим шейдером. Размывается только мир, интерфейс остаётся чётким. Видно только тебе.
+ * обычным наложением (без своих шейдеров), поэтому работает и без шейдерпаков, и вместе с ними (Iris, OptiFine):
+ * мы смешиваем уже готовую картинку мира. Интерфейс остаётся чётким. Видно только тебе.
  * <p>
  * Режимы: «Всегда», «При повороте камеры» (на месте картинка идеально чёткая) и «При повороте и движении».
  * «Подстройка под FPS» делает размытие одинаковым на любом FPS (иначе на 240 FPS оно было бы почти незаметным).
  */
 public class MotionBlurModule extends Module {
+	private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("flyvisual");
 	private static final String[] MODES = {"Всегда", "При повороте камеры", "При повороте и движении"};
 
 	private final DoubleSetting strength = addSetting("Blur strength", 45.0, 5.0, 100.0, 5.0);
@@ -27,8 +28,7 @@ public class MotionBlurModule extends Module {
 	private final DoubleSetting response = addSetting("Blur response", 8.0, 2.0, 20.0, 1.0);
 	private final DoubleSetting adapt = addToggle("Adapt to FPS", true);
 
-	private PostEffectProcessor processor;
-	private PostEffectPass blurPass;
+	/** Прошлый кадр. */
 	private Framebuffer previous;
 	private int width;
 	private int height;
@@ -59,14 +59,12 @@ public class MotionBlurModule extends Module {
 	}
 
 	private void release() {
-		if (processor != null) {
+		if (previous != null) {
 			try {
-				processor.close();
-			} catch (Exception ignored) {
+				previous.delete();
+			} catch (Throwable ignored) {
 			}
 		}
-		processor = null;
-		blurPass = null;
 		previous = null;
 		stale = true;
 	}
@@ -137,47 +135,36 @@ public class MotionBlurModule extends Module {
 		try {
 			int fw = mc.getWindow().getFramebufferWidth();
 			int fh = mc.getWindow().getFramebufferHeight();
-			if (processor == null) {
-				build(mc, fw, fh);
-			} else if (fw != width || fh != height) {
-				processor.setupDimensions(fw, fh);
+			Framebuffer main = mc.getFramebuffer();
+			if (previous == null || fw != width || fh != height) {
+				if (previous != null) previous.delete();
+				previous = new SimpleFramebuffer(fw, fh, false, MinecraftClient.IS_SYSTEM_MAC);
 				width = fw;
 				height = fh;
 				stale = true;
 			}
-			if (stale) {
-				previous.clear(false);
-				stale = false;
+
+			// 1. Накладываем прошлый кадр на текущий: результат = текущий * (1 - a) + прошлый * a
+			if (!stale) {
+				main.beginWrite(false);
+				RenderSystem.enableBlend();
+				RenderSystem.blendFunc(GL14.GL_CONSTANT_ALPHA, GL14.GL_ONE_MINUS_CONSTANT_ALPHA);
+				GL14.glBlendColor(0.0f, 0.0f, 0.0f, (float) a);
+				previous.draw(fw, fh, false);
+				RenderSystem.defaultBlendFunc();
+				RenderSystem.disableBlend();
 			}
-			Uniform u = blurPass.getProgram().getUniformByNameOrDummy("Amount");
-			u.set((float) a);
-			processor.render(tickDelta);
-			// Как после ванильных эффектов: снова пишем в основной буфер
-			mc.getFramebuffer().beginWrite(true);
+
+			// 2. Запоминаем получившийся кадр как «прошлый» для следующего раза
+			previous.beginWrite(true);
+			main.draw(fw, fh);
+			main.beginWrite(true);
+			stale = false;
 		} catch (Throwable t) {
 			failed = true;
 			release();
-			Notifications.push("Размытие: шейдер не загрузился", false);
+			LOGGER.error("FlyVisual: Motion Blur отключён из-за ошибки", t);
+			Notifications.push("Размытие: ошибка (" + t.getClass().getSimpleName() + "), подробности в latest.log", false);
 		}
-	}
-
-	private void build(MinecraftClient mc, int fw, int fh) throws Exception {
-		release();
-		Framebuffer main = mc.getFramebuffer();
-		PostEffectProcessor p = new PostEffectProcessor(mc.getTextureManager(), mc.getResourceManager(), main,
-				new Identifier("flyvisual", "shaders/post/motion_blur.json"));
-		Framebuffer swap = p.getSecondaryTarget("swap");
-		Framebuffer prev = p.getSecondaryTarget("previous");
-		PostEffectPass pass = p.addPass("flyvisual:motion_blur", main, swap);
-		pass.addAuxTarget("PrevSampler", prev::getColorAttachment, fw, fh);
-		p.addPass("blit", swap, prev);
-		p.addPass("blit", swap, main);
-		p.setupDimensions(fw, fh);
-		processor = p;
-		blurPass = pass;
-		previous = prev;
-		width = fw;
-		height = fh;
-		stale = true;
 	}
 }
