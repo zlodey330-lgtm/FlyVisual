@@ -2,7 +2,7 @@ package com.flyvisual.mixin;
 
 import com.flyvisual.gui.IntroFx;
 import com.flyvisual.gui.OverlaySync;
-import com.flyvisual.module.impl.MenuStyleModule;
+import com.flyvisual.module.impl.LiveSplashModule;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.SplashOverlay;
@@ -48,7 +48,7 @@ public class SplashOverlayMixin {
 			target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Lnet/minecraft/util/Identifier;IIIIFFIIII)V"), require = 0)
 	private void flyvisual$noLogo(DrawContext ctx, net.minecraft.util.Identifier id, int x, int y, int w, int h,
 								  float u, float v, int rw, int rh, int tw, int th) {
-		if (!MenuStyleModule.liveSplash()) {
+		if (!LiveSplashModule.active()) {
 			ctx.drawTexture(id, x, y, w, h, u, v, rw, rh, tw, th);
 		}
 	}
@@ -57,7 +57,7 @@ public class SplashOverlayMixin {
 	@Redirect(method = "render(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/gui/DrawContext;fill(Lnet/minecraft/client/render/RenderLayer;IIIII)V"), require = 0)
 	private void flyvisual$noBackground(DrawContext ctx, RenderLayer layer, int x1, int y1, int x2, int y2, int color) {
-		if (!MenuStyleModule.liveSplash()) {
+		if (!LiveSplashModule.active()) {
 			ctx.fill(layer, x1, y1, x2, y2, color);
 		}
 	}
@@ -66,7 +66,7 @@ public class SplashOverlayMixin {
 	@Redirect(method = "render(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/gui/DrawContext;fill(Lnet/minecraft/client/render/RenderLayer;IIIIII)V"), require = 0)
 	private void flyvisual$noBackgroundZ(DrawContext ctx, RenderLayer layer, int x1, int y1, int x2, int y2, int z, int color) {
-		if (!MenuStyleModule.liveSplash()) {
+		if (!LiveSplashModule.active()) {
 			ctx.fill(layer, x1, y1, x2, y2, z, color);
 		}
 	}
@@ -75,7 +75,7 @@ public class SplashOverlayMixin {
 	@Inject(method = "renderProgressBar(Lnet/minecraft/client/gui/DrawContext;IIIIF)V", at = @At("HEAD"),
 			cancellable = true, require = 0)
 	private void flyvisual$noBar(DrawContext ctx, int minX, int minY, int maxX, int maxY, float opacity, CallbackInfo ci) {
-		if (MenuStyleModule.liveSplash()) ci.cancel();
+		if (LiveSplashModule.active()) ci.cancel();
 	}
 
 	/**
@@ -84,12 +84,12 @@ public class SplashOverlayMixin {
 	 */
 	@Inject(method = "render(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At("HEAD"), require = 0)
 	private void flyvisual$hold(DrawContext ctx, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-		if (!MenuStyleModule.liveSplash()) return;
+		if (!LiveSplashModule.active()) return;
 		long nowNs = System.nanoTime();
 		if (flyvisual$startNanos < 0L) flyvisual$startNanos = nowNs;
 		if (reloadCompleteTime > -1L) {
 			float ts = (nowNs - flyvisual$startNanos) / 1.0e9f;
-			if (flyvisual$triggerNanos < 0L && ts >= IntroFx.CHARGE_MIN) {
+			if (flyvisual$triggerNanos < 0L && ts >= LiveSplashModule.minSeconds()) {
 				flyvisual$triggerNanos = nowNs;
 			}
 			long nowMs = Util.getMeasuringTimeMs();
@@ -106,7 +106,7 @@ public class SplashOverlayMixin {
 	/** В конце кадра рисуем анимацию поверх всего ванильного. */
 	@Inject(method = "render(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At("RETURN"), require = 0)
 	private void flyvisual$draw(DrawContext ctx, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-		if (!MenuStyleModule.liveSplash()) return;
+		if (!LiveSplashModule.active()) return;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc == null || mc.getWindow() == null) return;
 
@@ -122,6 +122,7 @@ public class SplashOverlayMixin {
 		float p = progress < 0.0f ? 0.0f : (progress > 1.0f ? 1.0f : progress);
 		// При перезагрузке (ресурспак, F3+T) под заставкой видна игра: чернота появляется плавно
 		flyvisual$fx.setFadeIn(reloading ? 0.35f : 0.0f);
+		flyvisual$fx.setChime(LiveSplashModule.chime());
 		flyvisual$fx.draw(ctx.getMatrices(), w, h, ti, trigger, s, p);
 
 		// В момент вспышки сообщаем меню, что можно проявляться

@@ -10,8 +10,9 @@ import static com.flyvisual.gui.QuadBatch.col;
  * мерцающие звёзды, большие размытые огоньки внизу и редкие падающие звёзды. Слои чуть сдвигаются за мышкой.
  * Всё рисуется пакетом, примерно за три вызова на кадр.
  */
-final class BeamScene {
+public final class BeamScene {
 	private static final QuadBatch FX = new QuadBatch();
+	private static final long START = System.nanoTime();
 
 	private BeamScene() {
 	}
@@ -25,7 +26,12 @@ final class BeamScene {
 		return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
 	}
 
-	static void draw(DrawContext ctx, int w, int h, float t, int mx, int my) {
+	/** Рисует фон; время считается само, поэтому анимация не сбрасывается при смене экрана. */
+	public static void drawAuto(DrawContext ctx, int w, int h, int mx, int my) {
+		draw(ctx, w, h, (System.nanoTime() - START) / 1.0e9f, mx, my);
+	}
+
+	public static void draw(DrawContext ctx, int w, int h, float t, int mx, int my) {
 		float k = h / 540.0f;
 		float px = (mx - w * 0.5f) / w;
 		float py = (my - h * 0.5f) / h;

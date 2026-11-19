@@ -28,7 +28,13 @@ public final class IntroFx {
 
 	private final QuadBatch fx = new QuadBatch();
 	private boolean chime;
+	private boolean chimeOn = true;
 	private float fadeIn;
+
+	/** Играть ли звук во время вспышки. */
+	public void setChime(boolean on) {
+		this.chimeOn = on;
+	}
 
 	/** За сколько секунд чёрная завеса появляется в начале (0 = сразу). */
 	public void setFadeIn(float seconds) {
@@ -221,7 +227,7 @@ public final class IntroFx {
 				fx.rect(0.0f, 0.0f, width, height, col(flash * 0.92f, 0xEDE6FF));
 				if (!chime) {
 					chime = true;
-					try {
+					if (chimeOn) try {
 						MinecraftClient.getInstance().getSoundManager()
 								.play(PositionedSoundInstance.master(SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f));
 					} catch (Throwable ignored) {

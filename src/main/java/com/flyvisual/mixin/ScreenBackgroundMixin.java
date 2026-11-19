@@ -1,6 +1,6 @@
 package com.flyvisual.mixin;
 
-import com.flyvisual.gui.LiveBackground;
+import com.flyvisual.gui.BeamScene;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Свой живой фон (картинка title_clouds) на экранах меню вне мира: список серверов, настройки, одиночная игра.
+ * Свой живой фон («Луч и частицы») на экранах меню вне мира: список серверов, настройки, одиночная игра.
  * В игре (Esc, настройки из паузы, инвентарь и т.д.) ничего не меняется: фон ванильный.
  */
 @Mixin(Screen.class)
@@ -27,10 +27,7 @@ public class ScreenBackgroundMixin {
 		int h = mc.getWindow().getScaledHeight();
 		int mx = (int) (mc.mouse.getX() * w / Math.max(1, mc.getWindow().getWidth()));
 		int my = (int) (mc.mouse.getY() * h / Math.max(1, mc.getWindow().getHeight()));
-		if (com.flyvisual.module.impl.MenuStyleModule.current() == 1) return;
-		if (!com.flyvisual.gui.TitleStyles.draw(context, w, h, mx, my)) {
-			LiveBackground.shared().render(context, w, h, mx, my, true);
-		}
+		BeamScene.drawAuto(context, w, h, mx, my);
 		ci.cancel();
 	}
 }

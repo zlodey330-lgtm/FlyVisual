@@ -1,6 +1,6 @@
 package com.flyvisual.mixin;
 
-import com.flyvisual.gui.LiveBackground;
+import com.flyvisual.gui.BeamScene;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.TitleScreen;
@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Главное меню: вместо ванильной панорамы рисуем твою картинку. Кнопки, логотип и текст остаются ванильными. */
+/** Запасной вариант: если новое главное меню отключилось из-за ошибки, у ванильного рисуем наш фон. */
 @Mixin(TitleScreen.class)
 public class TitleScreenBgMixin {
 	@Inject(method = "render", at = @At("HEAD"))
@@ -18,8 +18,6 @@ public class TitleScreenBgMixin {
 		if (mc == null) return;
 		int w = mc.getWindow().getScaledWidth();
 		int h = mc.getWindow().getScaledHeight();
-		if (com.flyvisual.module.impl.MenuStyleModule.current() == 1) return;
-		if (com.flyvisual.gui.TitleStyles.draw(context, w, h, mouseX, mouseY)) return;
-		LiveBackground.shared().render(context, w, h, mouseX, mouseY, true);
+		BeamScene.drawAuto(context, w, h, mouseX, mouseY);
 	}
 }

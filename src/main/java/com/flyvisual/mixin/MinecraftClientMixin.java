@@ -23,9 +23,9 @@ public class MinecraftClientMixin {
 				return module.createScreen();
 			}
 		}
-		// Новое главное меню вместо ванильного (если включено в настройках «Main Menu»)
+		// Новое главное меню вместо ванильного (если оно не отключилось из-за ошибки)
 		if (screen != null && screen.getClass() == TitleScreen.class
-				&& com.flyvisual.module.impl.MenuStyleModule.glassMenu()) {
+				&& !com.flyvisual.gui.FlyTitleScreen.failed) {
 			return new com.flyvisual.gui.FlyTitleScreen();
 		}
 		return screen;

@@ -1,6 +1,6 @@
 package com.flyvisual.gui;
 
-import com.flyvisual.module.impl.MenuStyleModule;
+import com.flyvisual.module.impl.LiveSplashModule;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -224,14 +224,7 @@ public class FlyTitleScreen extends Screen {
 
 		// Фон (в начале интро он закрыт чёрным, поэтому не рисуем)
 		if (!intro || ti > INTRO_FLASH - 0.5f) {
-			if (!TitleStyles.draw(ctx, width, height, mouseX, mouseY)) {
-				if (MenuStyleModule.current() == 1) {
-					// У новой версии меню нет ванильной панорамы, поэтому показываем луч и частицы
-					BeamScene.draw(ctx, width, height, time, mouseX, mouseY);
-				} else {
-					LiveBackground.shared().render(ctx, width, height, mouseX, mouseY, true);
-				}
-			}
+			BeamScene.drawAuto(ctx, width, height, mouseX, mouseY);
 		} else {
 			ctx.fill(0, 0, width, height, 0xFF000000);
 		}
@@ -530,6 +523,7 @@ public class FlyTitleScreen extends Screen {
 		intro = true;
 		introStart = System.nanoTime();
 		introFx.reset();
+		introFx.setChime(LiveSplashModule.chime());
 	}
 
 	private void skipIntro() {
