@@ -71,6 +71,11 @@ public final class QuadBatch {
 	public void flush() {
 		if (!open) return;
 		open = false;
+		BufferBuilder.BuiltBuffer built = buf.end();
+		if (GameRenderer.getPositionColorProgram() == null) {
+			built.release(); // шейдер ещё не готов (самое начало запуска): просто пропускаем кадр
+			return;
+		}
 		RenderSystem.setShader(GameRenderer::getPositionColorProgram);
 		RenderSystem.enableBlend();
 		if (additive) {
@@ -80,7 +85,7 @@ public final class QuadBatch {
 		}
 		RenderSystem.disableDepthTest();
 		RenderSystem.disableCull();
-		BufferRenderer.drawWithGlobalProgram(buf.end());
+		BufferRenderer.drawWithGlobalProgram(built);
 		RenderSystem.enableCull();
 		RenderSystem.enableDepthTest();
 		RenderSystem.defaultBlendFunc();

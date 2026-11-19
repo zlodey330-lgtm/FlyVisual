@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen;
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerWarningScreen;
 import net.minecraft.client.gui.screen.option.OptionsScreen;
@@ -17,6 +18,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.TextStyle;
@@ -35,6 +38,11 @@ import static com.flyvisual.gui.QuadBatch.lerp;
  * Анимации считаются по реальному времени. Выбранная кнопка не «прыгает» назад, когда курсор между кнопками.
  */
 public class FlyTitleScreen extends Screen {
+	private static final Logger LOGGER = LoggerFactory.getLogger("flyvisual");
+
+	/** Если новое меню упало с ошибкой, оно отключается до перезапуска игры, и показывается обычное. */
+	public static volatile boolean failed;
+
 	/** Название клиента в приветствии. */
 	private static final String NAME = "FlyVisual";
 	private static final Style UI = Style.EMPTY.withFont(new Identifier("flyvisual", "ui"));
@@ -54,13 +62,14 @@ public class FlyTitleScreen extends Screen {
 	private static final float[] GROW = {7.0f, 7.0f, 7.0f, 3.0f, 3.0f};
 	private static final String[] LABELS = {"Настройки", "Одиночная игра", "Сетевая игра", "Выход", "Повторить анимацию"};
 
-	// Интро: показывается один раз за запуск игры, потом по кнопке
-	private static boolean introPlayed;
-	private static final float INTRO_FLASH = 3.3f;
-	private static final float INTRO_END = 4.6f;
-	private static final float INTRO_SKIP_TO = 3.0f;
+	// Повтор анимации по кнопке: та же анимация, что показывается вместо заставки Mojang
+	private static final float REPLAY_TRIGGER = 2.5f;
+	private static final float INTRO_FLASH = REPLAY_TRIGGER + IntroFx.BOOM;
+	private static final float INTRO_END = INTRO_FLASH + IntroFx.FADE + 0.3f;
+	private static final float INTRO_SKIP_TO = REPLAY_TRIGGER + 0.3f;
 
 	private final QuadBatch fx = new QuadBatch();
+	private final IntroFx introFx = new IntroFx();
 	private final float[] hover = new float[COUNT];
 	private final float[] focusAnim = {0.0f, 1.0f, 0.0f};
 	private final float[] ripple = {-1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
@@ -73,7 +82,6 @@ public class FlyTitleScreen extends Screen {
 	private float menuT;
 	private boolean intro;
 	private long introStart = -1L;
-	private boolean introChime;
 
 	// Тексты создаём один раз, а не каждый кадр
 	private final Text welcome = Text.literal("Добро пожаловать в ").setStyle(UI)
@@ -91,7 +99,6 @@ public class FlyTitleScreen extends Screen {
 
 	public FlyTitleScreen() {
 		super(Text.literal(NAME));
-		this.intro = !introPlayed && MenuStyleModule.introEnabled();
 		for (int i = 0; i < COUNT; i++) {
 			labels[i] = Text.literal(LABELS[i]).setStyle(UI);
 		}
@@ -189,6 +196,16 @@ public class FlyTitleScreen extends Screen {
 
 	@Override
 	public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+		try {
+			renderInner(ctx, mouseX, mouseY);
+		} catch (Throwable t) {
+			failed = true;
+			LOGGER.error("FlyVisual: новое главное меню отключено из-за ошибки, показываю обычное", t);
+			MinecraftClient.getInstance().setScreen(new TitleScreen());
+		}
+	}
+
+	private void renderInner(DrawContext ctx, int mouseX, int mouseY) {
 		long now = System.nanoTime();
 		float dt = Math.min((now - lastNanos) / 1.0e9f, 0.05f);
 		lastNanos = now;
@@ -196,24 +213,24 @@ public class FlyTitleScreen extends Screen {
 
 		float ti = 0.0f;
 		if (intro) {
-			// Пока идёт загрузка игры (красный экран Mojang), интро ждёт
-			if (MinecraftClient.getInstance().getOverlay() != null) {
-				ctx.fill(0, 0, width, height, 0xFF000000);
-				return;
-			}
 			if (introStart < 0L) introStart = now;
 			ti = (now - introStart) / 1.0e9f;
 			if (ti >= INTRO_END) {
 				intro = false;
-				introPlayed = true;
+				introStart = -1L;
 			}
 		}
-		menuT = introStart >= 0L ? (now - introStart) / 1.0e9f - INTRO_FLASH : time;
+		menuT = computeMenuT(now);
 
 		// Фон (в начале интро он закрыт чёрным, поэтому не рисуем)
 		if (!intro || ti > INTRO_FLASH - 0.5f) {
 			if (!TitleStyles.draw(ctx, width, height, mouseX, mouseY)) {
-				LiveBackground.shared().render(ctx, width, height, mouseX, mouseY, true);
+				if (MenuStyleModule.current() == 1) {
+					// У новой версии меню нет ванильной панорамы, поэтому показываем луч и частицы
+					BeamScene.draw(ctx, width, height, time, mouseX, mouseY);
+				} else {
+					LiveBackground.shared().render(ctx, width, height, mouseX, mouseY, true);
+				}
 			}
 		} else {
 			ctx.fill(0, 0, width, height, 0xFF000000);
@@ -512,7 +529,7 @@ public class FlyTitleScreen extends Screen {
 	private void restartIntro() {
 		intro = true;
 		introStart = System.nanoTime();
-		introChime = false;
+		introFx.reset();
 	}
 
 	private void skipIntro() {
@@ -524,141 +541,20 @@ public class FlyTitleScreen extends Screen {
 	}
 
 	/**
-	 * Интро: частицы с хвостами летят по спирали к центру и собираются в светящееся ядро, от него расходятся волны
-	 * света и растягивается полоса-блик, ядро разгорается, вспышка и взрыв искр, и проявляются фон и меню.
+	 * Время для плавного появления меню. Пока заставка загрузки ещё идёт, меню скрыто; в момент её вспышки оно
+	 * начинает проявляться. При повторе анимации по кнопке отсчёт идёт от вспышки повтора.
 	 */
+	private float computeMenuT(long now) {
+		if (introStart >= 0L) return (now - introStart) / 1.0e9f - INTRO_FLASH;
+		long reveal = OverlaySync.revealNanos;
+		boolean overlay = MinecraftClient.getInstance().getOverlay() != null;
+		if (overlay && reveal < start) return -1.0f;
+		if (reveal >= start) return (now - reveal) / 1.0e9f;
+		return time;
+	}
+
 	private void drawIntroShapes(MatrixStack m, float ti) {
-		float s = uiScale();
-		float cx = width / 2.0f;
-		float cy = height / 2.0f;
-		fx.begin(m);
-		try {
-			// Чёрная завеса: прячет фон и меню, потом тает
-			float veil = ti < INTRO_FLASH ? 1.0f : 1.0f - smooth(0.0f, 1.0f, (ti - INTRO_FLASH) / 0.9f);
-			if (veil > 0.003f) fx.rect(0.0f, 0.0f, width, height, col(veil, 0x000000));
-
-			fx.additive(true);
-			float fadeAll = 1.0f - smooth(INTRO_FLASH, INTRO_FLASH + 0.35f, ti);
-
-			// Звёзды на заднем плане
-			float starIn = smooth(0.0f, 1.0f, ti) * fadeAll;
-			if (starIn > 0.01f) {
-				for (int i = 0; i < 80; i++) {
-					float tw = 0.5f + 0.5f * (float) Math.sin(ti * (1.0f + rnd(i, 3) * 2.0f) + i);
-					float a = starIn * (0.12f + 0.45f * tw) * rnd(i, 4);
-					float x = rnd(i, 1) * width;
-					float y = rnd(i, 2) * height;
-					fx.rect(x, y, x + 1.3f, y + 1.3f, col(a, 0xD8C8FF));
-				}
-			}
-
-			// 1. Частицы с хвостами летят к центру по спирали
-			float fadeP = 1.0f - smooth(1.6f, 2.2f, ti);
-			if (fadeP > 0.01f) {
-				float rmax = Math.max(width, height) * 0.62f;
-				float g = ti / 1.7f;
-				for (int i = 0; i < 320; i++) {
-					float r0 = rmax * (0.2f + 0.8f * rnd(i, 1));
-					float a0 = rnd(i, 2) * TWO_PI;
-					float delay = rnd(i, 3) * 0.30f;
-					float rt = rnd(i, 4) * 5.0f * s;
-					float p = easeInOut(clamp01((g - delay) / 0.70f));
-					float p2 = easeInOut(clamp01((g - delay - 0.045f) / 0.70f));
-					float r = r0 + (rt - r0) * p;
-					float ang = a0 + p * 2.2f;
-					float r2 = r0 + (rt - r0) * p2;
-					float ang2 = a0 + p2 * 2.2f;
-					float al = (0.2f + 0.8f * p) * fadeP * (0.6f + 0.4f * rnd(i, 5));
-					int c = lerp(col(al, 0x8E63FF), col(al, 0xFFFFFF), p);
-					fx.line(cx + (float) Math.cos(ang2) * r2, cy + (float) Math.sin(ang2) * r2,
-							cx + (float) Math.cos(ang) * r, cy + (float) Math.sin(ang) * r,
-							1.1f + rnd(i, 6) * 0.9f, c & 0xFFFFFF, c);
-				}
-			}
-
-			// 2. Светящееся ядро: разгорается и перед вспышкой резко растёт
-			float coreIn = smooth(0.2f, 1.9f, ti);
-			float boom = smooth(2.5f, INTRO_FLASH - 0.02f, ti);
-			float inten = coreIn * (1.0f - smooth(INTRO_FLASH + 0.05f, INTRO_FLASH + 0.45f, ti));
-			if (inten > 0.01f) {
-				float pulse = ti > 1.7f ? 0.5f + 0.5f * (float) Math.sin(ti * 8.0f) : 0.0f;
-				float rc = (4.0f + 9.0f * coreIn + 2.2f * pulse + 46.0f * boom * boom) * s;
-				fx.glow(cx, cy, rc * 3.4f, col(inten * 0.30f, 0x8E63FF), col(0.0f, 0x8E63FF));
-				fx.glow(cx, cy, rc * 1.8f, col(inten * 0.55f, 0xB896FF), col(0.0f, 0xB896FF));
-				fx.glow(cx, cy, rc * 0.95f, col(inten * 0.95f, 0xFFFFFF), col(0.0f, 0xFFFFFF));
-				fx.disc(cx, cy, rc * 0.40f, col(inten, 0xFFFFFF));
-			}
-
-			// 3. Волны света расходятся от ядра
-			float waveFade = 1.0f - smooth(INTRO_FLASH - 0.1f, INTRO_FLASH + 0.2f, ti);
-			for (int k = 0; k < 4; k++) {
-				float ph = (ti - 1.5f - k * 0.38f) / 1.1f;
-				if (ph <= 0.0f || ph >= 1.0f) continue;
-				float rr = (6.0f + 190.0f * ease(ph)) * s;
-				float ra = (1.0f - ph) * 0.5f * waveFade;
-				if (ra <= 0.01f) continue;
-				fx.ringBand(cx, cy, rr - 4.0f * s, rr, col(0.0f, 0xB896FF), col(ra, 0xB896FF));
-				fx.ringBand(cx, cy, rr, rr + 4.0f * s, col(ra, 0xB896FF), col(0.0f, 0xB896FF));
-			}
-
-			// 4. Полоса-блик через центр (как на широкоформатном кино)
-			float fl = smooth(2.0f, 3.0f, ti) * (1.0f - smooth(INTRO_FLASH, INTRO_FLASH + 0.5f, ti));
-			if (fl > 0.01f) {
-				float len = width * (0.10f + 0.50f * fl);
-				float th = 1.5f * s;
-				int core = col(fl * 0.95f, 0xFFFFFF);
-				int clear = col(0.0f, 0xB896FF);
-				fx.gradH(cx - len, cy - th, cx, cy + th, clear, core);
-				fx.gradH(cx, cy - th, cx + len, cy + th, core, clear);
-				fx.lens(cx, cy, len, 16.0f * s, col(fl * 0.30f, 0xB896FF), clear);
-				fx.lens(cx, cy, 13.0f * s, len * 0.22f, col(fl * 0.22f, 0xD8C8FF), clear);
-			}
-
-			// 5. После вспышки: взрыв искр с хвостами и ударные волны
-			float bt = ti - INTRO_FLASH;
-			if (bt > 0.0f && bt < 1.6f) {
-				for (int i = 0; i < 180; i++) {
-					float ang = rnd(i, 31) * TWO_PI;
-					float speed = (90.0f + 520.0f * rnd(i, 32)) * s;
-					float life = 0.6f + 0.8f * rnd(i, 33);
-					float u = clamp01(bt / life);
-					if (u >= 1.0f) continue;
-					float u0 = clamp01((bt - 0.07f) / life);
-					float d1 = speed * life * 0.55f * ease(u);
-					float d0 = speed * life * 0.55f * ease(u0);
-					float al = (1.0f - u) * (1.0f - u);
-					int c = lerp(col(al, 0xC9B3FF), col(al, 0xFFFFFF), rnd(i, 34));
-					fx.line(cx + (float) Math.cos(ang) * d0, cy + (float) Math.sin(ang) * d0,
-							cx + (float) Math.cos(ang) * d1, cy + (float) Math.sin(ang) * d1,
-							(1.0f + 1.6f * rnd(i, 35)) * Math.max(1.0f, s * 0.8f), c & 0xFFFFFF, c);
-				}
-				for (int k = 0; k < 2; k++) {
-					float ph = (bt - k * 0.12f) / 0.9f;
-					if (ph <= 0.0f || ph >= 1.0f) continue;
-					float rr = (10.0f + 520.0f * ease(ph)) * s;
-					float ra = (1.0f - ph) * 0.5f;
-					fx.ringBand(cx, cy, rr - 8.0f * s, rr, col(0.0f, 0xC9B3FF), col(ra, 0xC9B3FF));
-					fx.ringBand(cx, cy, rr, rr + 8.0f * s, col(ra, 0xC9B3FF), col(0.0f, 0xC9B3FF));
-				}
-			}
-
-			// 6. Вспышка
-			fx.additive(false);
-			float flash = Math.max(0.0f, 1.0f - Math.abs(ti - (INTRO_FLASH - 0.02f)) / 0.30f);
-			if (flash > 0.0f) {
-				fx.rect(0.0f, 0.0f, width, height, col(flash * 0.92f, 0xEDE6FF));
-				if (!introChime) {
-					introChime = true;
-					try {
-						MinecraftClient.getInstance().getSoundManager()
-								.play(PositionedSoundInstance.master(SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f));
-					} catch (Throwable ignored) {
-					}
-				}
-			}
-		} finally {
-			fx.flush();
-		}
+		introFx.draw(m, width, height, ti, REPLAY_TRIGGER, uiScale(), 0.0f);
 	}
 
 	private void drawIntroText(DrawContext ctx, float ti) {
