@@ -1,8 +1,10 @@
 package com.flyvisual.module.impl;
 
+import com.flyvisual.hud.Notifications;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
 import com.flyvisual.util.Draw3d;
+import com.flyvisual.util.ImagePets;
 import com.flyvisual.util.PetRenderer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -10,6 +12,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.util.Util;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationAxis;
@@ -21,12 +24,21 @@ import net.minecraft.world.LightType;
  * Питомец-компаньон: свой реалистичный питомец (дракончик, призрак, огонёк, пантера и воксельные зверьки),
  * который рисуется только у тебя на экране и плавно ходит или летает рядом. Это не моб из Minecraft:
  * нет сущности, ИИ и сетевых пакетов, поэтому он не лагает и другие игроки его не видят.
+ * <p>
+ * Два формата: 3D-модель или плоская картинка (PNG, JPG и т.д. из папки flyvisual/pets).
  */
 public class PetModule extends Module {
 	private final DoubleSetting pet = addChoice("Pet", 0, PetRenderer.NAMES);
 	private final DoubleSetting size = addSetting("Size", 1.0, 0.5, 2.0, 0.1);
 	private final DoubleSetting distance = addSetting("Pet distance", 1.6, 0.8, 4.0, 0.2);
 	private final DoubleSetting side = addChoice("Side", 0, "Справа", "Слева");
+	private final DoubleSetting format = addChoice("Формат", 0, "3D модель", "Картинка");
+	private final String[] imageLabels = emptyLabels();
+	private final DoubleSetting image = addChoice("Картинка", 0, imageLabels);
+	@SuppressWarnings("unused")
+	private final DoubleSetting openFolderButton = addButton("Открыть папку с картинками", this::openImageFolder);
+	@SuppressWarnings("unused")
+	private final DoubleSetting rescanButton = addButton("Обновить список картинок", () -> rescanImages(true));
 
 	private final Draw3d solid = new Draw3d(false);
 	private final Draw3d glass = new Draw3d(true);
@@ -51,15 +63,44 @@ public class PetModule extends Module {
 	private float lightFactor = 1.0f;
 	private float lightTimer;
 	private float lightTarget = 1.0f;
+	private boolean hintShown;
 
 	public PetModule() {
 		super("Pet", "A companion that follows you");
 		WorldRenderEvents.AFTER_ENTITIES.register(this::render);
+		rescanImages(false);
+	}
+
+	private static String[] emptyLabels() {
+		String[] labels = new String[12];
+		java.util.Arrays.fill(labels, "— положи картинки в папку —");
+		return labels;
+	}
+
+	/** Ищет картинки в папке; список в настройках обновляется сразу. */
+	private void rescanImages(boolean notify) {
+		int n = ImagePets.rescan(imageLabels);
+		if (!notify) return;
+		if (n > 0) {
+			Notifications.push("Картинок для питомца: " + n, true);
+		} else {
+			Notifications.pushWarning("Картинок нет: положи PNG или JPG в папку питомцев (кнопка «Открыть папку»)");
+		}
+	}
+
+	private void openImageFolder() {
+		try {
+			java.nio.file.Files.createDirectories(ImagePets.dir());
+			Util.getOperatingSystem().open(ImagePets.dir().toFile());
+		} catch (Throwable t) {
+			Notifications.pushWarning("Не удалось открыть папку: " + ImagePets.dir());
+		}
 	}
 
 	@Override
 	public void onDisable() {
 		placed = false;
+		hintShown = false;
 	}
 
 	private static float wrap(float deg) {
@@ -110,7 +151,16 @@ public class PetModule extends Module {
 		lastNanos = now;
 
 		int kind = Math.max(0, Math.min(PetRenderer.NAMES.length - 1, pet.getInt()));
-		boolean flying = PetRenderer.FLYING[kind];
+		// Формат «Картинка»: плоский питомец парит рядом; если картинок нет, временно показываем 3D-модель
+		boolean wantImage = format.getInt() == 1;
+		boolean useImage = wantImage && ImagePets.count() > 0;
+		if (wantImage && !useImage && !hintShown) {
+			hintShown = true;
+			Notifications.pushWarning("Питомец-картинка: положи PNG или JPG в папку питомцев (кнопка «Открыть папку» в настройках)");
+		}
+		float imageHeight = 1.1f * size.getFloat();
+		boolean flying = useImage || PetRenderer.FLYING[kind];
+		double hover = useImage ? 0.55 + imageHeight * 0.5 : 1.4;
 
 		Vec3d pp = player.getLerpedPos(context.tickDelta());
 		// Скорость игрока (по кадрам) и плавный «якорь»: питомец ориентируется на куда идёшь, а не на камеру
@@ -136,7 +186,7 @@ public class PetModule extends Module {
 			vx = 0.0;
 			vz = 0.0;
 			smoothBase = groundY(world, pp.x, pp.y, pp.z);
-			py = flying ? smoothBase + 1.4 : groundY(world, tx, pp.y, tz);
+			py = flying ? smoothBase + hover : groundY(world, tx, pp.y, tz);
 			heading = player.getYaw() * -1.0f;
 			lastPx = pp.x;
 			lastPz = pp.z;
@@ -163,7 +213,7 @@ public class PetModule extends Module {
 		double ty;
 		if (flying) {
 			smoothBase += (groundY(world, pp.x, pp.y, pp.z) - smoothBase) * (1.0 - Math.exp(-1.2 * dt));
-			ty = smoothBase + 1.4 + Math.sin(now / 1.0e9 * 1.8) * 0.1;
+			ty = smoothBase + hover + Math.sin(now / 1.0e9 * 1.8) * 0.1;
 		} else {
 			ty = groundY(world, px, Math.max(py, pp.y) + 0.5, pz);
 		}
@@ -201,6 +251,16 @@ public class PetModule extends Module {
 		lightFactor += (lightTarget - lightFactor) * Math.min(1.0f, 6.0f * dt);
 
 		Vec3d cam = context.camera().getPos();
+		if (useImage) {
+			// Наклон картинки по ходу движения (относительно камеры)
+			double camYaw = Math.toRadians(context.camera().getYaw());
+			double sideSpeed = vx * -Math.cos(camYaw) + vz * -Math.sin(camYaw);
+			float lean = (float) Math.max(-12.0, Math.min(12.0, -sideSpeed * 3.0));
+			double ground = groundY(world, px, py, pz);
+			boolean ok = ImagePets.draw(matrices, cam, context.camera().getRotation(), px, py, pz, ground,
+					imageHeight, image.getInt(), lightFactor, (float) (now / 1.0e9), lean);
+			if (ok) return;
+		}
 		matrices.push();
 		matrices.translate(px - cam.x, py - cam.y, pz - cam.z);
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(heading));
