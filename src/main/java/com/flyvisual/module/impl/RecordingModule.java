@@ -39,8 +39,10 @@ public class RecordingModule extends Module {
 	));
 
 	private final DoubleSetting quality = addChoice("Качество", 2, "Низкое", "Среднее", "Высокое", "Максимальное");
-	private final DoubleSetting resolution = addChoice("Разрешение", 0, "Как в окне", "720p", "1080p", "1440p", "4K");
+	private final DoubleSetting resolution = addChoice("Разрешение", 2, "Как в окне", "720p", "1080p", "1440p", "4K");
 	private final DoubleSetting fps = addChoice("FPS", 1, "24", "30", "48", "60", "90", "120", "144");
+	private final DoubleSetting codec = addChoice("Кодировщик", 0, "Авто (видеокарта, если есть)", "NVIDIA (видеокарта)",
+			"AMD (видеокарта)", "Intel (видеокарта)", "Процессор (x264)", "Motion JPEG (как в Bandicam)");
 	private final DoubleSetting audio = addToggle("Записывать звук", true);
 
 	@SuppressWarnings("unused")
@@ -55,6 +57,8 @@ public class RecordingModule extends Module {
 	public RecordingModule() {
 		super("Recording", "Record gameplay video");
 		INSTANCE = this;
+		// Заранее, в фоне, проверяем, какие видеокарты умеют кодировать видео
+		com.flyvisual.record.Encoders.detectAsync(FabricLoader.getInstance().getGameDir());
 	}
 
 	@Override
@@ -102,7 +106,7 @@ public class RecordingModule extends Module {
 			Notifications.push("Запись остановлена, сохраняю файл…", false);
 			return;
 		}
-		String error = recorder.start(folder(), RES_HEIGHT[resolution.getInt()], FPS_VALUES[fps.getInt()], quality.getInt(), audio.getBool());
+		String error = recorder.start(folder(), RES_HEIGHT[resolution.getInt()], FPS_VALUES[fps.getInt()], quality.getInt(), audio.getBool(), codec.getInt());
 		if (error != null) {
 			Notifications.pushWarning("Запись: " + error);
 		} else {

@@ -34,8 +34,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class Recorder {
 	private static final Logger LOGGER = LoggerFactory.getLogger("flyvisual");
 
-	private static final int[] CRF = {28, 23, 19, 16};
-	private static final String[] PRESET = {"ultrafast", "veryfast", "veryfast", "faster"};
 	private static final float[] JPEG_QUALITY = {0.55f, 0.75f, 0.88f, 0.95f};
 
 	private record Frame(byte[] data, int repeat) {
@@ -57,6 +55,9 @@ public final class Recorder {
 	private long startNanos;
 	private long submitted;
 	private int carry;
+	/** Сколько кадров записано всего и сколько из них повторы (игра выдавала меньше FPS, чем записывается). */
+	private volatile long statSlots;
+	private volatile long statDup;
 
 	private ArrayBlockingQueue<byte[]> free;
 	private LinkedBlockingQueue<Frame> filled;
@@ -82,9 +83,10 @@ public final class Recorder {
 
 	/**
 	 * Начинает запись. resHeight: высота кадра (0 = как в окне). quality: 0..3. audio: записывать ли звук игры.
+	 * codec: 0 авто, 1 NVIDIA, 2 AMD, 3 Intel, 4 процессор (x264), 5 Motion JPEG.
 	 * Возвращает текст ошибки или null, если всё хорошо.
 	 */
-	public String start(Path folder, int resHeight, int fps, int quality, boolean audio) {
+	public String start(Path folder, int resHeight, int fps, int quality, boolean audio, int codec) {
 		if (active) return null;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		int fw = mc.getWindow().getFramebufferWidth();
@@ -118,19 +120,33 @@ public final class Recorder {
 		Path finalFile;
 		Path wavFile = folder.resolve("FlyVisual_" + stamp + ".wav");
 		boolean mux = false;
+		boolean muxMp4 = true;
 		try {
 			exe = FfmpegSink.find(FabricLoader.getInstance().getGameDir(), folder);
-			if (exe != null) {
+			if (exe != null && codec != 5) {
+				// H.264: на видеокарте (почти не грузит процессор) или на процессоре
+				if (!Encoders.isDetected()) Encoders.detect(exe);
+				Encoders.Kind kind = Encoders.resolve(codec);
 				finalFile = folder.resolve("FlyVisual_" + stamp + ".mp4");
 				mux = audio;
-				// Со звуком: сначала видео во временный файл, потом склейка с аудио
 				Path videoFile = audio ? folder.resolve("FlyVisual_" + stamp + ".video.mp4") : finalFile;
-				sink = new FfmpegSink(exe, w, h, fps, CRF[q], PRESET[q], videoFile);
-				how = audio ? "mp4 со звуком" : "mp4, без звука";
+				sink = new FfmpegSink(exe, w, h, fps, Encoders.args(kind, q), videoFile);
+				how = "mp4, " + kind.title + (audio ? ", со звуком" : ", без звука");
+				if (codec >= 1 && codec <= 3 && kind == Encoders.Kind.X264) {
+					how += " (выбранной видеокарты нет)";
+				}
+			} else if (exe != null) {
+				// Motion JPEG + ffmpeg: склеиваем видео и звук в один avi
+				finalFile = folder.resolve("FlyVisual_" + stamp + ".avi");
+				mux = audio;
+				muxMp4 = false;
+				Path videoFile = audio ? folder.resolve("FlyVisual_" + stamp + ".video.avi") : finalFile;
+				sink = new AviSink(videoFile, w, h, fps, JPEG_QUALITY[q]);
+				how = "avi, Motion JPEG" + (audio ? ", со звуком" : ", без звука");
 			} else {
 				finalFile = folder.resolve("FlyVisual_" + stamp + ".avi");
 				sink = new AviSink(finalFile, w, h, fps, JPEG_QUALITY[q]);
-				how = audio ? "avi + wav (звук отдельным файлом), без ffmpeg" : "avi, без ffmpeg";
+				how = audio ? "avi, Motion JPEG + wav (звук отдельным файлом)" : "avi, Motion JPEG";
 			}
 		} catch (IOException e) {
 			return "не удалось начать запись: " + e.getMessage();
@@ -173,9 +189,11 @@ public final class Recorder {
 		cur = 0;
 		carry = 0;
 		submitted = 0;
+		statSlots = 0L;
+		statDup = 0L;
 		startNanos = System.nanoTime();
 		audioMixer = audio ? new AudioMixer(startNanos, wavFile) : null;
-		worker = new Worker(sink, audioMixer, mux ? exe : null, finalFile, wavFile);
+		worker = new Worker(sink, audioMixer, mux ? exe : null, muxMp4, finalFile, wavFile);
 		worker.setDaemon(true);
 		worker.start();
 		active = true;
@@ -270,6 +288,8 @@ public final class Recorder {
 			return;
 		}
 		carry = 0;
+		statSlots += repeat;
+		statDup += repeat - 1;
 		filled.offer(new Frame(buf, repeat));
 	}
 
@@ -324,15 +344,17 @@ public final class Recorder {
 		private final FrameSink sink;
 		private final AudioMixer mixer;
 		private final String muxExe;
+		private final boolean muxMp4;
 		private final Path finalFile;
 		private final Path wavFile;
 		private final AtomicBoolean reported = new AtomicBoolean();
 
-		Worker(FrameSink sink, AudioMixer mixer, String muxExe, Path finalFile, Path wavFile) {
+		Worker(FrameSink sink, AudioMixer mixer, String muxExe, boolean muxMp4, Path finalFile, Path wavFile) {
 			super("FlyVisual-recorder");
 			this.sink = sink;
 			this.mixer = mixer;
 			this.muxExe = muxExe;
+			this.muxMp4 = muxMp4;
 			this.finalFile = finalFile;
 			this.wavFile = wavFile;
 		}
@@ -376,7 +398,7 @@ public final class Recorder {
 					extra = " (звук записать не удалось)";
 				} else if (muxExe != null) {
 					Path video = Path.of(sink.filePath());
-					if (mux(muxExe, video, wavFile, finalFile)) {
+					if (mux(muxExe, video, wavFile, finalFile, muxMp4)) {
 						try {
 							Files.deleteIfExists(video);
 							Files.deleteIfExists(wavFile);
@@ -399,19 +421,33 @@ public final class Recorder {
 					mc.execute(() -> Notifications.pushWarning("Запись прервана: " + shortMessage(err)));
 				}
 			} else if (reported.compareAndSet(false, true)) {
-				mc.execute(() -> Notifications.push("Запись сохранена: " + shownName, true));
+				long slots = statSlots;
+				long dup = statDup;
+				int dupPct = slots > 0L ? (int) (dup * 100L / slots) : 0;
+				mc.execute(() -> {
+					Notifications.push("Запись сохранена: " + shownName, true);
+					if (dupPct >= 20) {
+						Notifications.pushWarning("Повторено кадров: " + dupPct + "%. Игра давала меньше FPS, чем записывается: "
+								+ "поставь FPS записи ниже (или разрешение меньше), тогда видео будет плавнее");
+					}
+				});
 			}
 		}
 	}
 
-	/** Склеивает видео и звук в один mp4 (видео не пережимается, звук кодируется в AAC). */
-	private static boolean mux(String exe, Path video, Path wav, Path out) {
+	/** Склеивает видео и звук в один файл (видео не пережимается). */
+	private static boolean mux(String exe, Path video, Path wav, Path out, boolean mp4) {
 		try {
-			Process p = new ProcessBuilder(exe, "-y", "-loglevel", "error",
+			java.util.List<String> cmd = new java.util.ArrayList<>(java.util.List.of(exe, "-y", "-loglevel", "error",
 					"-i", video.toString(), "-i", wav.toString(),
-					"-map", "0:v:0", "-map", "1:a:0",
-					"-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-					"-movflags", "+faststart", out.toString())
+					"-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy"));
+			if (mp4) {
+				cmd.addAll(java.util.List.of("-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"));
+			} else {
+				cmd.addAll(java.util.List.of("-c:a", "pcm_s16le"));
+			}
+			cmd.add(out.toString());
+			Process p = new ProcessBuilder(cmd)
 					.redirectErrorStream(true)
 					.redirectOutput(ProcessBuilder.Redirect.DISCARD)
 					.start();

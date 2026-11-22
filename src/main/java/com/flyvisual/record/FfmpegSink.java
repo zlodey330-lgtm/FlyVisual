@@ -19,7 +19,7 @@ public final class FfmpegSink implements FrameSink {
 	private final int frameBytes;
 	private final Path file;
 
-	public FfmpegSink(String exe, int w, int h, int fps, int crf, String preset, Path file) throws IOException {
+	public FfmpegSink(String exe, int w, int h, int fps, List<String> videoArgs, Path file) throws IOException {
 		this.frameBytes = w * h * 4;
 		this.file = file;
 		List<String> cmd = new ArrayList<>();
@@ -38,14 +38,7 @@ public final class FfmpegSink implements FrameSink {
 		cmd.add("-i");
 		cmd.add("-");
 		cmd.add("-an");
-		cmd.add("-c:v");
-		cmd.add("libx264");
-		cmd.add("-preset");
-		cmd.add(preset);
-		cmd.add("-crf");
-		cmd.add(String.valueOf(crf));
-		cmd.add("-pix_fmt");
-		cmd.add("yuv420p");
+		cmd.addAll(videoArgs);
 		cmd.add("-movflags");
 		cmd.add("+faststart");
 		cmd.add(file.toString());

@@ -17,11 +17,20 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Iterator;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
- * Запасной кодировщик без установки чего-либо: AVI с кадрами в формате MJPEG (JPEG на каждый кадр).
- * Файлы получаются больше, чем у ffmpeg, но открываются в VLC, DaVinci Resolve, Premiere и других программах.
+ * Кодирование в Motion JPEG (AVI): каждый кадр сжимается в JPEG, как делает Bandicam в режиме Motion JPEG.
+ * Почти не нагружает видеокарту и легко воспроизводится, но файлы большие. Установка ничего не требует.
+ * <p>
+ * JPEG-сжатие идёт сразу в нескольких потоках, поэтому успевает даже на высоких разрешениях и FPS.
+ * Повторные кадры (если игра выдаёт меньше кадров, чем записывается) пишутся обычными кадрами.
  * Каждые ~1.9 ГБ запись продолжается в новом файле (ограничение формата AVI).
  */
 public final class AviSink implements FrameSink {
@@ -31,13 +40,41 @@ public final class AviSink implements FrameSink {
 		Buf(int size) {
 			super(size);
 		}
+	}
 
-		byte[] raw() {
-			return buf;
+	/** Рабочее место одного потока: кодировщик JPEG. */
+	private static final class Encoder {
+		final ImageWriter writer;
+		final ImageWriteParam param;
+		final Buf buf = new Buf(1 << 20);
+
+		Encoder(float quality) {
+			Iterator<ImageWriter> it = ImageIO.getImageWritersByFormatName("jpeg");
+			this.writer = it.next();
+			this.param = writer.getDefaultWriteParam();
+			param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+			param.setCompressionQuality(quality);
 		}
+	}
 
-		int len() {
-			return count;
+	/** Кадр, ожидающий сжатия: картинка и массив пикселей под ней. */
+	private static final class Slot {
+		final BufferedImage img;
+		final int[] px;
+
+		Slot(int w, int h) {
+			this.img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+			this.px = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
+		}
+	}
+
+	private static final class Pending {
+		final Future<byte[]> future;
+		final int repeat;
+
+		Pending(Future<byte[]> future, int repeat) {
+			this.future = future;
+			this.repeat = repeat;
 		}
 	}
 
@@ -45,12 +82,11 @@ public final class AviSink implements FrameSink {
 	private final int w;
 	private final int h;
 	private final int fps;
-	private final float quality;
-	private final ImageWriter writer;
-	private final ImageWriteParam param;
-	private final BufferedImage image;
-	private final int[] pixels;
-	private final Buf jpeg = new Buf(1 << 20);
+	private final ExecutorService pool;
+	private final ThreadLocal<Encoder> encoders;
+	private final ArrayBlockingQueue<Slot> freeSlots;
+	private final ArrayDeque<Pending> pending = new ArrayDeque<>();
+	private final int maxPending;
 	private Segment segment;
 	private int part;
 
@@ -59,49 +95,93 @@ public final class AviSink implements FrameSink {
 		this.w = w;
 		this.h = h;
 		this.fps = fps;
-		this.quality = quality;
-		Iterator<ImageWriter> it = ImageIO.getImageWritersByFormatName("jpeg");
-		if (!it.hasNext()) throw new IOException("в Java нет JPEG-кодека");
-		this.writer = it.next();
-		this.param = writer.getDefaultWriteParam();
-		param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-		param.setCompressionQuality(quality);
-		this.image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-		this.pixels = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
+		if (!ImageIO.getImageWritersByFormatName("jpeg").hasNext()) {
+			throw new IOException("в Java нет JPEG-кодека");
+		}
+		int threads = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2));
+		this.maxPending = threads * 2 + 1;
+		this.encoders = ThreadLocal.withInitial(() -> new Encoder(quality));
+		this.pool = Executors.newFixedThreadPool(threads, r -> {
+			Thread t = new Thread(r, "FlyVisual-jpeg");
+			t.setDaemon(true);
+			return t;
+		});
+		this.freeSlots = new ArrayBlockingQueue<>(threads * 2);
+		for (int i = 0; i < threads * 2; i++) {
+			freeSlots.add(new Slot(w, h));
+		}
 		this.segment = new Segment(file, w, h, fps);
 	}
 
 	@Override
 	public void write(byte[] data, int repeat) throws IOException {
+		Slot slot;
+		try {
+			slot = freeSlots.take();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IOException("запись прервана");
+		}
 		int count = w * h;
+		int[] px = slot.px;
 		for (int i = 0, p = 0; i < count; i++, p += 4) {
-			pixels[i] = ((data[p] & 0xFF) << 16) | ((data[p + 1] & 0xFF) << 8) | (data[p + 2] & 0xFF);
+			px[i] = ((data[p] & 0xFF) << 16) | ((data[p + 1] & 0xFF) << 8) | (data[p + 2] & 0xFF);
 		}
-		jpeg.reset();
-		try (MemoryCacheImageOutputStream ios = new MemoryCacheImageOutputStream(jpeg)) {
-			writer.setOutput(ios);
-			writer.write(null, new IIOImage(image, null, null), param);
+		Future<byte[]> f = pool.submit(() -> {
+			try {
+				return encode(slot.img);
+			} finally {
+				freeSlots.offer(slot);
+			}
+		});
+		pending.add(new Pending(f, repeat));
+		drain(maxPending);
+	}
+
+	private byte[] encode(BufferedImage img) throws IOException {
+		Encoder e = encoders.get();
+		e.buf.reset();
+		try (MemoryCacheImageOutputStream ios = new MemoryCacheImageOutputStream(e.buf)) {
+			e.writer.setOutput(ios);
+			e.writer.write(null, new IIOImage(img, null, null), e.param);
 		}
-		segment.addFrame(jpeg.raw(), jpeg.len());
-		for (int r = 1; r < repeat; r++) {
-			segment.addRepeat();
-		}
-		if (segment.pos > MAX_BYTES) {
-			segment.close();
-			part++;
-			String name = baseFile.getFileName().toString();
-			int dot = name.lastIndexOf('.');
-			String next = name.substring(0, dot) + "_part" + (part + 1) + name.substring(dot);
-			segment = new Segment(baseFile.resolveSibling(next), w, h, fps);
+		return e.buf.toByteArray();
+	}
+
+	/** Записывает готовые кадры по порядку; если в очереди больше limit, ждёт самый старый. */
+	private void drain(int limit) throws IOException {
+		while (!pending.isEmpty() && (pending.size() > limit || pending.peekFirst().future.isDone())) {
+			Pending p = pending.pollFirst();
+			byte[] jpeg;
+			try {
+				jpeg = p.future.get();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IOException("запись прервана");
+			} catch (ExecutionException e) {
+				throw new IOException("не удалось сжать кадр: " + e.getCause(), e.getCause());
+			}
+			for (int r = 0; r < p.repeat; r++) {
+				segment.addFrame(jpeg, jpeg.length);
+			}
+			if (segment.pos > MAX_BYTES) {
+				segment.close();
+				part++;
+				String name = baseFile.getFileName().toString();
+				int dot = name.lastIndexOf('.');
+				String next = name.substring(0, dot) + "_part" + (part + 1) + name.substring(dot);
+				segment = new Segment(baseFile.resolveSibling(next), w, h, fps);
+			}
 		}
 	}
 
 	@Override
 	public void close() throws IOException {
 		try {
-			segment.close();
+			drain(0);
 		} finally {
-			writer.dispose();
+			pool.shutdown();
+			segment.close();
 		}
 	}
 
@@ -181,44 +261,30 @@ public final class AviSink implements FrameSink {
 			return b.array();
 		}
 
-		private void remember(int size) {
+		void addFrame(byte[] data, int len) throws IOException {
 			if (frames == offsets.length) {
 				offsets = java.util.Arrays.copyOf(offsets, frames * 2);
 				sizes = java.util.Arrays.copyOf(sizes, frames * 2);
 			}
 			offsets[frames] = (int) (pos - 220);
-			sizes[frames] = size;
+			sizes[frames] = len;
 			frames++;
-			if (size > maxChunk) maxChunk = size;
-		}
+			if (len > maxChunk) maxChunk = len;
 
-		private void chunkHeader(int size) throws IOException {
 			byte[] hd = new byte[8];
 			hd[0] = '0';
 			hd[1] = '0';
 			hd[2] = 'd';
 			hd[3] = 'c';
-			hd[4] = (byte) size;
-			hd[5] = (byte) (size >> 8);
-			hd[6] = (byte) (size >> 16);
-			hd[7] = (byte) (size >> 24);
+			hd[4] = (byte) len;
+			hd[5] = (byte) (len >> 8);
+			hd[6] = (byte) (len >> 16);
+			hd[7] = (byte) (len >> 24);
 			out.write(hd);
-		}
-
-		void addFrame(byte[] data, int len) throws IOException {
-			remember(len);
-			chunkHeader(len);
 			out.write(data, 0, len);
 			int pad = len & 1;
 			if (pad != 0) out.write(0);
 			pos += 8 + len + pad;
-		}
-
-		/** Пустой кадр: проигрыватель просто оставляет предыдущую картинку. */
-		void addRepeat() throws IOException {
-			remember(0);
-			chunkHeader(0);
-			pos += 8;
 		}
 
 		void close() throws IOException {
