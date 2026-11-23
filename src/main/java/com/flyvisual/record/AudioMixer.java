@@ -20,6 +20,8 @@ import java.util.Map;
 public final class AudioMixer {
 	public static final int RATE = 48000;
 	private static final int CHUNK = 480; // 10 мс
+	/** Сколько последних кадров звука держим в памяти (20 секунд), чтобы вписывать их в видеофайл. */
+	private static final int RING_FRAMES = CHUNK * 2000;
 
 	private static final class State {
 		int gen;
@@ -34,7 +36,10 @@ public final class AudioMixer {
 	private volatile boolean running = true;
 	private volatile long stopNanos;
 	private volatile Throwable failure;
+	private final byte[] ring = new byte[RING_FRAMES * 4];
+	private volatile long producedFrames;
 
+	/** wavFile может быть null: тогда звук только копится в памяти (его забирает видеофайл со встроенным звуком). */
 	public AudioMixer(long startNanos, Path wavFile) {
 		this.startNanos = startNanos;
 		this.wavFile = wavFile;
@@ -59,6 +64,41 @@ public final class AudioMixer {
 		}
 	}
 
+	/**
+	 * Отдаёт кусок готового звука: frames кадров (по 4 байта: стерео, 16 бит), начиная с номера startFrame.
+	 * Если звук ещё не успел собраться, недолго ждёт, остальное заполняет тишиной.
+	 */
+	public void read(long startFrame, int frames, byte[] out) {
+		long end = startFrame + frames;
+		long deadline = System.nanoTime() + 400_000_000L;
+		while (producedFrames < end && running && System.nanoTime() < deadline) {
+			try {
+				Thread.sleep(2);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
+		long avail = producedFrames;
+		long oldest = avail - RING_FRAMES + CHUNK;
+		for (int i = 0; i < frames; i++) {
+			long f = startFrame + i;
+			int o = i * 4;
+			if (f >= avail || f < oldest) {
+				out[o] = 0;
+				out[o + 1] = 0;
+				out[o + 2] = 0;
+				out[o + 3] = 0;
+			} else {
+				int r = (int) (f % RING_FRAMES) * 4;
+				out[o] = ring[r];
+				out[o + 1] = ring[r + 1];
+				out[o + 2] = ring[r + 2];
+				out[o + 3] = ring[r + 3];
+			}
+		}
+	}
+
 	public Throwable failure() {
 		return failure;
 	}
@@ -71,8 +111,8 @@ public final class AudioMixer {
 
 	private void run() {
 		long produced = 0;
-		try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(wavFile), 1 << 16)) {
-			out.write(header(0));
+		try (OutputStream out = wavFile == null ? null : new BufferedOutputStream(Files.newOutputStream(wavFile), 1 << 16)) {
+			if (out != null) out.write(header(0));
 			float[] mix = new float[CHUNK * 2];
 			byte[] bytes = new byte[CHUNK * 4];
 			while (true) {
@@ -82,7 +122,9 @@ public final class AudioMixer {
 				while (produced < limit) {
 					mixChunk(mix);
 					toBytes(mix, bytes);
-					out.write(bytes);
+					if (out != null) out.write(bytes);
+					System.arraycopy(bytes, 0, ring, (int) (produced % RING_FRAMES) * 4, CHUNK * 4);
+					producedFrames = produced + CHUNK;
 					produced += CHUNK;
 				}
 				if (stopping) break;
@@ -94,11 +136,13 @@ public final class AudioMixer {
 			failure = t;
 		}
 		// Дописываем в заголовок настоящий размер
-		try (RandomAccessFile raf = new RandomAccessFile(wavFile.toFile(), "rw")) {
-			raf.seek(0);
-			raf.write(header(produced * 4));
-		} catch (Throwable t) {
-			if (failure == null) failure = t;
+		if (wavFile != null) {
+			try (RandomAccessFile raf = new RandomAccessFile(wavFile.toFile(), "rw")) {
+				raf.seek(0);
+				raf.write(header(produced * 4));
+			} catch (Throwable t) {
+				if (failure == null) failure = t;
+			}
 		}
 	}
 

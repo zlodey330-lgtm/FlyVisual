@@ -64,6 +64,12 @@ public final class Recorder {
 	private Worker worker;
 	private AudioMixer audioMixer;
 	private volatile Throwable failure;
+	private volatile java.util.function.BiConsumer<Integer, Boolean> finishListener;
+
+	/** Что делать по окончании записи: получает процент повторов кадров и признак ошибки. */
+	public void setFinishListener(java.util.function.BiConsumer<Integer, Boolean> listener) {
+		this.finishListener = listener;
+	}
 
 	public boolean isActive() {
 		return active;
@@ -135,18 +141,12 @@ public final class Recorder {
 				if (codec >= 1 && codec <= 3 && kind == Encoders.Kind.X264) {
 					how += " (выбранной видеокарты нет)";
 				}
-			} else if (exe != null) {
-				// Motion JPEG + ffmpeg: склеиваем видео и звук в один avi
-				finalFile = folder.resolve("FlyVisual_" + stamp + ".avi");
-				mux = audio;
-				muxMp4 = false;
-				Path videoFile = audio ? folder.resolve("FlyVisual_" + stamp + ".video.avi") : finalFile;
-				sink = new AviSink(videoFile, w, h, fps, JPEG_QUALITY[q]);
-				how = "avi, Motion JPEG" + (audio ? ", со звуком" : ", без звука");
 			} else {
+				// Motion JPEG: звук записывается внутрь самого файла, ffmpeg не нужен
 				finalFile = folder.resolve("FlyVisual_" + stamp + ".avi");
-				sink = new AviSink(finalFile, w, h, fps, JPEG_QUALITY[q]);
-				how = audio ? "avi, Motion JPEG + wav (звук отдельным файлом)" : "avi, Motion JPEG";
+				sink = new AviSink(finalFile, w, h, fps, JPEG_QUALITY[q], audio);
+				wavFile = null;
+				how = "avi, Motion JPEG" + (audio ? ", со звуком" : ", без звука");
 			}
 		} catch (IOException e) {
 			return "не удалось начать запись: " + e.getMessage();
@@ -193,6 +193,7 @@ public final class Recorder {
 		statDup = 0L;
 		startNanos = System.nanoTime();
 		audioMixer = audio ? new AudioMixer(startNanos, wavFile) : null;
+		if (sink instanceof AviSink avi) avi.setAudio(audioMixer);
 		worker = new Worker(sink, audioMixer, mux ? exe : null, muxMp4, finalFile, wavFile);
 		worker.setDaemon(true);
 		worker.start();
@@ -408,13 +409,14 @@ public final class Recorder {
 					} else {
 						extra = " (склеить звук не удалось: видео и .wav лежат отдельно)";
 					}
-				} else {
+				} else if (wavFile != null) {
 					name = name + " + " + wavFile.getFileName();
 				}
 			}
 
 			MinecraftClient mc = MinecraftClient.getInstance();
 			String shownName = name + extra;
+			boolean extraFailed = !extra.isEmpty();
 			if (err != null) {
 				LOGGER.error("FlyVisual: запись остановлена из-за ошибки", err);
 				if (reported.compareAndSet(false, true)) {
@@ -424,7 +426,9 @@ public final class Recorder {
 				long slots = statSlots;
 				long dup = statDup;
 				int dupPct = slots > 0L ? (int) (dup * 100L / slots) : 0;
+				java.util.function.BiConsumer<Integer, Boolean> listener = finishListener;
 				mc.execute(() -> {
+					if (listener != null) listener.accept(dupPct, extraFailed);
 					Notifications.push("Запись сохранена: " + shownName, true);
 					if (dupPct >= 20) {
 						Notifications.pushWarning("Повторено кадров: " + dupPct + "%. Игра давала меньше FPS, чем записывается: "

@@ -67,6 +67,25 @@ public final class Encoders {
 		}
 	}
 
+	/** Автовыбор: сначала кодировщик той видеокарты, что установлена (по названию), потом любой рабочий, иначе процессор. */
+	public static Kind resolveAuto(String gpuName) {
+		String g = gpuName == null ? "" : gpuName.toLowerCase(java.util.Locale.ROOT);
+		Kind[] order;
+		if (g.contains("nvidia") || g.contains("geforce")) {
+			order = new Kind[]{Kind.NVENC, Kind.AMF, Kind.QSV};
+		} else if (g.contains("amd") || g.contains("radeon") || g.contains("ati ")) {
+			order = new Kind[]{Kind.AMF, Kind.NVENC, Kind.QSV};
+		} else if (g.contains("intel")) {
+			order = new Kind[]{Kind.QSV, Kind.NVENC, Kind.AMF};
+		} else {
+			order = new Kind[]{Kind.NVENC, Kind.AMF, Kind.QSV};
+		}
+		for (Kind k : order) {
+			if (working(k) >= 0) return k;
+		}
+		return Kind.X264;
+	}
+
 	/** Параметры видеокодировщика для ffmpeg. quality: 0..3. */
 	public static List<String> args(Kind kind, int quality) {
 		return args(kind, Math.max(0, working(kind)), quality);

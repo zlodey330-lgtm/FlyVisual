@@ -27,6 +27,9 @@ public class FlyConfig {
 	/** Заменять ли ванильное главное меню меню FlyVisual. */
 	public boolean customTitleScreen = false;
 
+	/** Штраф автонастройки записи: растёт, если записи выходили с повторами кадров (0..5). */
+	public int recordingPenalty = 0;
+
 	/** Папка для записей видео (пусто = Видео/FlyVisual или папка игры). */
 	public String recordingFolder = "";
 

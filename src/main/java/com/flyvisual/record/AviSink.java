@@ -87,10 +87,17 @@ public final class AviSink implements FrameSink {
 	private final ArrayBlockingQueue<Slot> freeSlots;
 	private final ArrayDeque<Pending> pending = new ArrayDeque<>();
 	private final int maxPending;
+	private final boolean withAudio;
+	private AudioMixer audio;
+	private long slotIndex;
+	private long audioWritten;
+	private byte[] audioBuf = new byte[0];
 	private Segment segment;
 	private int part;
 
-	public AviSink(Path file, int w, int h, int fps, float quality) throws IOException {
+	/** withAudio: в файле будет звуковая дорожка (звук подключается позже через setAudio). */
+	public AviSink(Path file, int w, int h, int fps, float quality, boolean withAudio) throws IOException {
+		this.withAudio = withAudio;
 		this.baseFile = file;
 		this.w = w;
 		this.h = h;
@@ -110,7 +117,12 @@ public final class AviSink implements FrameSink {
 		for (int i = 0; i < threads * 2; i++) {
 			freeSlots.add(new Slot(w, h));
 		}
-		this.segment = new Segment(file, w, h, fps);
+		this.segment = new Segment(file, w, h, fps, withAudio);
+	}
+
+	/** Источник звука. Подключается до первого кадра. */
+	public void setAudio(AudioMixer mixer) {
+		this.audio = mixer;
 	}
 
 	@Override
@@ -162,7 +174,8 @@ public final class AviSink implements FrameSink {
 				throw new IOException("не удалось сжать кадр: " + e.getCause(), e.getCause());
 			}
 			for (int r = 0; r < p.repeat; r++) {
-				segment.addFrame(jpeg, jpeg.length);
+				segment.addVideo(jpeg, jpeg.length);
+				writeAudioSlice();
 			}
 			if (segment.pos > MAX_BYTES) {
 				segment.close();
@@ -170,9 +183,26 @@ public final class AviSink implements FrameSink {
 				String name = baseFile.getFileName().toString();
 				int dot = name.lastIndexOf('.');
 				String next = name.substring(0, dot) + "_part" + (part + 1) + name.substring(dot);
-				segment = new Segment(baseFile.resolveSibling(next), w, h, fps);
+				segment = new Segment(baseFile.resolveSibling(next), w, h, fps, withAudio);
 			}
 		}
+	}
+
+	/** Вписывает в файл звук, который относится к только что записанному кадру (чередуется с картинкой). */
+	private void writeAudioSlice() throws IOException {
+		slotIndex++;
+		if (!withAudio) return;
+		long target = Math.round((double) slotIndex * AudioMixer.RATE / fps);
+		int n = (int) (target - audioWritten);
+		if (n <= 0) return;
+		if (audioBuf.length < n * 4) audioBuf = new byte[n * 4];
+		if (audio != null) {
+			audio.read(audioWritten, n, audioBuf);
+		} else {
+			java.util.Arrays.fill(audioBuf, 0, n * 4, (byte) 0);
+		}
+		segment.addAudio(audioBuf, n);
+		audioWritten = target;
 	}
 
 	@Override
@@ -202,18 +232,27 @@ public final class AviSink implements FrameSink {
 		private final int w;
 		private final int h;
 		private final int fps;
+		private final boolean audio;
+		/** Где в файле слово «movi»: от него отсчитываются смещения кадров в индексе. */
+		private final int moviStart;
 		private final OutputStream out;
 		long pos;
-		private int frames;
-		private int maxChunk;
-		private int[] offsets = new int[4096];
-		private int[] sizes = new int[4096];
+		private int entries;
+		private int videoFrames;
+		private long audioFrames;
+		private int maxVideo;
+		private int maxAudio;
+		private int[] offsets = new int[8192];
+		private int[] sizes = new int[8192];
+		private byte[] kinds = new byte[8192];
 
-		Segment(Path file, int w, int h, int fps) throws IOException {
+		Segment(Path file, int w, int h, int fps, boolean audio) throws IOException {
 			this.file = file;
 			this.w = w;
 			this.h = h;
 			this.fps = fps;
+			this.audio = audio;
+			this.moviStart = audio ? 322 : 220;
 			this.out = new BufferedOutputStream(Files.newOutputStream(file), 1 << 20);
 			byte[] header = header();
 			out.write(header);
@@ -225,10 +264,10 @@ public final class AviSink implements FrameSink {
 		}
 
 		private byte[] header() {
-			ByteBuffer b = ByteBuffer.allocate(224).order(ByteOrder.LITTLE_ENDIAN);
+			ByteBuffer b = ByteBuffer.allocate(moviStart + 4).order(ByteOrder.LITTLE_ENDIAN);
 			int imageSize = w * h * 3;
 			b.put(ascii("RIFF")).putInt(0).put(ascii("AVI "));
-			b.put(ascii("LIST")).putInt(192).put(ascii("hdrl"));
+			b.put(ascii("LIST")).putInt(audio ? 294 : 192).put(ascii("hdrl"));
 			b.put(ascii("avih")).putInt(56);
 			b.putInt(1_000_000 / fps);   // микросекунд на кадр
 			b.putInt(0);                 // байт в секунду (заполним в конце)
@@ -236,10 +275,11 @@ public final class AviSink implements FrameSink {
 			b.putInt(0x10);              // есть индекс
 			b.putInt(0);                 // всего кадров (заполним в конце)
 			b.putInt(0);
-			b.putInt(1);                 // потоков
+			b.putInt(audio ? 2 : 1);     // потоков
 			b.putInt(imageSize);
 			b.putInt(w).putInt(h);
 			b.put(new byte[16]);
+			// Видеопоток
 			b.put(ascii("LIST")).putInt(116).put(ascii("strl"));
 			b.put(ascii("strh")).putInt(56);
 			b.put(ascii("vids")).put(ascii("MJPG"));
@@ -257,25 +297,45 @@ public final class AviSink implements FrameSink {
 			b.put(ascii("MJPG"));
 			b.putInt(imageSize);
 			b.putInt(0).putInt(0).putInt(0).putInt(0);
+			// Звуковой поток: обычный PCM, 48 кГц, стерео, 16 бит
+			if (audio) {
+				b.put(ascii("LIST")).putInt(94).put(ascii("strl"));
+				b.put(ascii("strh")).putInt(56);
+				b.put(ascii("auds")).putInt(0);
+				b.putInt(0).putInt(0).putInt(0);
+				b.putInt(4).putInt(AudioMixer.RATE * 4);  // масштаб (размер блока) и скорость (байт в секунду)
+				b.putInt(0);
+				b.putInt(0);                 // длина в отсчётах (заполним в конце)
+				b.putInt(AudioMixer.RATE * 4 / 10);
+				b.putInt(-1);
+				b.putInt(4);
+				b.putShort((short) 0).putShort((short) 0).putShort((short) 0).putShort((short) 0);
+				b.put(ascii("strf")).putInt(18);
+				b.putShort((short) 1).putShort((short) 2);
+				b.putInt(AudioMixer.RATE).putInt(AudioMixer.RATE * 4);
+				b.putShort((short) 4).putShort((short) 16).putShort((short) 0);
+			}
 			b.put(ascii("LIST")).putInt(0).put(ascii("movi"));
 			return b.array();
 		}
 
-		void addFrame(byte[] data, int len) throws IOException {
-			if (frames == offsets.length) {
-				offsets = java.util.Arrays.copyOf(offsets, frames * 2);
-				sizes = java.util.Arrays.copyOf(sizes, frames * 2);
+		private void remember(int kind, int size) {
+			if (entries == offsets.length) {
+				offsets = java.util.Arrays.copyOf(offsets, entries * 2);
+				sizes = java.util.Arrays.copyOf(sizes, entries * 2);
+				kinds = java.util.Arrays.copyOf(kinds, entries * 2);
 			}
-			offsets[frames] = (int) (pos - 220);
-			sizes[frames] = len;
-			frames++;
-			if (len > maxChunk) maxChunk = len;
+			offsets[entries] = (int) (pos - moviStart);
+			sizes[entries] = size;
+			kinds[entries] = (byte) kind;
+			entries++;
+		}
 
+		private void chunk(String id, byte[] data, int len) throws IOException {
 			byte[] hd = new byte[8];
-			hd[0] = '0';
-			hd[1] = '0';
-			hd[2] = 'd';
-			hd[3] = 'c';
+			for (int i = 0; i < 4; i++) {
+				hd[i] = (byte) id.charAt(i);
+			}
 			hd[4] = (byte) len;
 			hd[5] = (byte) (len >> 8);
 			hd[6] = (byte) (len >> 16);
@@ -287,25 +347,45 @@ public final class AviSink implements FrameSink {
 			pos += 8 + len + pad;
 		}
 
+		void addVideo(byte[] data, int len) throws IOException {
+			remember(0, len);
+			chunk("00dc", data, len);
+			videoFrames++;
+			if (len > maxVideo) maxVideo = len;
+		}
+
+		/** Звук: frames отсчётов (по 4 байта). */
+		void addAudio(byte[] data, int frames) throws IOException {
+			int len = frames * 4;
+			remember(1, len);
+			chunk("01wb", data, len);
+			audioFrames += frames;
+			if (len > maxAudio) maxAudio = len;
+		}
+
 		void close() throws IOException {
 			out.flush();
 			out.close();
 			try (RandomAccessFile raf = new RandomAccessFile(file.toFile(), "rw")) {
 				raf.seek(pos);
-				ByteBuffer idx = ByteBuffer.allocate(8 + frames * 16).order(ByteOrder.LITTLE_ENDIAN);
-				idx.put(ascii("idx1")).putInt(frames * 16);
-				for (int i = 0; i < frames; i++) {
-					idx.put(ascii("00dc")).putInt(0x10).putInt(offsets[i]).putInt(sizes[i]);
+				ByteBuffer idx = ByteBuffer.allocate(8 + entries * 16).order(ByteOrder.LITTLE_ENDIAN);
+				idx.put(ascii("idx1")).putInt(entries * 16);
+				for (int i = 0; i < entries; i++) {
+					idx.put(ascii(kinds[i] == 0 ? "00dc" : "01wb")).putInt(0x10).putInt(offsets[i]).putInt(sizes[i]);
 				}
 				raf.write(idx.array());
-				long total = pos + 8 + frames * 16L;
+				long total = pos + 8 + entries * 16L;
 				patch(raf, 4, (int) (total - 8));
-				patch(raf, 216, (int) (pos - 220));
-				patch(raf, 36, maxChunk * fps);
-				patch(raf, 48, frames);
-				patch(raf, 60, maxChunk);
-				patch(raf, 140, frames);
-				patch(raf, 144, maxChunk);
+				patch(raf, moviStart - 4, (int) (pos - moviStart));
+				patch(raf, 36, maxVideo * fps);
+				patch(raf, 48, videoFrames);
+				patch(raf, 60, maxVideo);
+				patch(raf, 140, videoFrames);
+				patch(raf, 144, maxVideo);
+				if (audio) {
+					patch(raf, 264, (int) audioFrames);
+					patch(raf, 268, Math.max(maxAudio, 1));
+				}
 			}
 		}
 
