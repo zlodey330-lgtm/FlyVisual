@@ -1,0 +1,28 @@
+{
+  "targets": [
+    "swap"
+  ],
+  "passes": [
+    {
+      "name": "flyvisual:season_grade",
+      "intarget": "minecraft:main",
+      "outtarget": "swap",
+      "uniforms": [
+        {
+          "name": "Tint",
+          "values": [
+            1.08,
+            1.04,
+            0.91
+          ]
+        },
+        {
+          "name": "Strength",
+          "values": [
+            0.68
+          ]
+        }
+      ]
+    }
+  ]
+}
