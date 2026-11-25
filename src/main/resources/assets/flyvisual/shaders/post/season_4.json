@@ -4,7 +4,7 @@
   ],
   "passes": [
     {
-      "name": "flyvisual:season_grade",
+      "name": "flyvisual_season_grade",
       "intarget": "minecraft:main",
       "outtarget": "swap",
       "uniforms": [
