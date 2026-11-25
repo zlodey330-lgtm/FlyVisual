@@ -106,7 +106,11 @@ public final class WeatherModule extends Module {
             LOGGER.error("Weather shader failed (mode={}, shaderEnabled={}, framebuffer={}x{})",
                     selected, shader.getBool(), mc.getWindow().getFramebufferWidth(),
                     mc.getWindow().getFramebufferHeight(), error);
-            Notifications.push("Weather: ошибка шейдера — см. latest.log", false);
+            Throwable root = error;
+            while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+            String detail = String.valueOf(root.getMessage());
+            if (detail.length() > 110) detail = detail.substring(0, 110);
+            Notifications.push("Weather: " + root.getClass().getSimpleName() + ": " + detail, false);
         }
     }
 }
