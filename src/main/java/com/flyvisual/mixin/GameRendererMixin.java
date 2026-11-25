@@ -5,7 +5,6 @@ import com.flyvisual.module.impl.AspectRatioModule;
 import com.flyvisual.module.impl.MotionBlurModule;
 import com.flyvisual.module.impl.NoHurtCamModule;
 import com.flyvisual.module.impl.SaturationModule;
-import com.flyvisual.module.impl.WeatherModule;
 import com.flyvisual.module.impl.TotemAnimationModule;
 import com.flyvisual.module.impl.ZoomModule;
 import net.minecraft.client.render.Camera;
@@ -115,10 +114,6 @@ public class GameRendererMixin {
 		SaturationModule module = ModuleManager.saturation();
 		if (module != null && module.isEnabled()) {
 			module.process(tickDelta);
-		}
-		WeatherModule weather = ModuleManager.weather();
-		if (weather != null && weather.isEnabled()) {
-			weather.process(tickDelta);
 		}
 	}
 

@@ -50,7 +50,6 @@ import com.flyvisual.module.impl.PotionHudModule;
 import com.flyvisual.module.impl.SkyModule;
 import com.flyvisual.module.impl.TargetHudModule;
 import com.flyvisual.module.impl.TimeChangerModule;
-import com.flyvisual.module.impl.WeatherModule;
 import com.flyvisual.module.impl.TotemAnimationModule;
 import com.flyvisual.module.impl.TrailModule;
 import com.flyvisual.module.impl.WatermarkModule;
@@ -74,7 +73,6 @@ public final class ModuleManager {
 	private static HandOffsetModule handOffset;
 	private static FogModule fog;
 	private static TimeChangerModule timeChanger;
-	private static WeatherModule weather;
 	private static TotemAnimationModule totem;
 	private static CrosshairModule crosshair;
 	private static CapesModule capes;
@@ -113,7 +111,6 @@ public final class ModuleManager {
 		handOffset = new HandOffsetModule();
 		fog = new FogModule();
 		timeChanger = new TimeChangerModule();
-		weather = new WeatherModule();
 		totem = new TotemAnimationModule();
 		crosshair = new CrosshairModule();
 		capes = new CapesModule();
@@ -170,7 +167,6 @@ public final class ModuleManager {
 		MODULES.add(new HitColorModule());
 		MODULES.add(fog);
 		MODULES.add(timeChanger);
-		MODULES.add(weather);
 		MODULES.add(new BlockOutlineModule());
 		MODULES.add(totem);
 		MODULES.add(crosshair);
@@ -256,10 +252,6 @@ public final class ModuleManager {
 
 	public static TimeChangerModule timeChanger() {
 		return timeChanger;
-	}
-
-	public static WeatherModule weather() {
-		return weather;
 	}
 
 	public static TotemAnimationModule totem() {

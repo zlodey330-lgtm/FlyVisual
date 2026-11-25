@@ -7,6 +7,7 @@ import com.flyvisual.module.Lang;
 import com.flyvisual.module.Module;
 import com.flyvisual.module.ModuleManager;
 import com.flyvisual.module.impl.MacroModule;
+import com.flyvisual.module.impl.RecordingModule;
 import com.flyvisual.util.ColorUtil;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.InputUtil;
@@ -274,8 +275,88 @@ public class FlyMenuScreen extends Screen {
 		return descLines;
 	}
 
+	/** Высота блока с кнопками вверху настроек (у записи это «Начать запись» и «Автонастройка»). */
+	private static final int REC_HEAD_H = 90;
+
+	private int settingsScroll;
+
+	private int headerH() {
+		return selected instanceof RecordingModule ? REC_HEAD_H : 0;
+	}
+
 	private int rowY(int k) {
-		return settingsTop() + k * ROW_H;
+		return settingsTop() + headerH() - settingsScroll + k * ROW_H;
+	}
+
+	/** Насколько можно прокрутить список настроек (если он не помещается в панель). */
+	private int settingsMaxScroll() {
+		if (selected == null) return 0;
+		int total = headerH() + selected.getSettings().size() * ROW_H;
+		return Math.max(0, total - (gy2() - settingsTop()) + 2);
+	}
+
+	/** Красивый блок записи: большая кнопка начала и остановки, автонастройка с полосой хода, статус. */
+	private void drawRecordHeader(DrawContext ctx, RecordingModule rec, int mouseX, int mouseY, float dt) {
+		int x1 = px1() + 8;
+		int w = px2() - px1() - 16;
+		int y0 = settingsTop() - settingsScroll;
+		long now = System.nanoTime();
+		boolean recording = rec.isRecording();
+		boolean tuning = rec.isTuning();
+
+		// 1. Большая кнопка записи (красная, когда идёт запись)
+		int by = y0 + 2;
+		int bh = 30;
+		boolean bHover = mouseX >= x1 && mouseX < x1 + w && mouseY >= by && mouseY < by + bh;
+		float bv = animate("rec#start", bHover ? 1.0f : 0.0f, dt, 16.0f);
+		int red = 0xFFE5484D;
+		int base = recording ? red : Theme.accent();
+		float pulse = recording ? 0.5f + 0.5f * (float) Math.sin(now / 1.0e9 * 5.0) : 0.0f;
+		rr(ctx, x1 - 2, by - 2, w + 4, bh + 4, 11, mulA(base, 0.14f + 0.26f * bv + 0.28f * pulse));
+		rr(ctx, x1, by, w, bh, 9, lerp(Theme.tileCol(), base, 0.55f + 0.38f * bv));
+		int cx = x1 + 19;
+		int cy = by + bh / 2;
+		if (recording) {
+			rr(ctx, cx - 6, cy - 6, 12, 12, 3, 0xFFFFFFFF);
+		} else {
+			rr(ctx, cx - 8, cy - 8, 16, 16, 8, 0xFFFFFFFF);
+			rr(ctx, cx - 5, cy - 5, 10, 10, 5, red);
+		}
+		String startLabel;
+		if (recording) {
+			long sec = rec.recordingSeconds();
+			startLabel = String.format(java.util.Locale.ROOT, "Остановить  %02d:%02d", sec / 60, sec % 60);
+		} else {
+			startLabel = "Начать запись";
+		}
+		text(ctx, startLabel, x1 + 36, by + (bh - 8) / 2, 0xFFFFFFFF);
+		textRight(ctx, "F9", x1 + w - 9, by + (bh - 8) / 2, 0xB0FFFFFF);
+
+		// 2. Автонастройка: во время подбора полоса показывает ход
+		int ay = by + bh + 6;
+		int ah = 26;
+		boolean aHover = !tuning && mouseX >= x1 && mouseX < x1 + w && mouseY >= ay && mouseY < ay + ah;
+		float av = animate("rec#tune", aHover ? 1.0f : 0.0f, dt, 16.0f);
+		rr(ctx, x1, ay, w, ah, 8, lerp(Theme.tileCol(), Theme.tileHoverCol(), av));
+		if (tuning) {
+			int fill = Math.max(10, (int) (w * clamp01(rec.tuneProgress())));
+			rr(ctx, x1, ay, fill, ah, 8, mulA(Theme.accent(), 0.55f));
+		}
+		rr(ctx, x1, ay, 4, ah, 2, Theme.accent());
+		String tuneLabel = tuning ? "Подбор настроек… " + (int) (rec.tuneProgress() * 100.0f) + "%" : "Автонастройка под мой ПК";
+		text(ctx, tuneLabel, x1 + 14, ay + (ah - 8) / 2, Theme.TEXT);
+
+		// 3. Статус: ход подбора, результат или подсказка
+		String status = rec.tuneStatus();
+		if (status == null || status.isEmpty()) {
+			status = "Подберёт качество, разрешение и FPS так, чтобы не лагало ни запись, ни игра";
+		}
+		java.util.List<net.minecraft.text.OrderedText> lines = textRenderer.wrapLines(net.minecraft.text.Text.literal(status), w);
+		for (int i = 0; i < Math.min(2, lines.size()); i++) {
+			ctx.draw();
+			ctx.drawText(textRenderer, lines.get(i), x1 + 2, ay + ah + 7 + i * 10, Theme.TEXT_DIM, false);
+			ctx.draw();
+		}
 	}
 
 	@Override
@@ -378,6 +459,7 @@ public class FlyMenuScreen extends Screen {
 		if (selected != m) {
 			selected = m;
 			paneAlpha = 0.0f;
+			settingsScroll = 0;
 		}
 		if (!m.getName().equals(FlyConfig.get().lastModule)) {
 			FlyConfig.get().lastModule = m.getName();
@@ -573,11 +655,16 @@ public class FlyMenuScreen extends Screen {
 			return;
 		}
 
-		scissor(ctx, px1, gy1, px2, gy2);
+		settingsScroll = Math.max(0, Math.min(settingsMaxScroll(), settingsScroll));
+		scissor(ctx, px1, settingsTop() - 3, px2, gy2);
+		if (selected instanceof RecordingModule rec) {
+			drawRecordHeader(ctx, rec, mouseX, mouseY, dt);
+		}
 		for (int k = 0; k < settings.size(); k++) {
 			DoubleSetting s = settings.get(k);
 			int ry = rowY(k);
-			if (ry + ROW_H > gy2) break;
+			if (ry + ROW_H <= settingsTop() - 3) continue;
+			if (ry >= gy2) break;
 
 			String label = Lang.setting(s.getName());
 			if (s.isButton()) {
@@ -880,10 +967,23 @@ public class FlyMenuScreen extends Screen {
 		// Настройки выбранного модуля
 		if (button == 0 && selected != null && mouseX >= px1() && mouseX < px2()) {
 			List<DoubleSetting> settings = selected.getSettings();
+			if (selected instanceof RecordingModule rec) {
+				int hy = settingsTop() - settingsScroll;
+				boolean inView = mouseY >= settingsTop() - 3 && mouseY < gy2();
+				if (inView && mouseY >= hy + 2 && mouseY < hy + 32) {
+					rec.toggleRecording();
+					return true;
+				}
+				if (inView && mouseY >= hy + 38 && mouseY < hy + 64) {
+					rec.startTune();
+					return true;
+				}
+			}
 			for (int k = 0; k < settings.size(); k++) {
 				int ry = rowY(k);
-				if (ry + ROW_H > gy2()) break;
-				if (mouseY >= ry && mouseY < ry + ROW_H) {
+				if (ry >= gy2()) break;
+				if (ry + ROW_H <= settingsTop()) continue;
+				if (mouseY >= ry && mouseY < ry + ROW_H && mouseY >= settingsTop() - 3 && mouseY < gy2()) {
 					DoubleSetting s = settings.get(k);
 					if (s.isButton()) {
 						s.press();
@@ -949,6 +1049,11 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+		if (selected != null && !(selected instanceof MacroModule) && mouseX >= px1() && mouseX < px2()
+				&& mouseY >= settingsTop() && mouseY < gy2() && settingsMaxScroll() > 0) {
+			settingsScroll = Math.max(0, Math.min(settingsMaxScroll(), settingsScroll - (int) (amount * 18.0)));
+			return true;
+		}
 		if (mouseX >= gx1() && mouseX < gx2() + 6 && mouseY >= gy1() && mouseY < gy2()) {
 			scrollTarget = Math.max(0, Math.min(maxScroll(), scrollTarget - (float) (amount * 40.0)));
 			return true;

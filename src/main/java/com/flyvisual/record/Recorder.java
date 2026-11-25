@@ -71,6 +71,22 @@ public final class Recorder {
 		this.finishListener = listener;
 	}
 
+	/** Сколько процентов кадров были повторами (игра или кодировщик не успевали). */
+	public int dupPercent() {
+		long slots = statSlots;
+		return slots > 0L ? (int) (statDup * 100L / slots) : 0;
+	}
+
+	/** Сбросить счётчик повторов (после «разогрева» пробной записи). */
+	public void resetStats() {
+		statSlots = 0L;
+		statDup = 0L;
+	}
+
+	public boolean hasFailed() {
+		return failure != null;
+	}
+
 	public boolean isActive() {
 		return active;
 	}
@@ -93,6 +109,15 @@ public final class Recorder {
 	 * Возвращает текст ошибки или null, если всё хорошо.
 	 */
 	public String start(Path folder, int resHeight, int fps, int quality, boolean audio, int codec) {
+		return begin(folder, resHeight, fps, quality, audio, codec, false);
+	}
+
+	/** Пробная запись для автонастройки: во временный файл, без звука и уведомлений; файл потом удаляется. */
+	public String startTrial(Path folder, int resHeight, int fps, int quality, int codec) {
+		return begin(folder, resHeight, fps, quality, false, codec, true);
+	}
+
+	private String begin(Path folder, int resHeight, int fps, int quality, boolean audio, int codec, boolean trial) {
 		if (active) return null;
 		MinecraftClient mc = MinecraftClient.getInstance();
 		int fw = mc.getWindow().getFramebufferWidth();
@@ -118,7 +143,8 @@ public final class Recorder {
 			return "не удалось создать папку: " + e.getMessage();
 		}
 
-		String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+		String stamp = trial ? "trial_" + System.nanoTime()
+				: LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
 		int q = Math.max(0, Math.min(3, quality));
 		FrameSink sink;
 		String how;
@@ -194,7 +220,7 @@ public final class Recorder {
 		startNanos = System.nanoTime();
 		audioMixer = audio ? new AudioMixer(startNanos, wavFile) : null;
 		if (sink instanceof AviSink avi) avi.setAudio(audioMixer);
-		worker = new Worker(sink, audioMixer, mux ? exe : null, muxMp4, finalFile, wavFile);
+		worker = new Worker(sink, audioMixer, mux ? exe : null, muxMp4, finalFile, wavFile, trial);
 		worker.setDaemon(true);
 		worker.start();
 		active = true;
@@ -348,9 +374,10 @@ public final class Recorder {
 		private final boolean muxMp4;
 		private final Path finalFile;
 		private final Path wavFile;
+		private final boolean trial;
 		private final AtomicBoolean reported = new AtomicBoolean();
 
-		Worker(FrameSink sink, AudioMixer mixer, String muxExe, boolean muxMp4, Path finalFile, Path wavFile) {
+		Worker(FrameSink sink, AudioMixer mixer, String muxExe, boolean muxMp4, Path finalFile, Path wavFile, boolean trial) {
 			super("FlyVisual-recorder");
 			this.sink = sink;
 			this.mixer = mixer;
@@ -358,6 +385,7 @@ public final class Recorder {
 			this.muxMp4 = muxMp4;
 			this.finalFile = finalFile;
 			this.wavFile = wavFile;
+			this.trial = trial;
 		}
 
 		@Override
@@ -384,6 +412,14 @@ public final class Recorder {
 				sink.close();
 			} catch (Throwable t) {
 				if (failure == null) failure = t;
+			}
+			if (trial) {
+				// Пробная запись: просто удаляем временный файл
+				try {
+					Files.deleteIfExists(Path.of(sink.filePath()));
+				} catch (Exception ignored) {
+				}
+				return;
 			}
 			if (mixer != null) {
 				mixer.stop();
@@ -431,8 +467,8 @@ public final class Recorder {
 					if (listener != null) listener.accept(dupPct, extraFailed);
 					Notifications.push("Запись сохранена: " + shownName, true);
 					if (dupPct >= 20) {
-						Notifications.pushWarning("Повторено кадров: " + dupPct + "%. Игра давала меньше FPS, чем записывается: "
-								+ "поставь FPS записи ниже (или разрешение меньше), тогда видео будет плавнее");
+						Notifications.pushWarning("Повторено кадров: " + dupPct + "%. Компьютер не успевал: "
+								+ "нажми «Автонастройка» в настройках записи, она подберёт настройки под твой ПК");
 					}
 				});
 			}

@@ -60,8 +60,7 @@
 		"FpsWorldRendererMixin",
 		"FramerateLimitMixin",
 		"SourceAudioMixin",
-		"StaticSoundAudioMixin",
-		"WorldWeatherMixin"
+		"StaticSoundAudioMixin"
   ],
   "injectors": {
     "defaultRequire": 0

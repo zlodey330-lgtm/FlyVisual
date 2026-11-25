@@ -4,7 +4,7 @@ import com.flyvisual.config.FlyConfig;
 import com.flyvisual.hud.Notifications;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
-import com.flyvisual.record.AutoTune;
+import com.flyvisual.record.Calibrator;
 import com.flyvisual.record.FfmpegSink;
 import com.flyvisual.record.Recorder;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -23,15 +23,16 @@ import java.nio.file.Path;
 
 /**
  * Запись: пишет видео с экрана игры прямо из клиента (вместе с интерфейсом) и звук игры.
- * Старт и стоп: клавиша F9 (меняется в настройках управления) или кнопка в настройках модуля.
- * Качество, разрешение и FPS выбираются в настройках, папку можно выбрать кнопкой.
+ * Старт и стоп: клавиша F9 (меняется в настройках управления) или большая кнопка в настройках модуля.
+ * Кнопка «Автонастройка» сама подбирает качество, разрешение, FPS и кодировщик под твой компьютер
+ * (пробными записями) и записывает результат в настройки ниже.
  * <p>
- * С ffmpeg (в PATH или рядом с игрой) получается mp4 H.264 со звуком, без него встроенный AVI и отдельный WAV.
+ * С ffmpeg (в PATH или рядом с игрой) получается mp4 H.264 со звуком, без него avi (Motion JPEG) со звуком внутри.
  */
 public class RecordingModule extends Module {
 	public static RecordingModule INSTANCE;
 
-	private static final int[] RES_HEIGHT = {0, 720, 1080, 1440, 2160};
+	private static final int[] RES_HEIGHT = {0, 540, 720, 900, 1080, 1440, 2160};
 	private static final int[] FPS_VALUES = {24, 30, 48, 60, 90, 120, 144};
 
 	private final KeyBinding key = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -41,18 +42,13 @@ public class RecordingModule extends Module {
 			"category.flyvisual"
 	));
 
-	private final DoubleSetting autoTune = addToggle("Автонастройка под мой ПК", true);
-	@SuppressWarnings("unused")
-	private final DoubleSetting tuneButton = addButton("Подобрать настройки сейчас", this::showTune);
 	private final DoubleSetting quality = addChoice("Качество", 2, "Низкое", "Среднее", "Высокое", "Максимальное");
-	private final DoubleSetting resolution = addChoice("Разрешение", 2, "Как в окне", "720p", "1080p", "1440p", "4K");
+	private final DoubleSetting resolution = addChoice("Разрешение", 4, "Как в окне", "540p", "720p", "900p", "1080p", "1440p", "4K");
 	private final DoubleSetting fps = addChoice("FPS", 1, "24", "30", "48", "60", "90", "120", "144");
 	private final DoubleSetting codec = addChoice("Кодировщик", 0, "Авто (видеокарта, если есть)", "NVIDIA (видеокарта)",
 			"AMD (видеокарта)", "Intel (видеокарта)", "Процессор (x264)", "Motion JPEG (как в Bandicam)");
 	private final DoubleSetting audio = addToggle("Записывать звук", true);
 
-	@SuppressWarnings("unused")
-	private final DoubleSetting startButton = addButton("Начать / остановить запись", this::toggleRecording);
 	@SuppressWarnings("unused")
 	private final DoubleSetting pickButton = addButton("Выбрать папку…", this::pickFolder);
 	@SuppressWarnings("unused")
@@ -66,14 +62,13 @@ public class RecordingModule extends Module {
 	private int fpsPos;
 	private int framesThisSecond;
 	private long secondStart = System.nanoTime();
-	private boolean lastWasAuto;
+	private final Calibrator calibrator = new Calibrator();
 
 	public RecordingModule() {
 		super("Recording", "Record gameplay video");
 		INSTANCE = this;
 		// Заранее, в фоне, проверяем, какие видеокарты умеют кодировать видео
 		com.flyvisual.record.Encoders.detectAsync(FabricLoader.getInstance().getGameDir());
-		recorder.setFinishListener(this::onRecordingFinished);
 	}
 
 	@Override
@@ -83,6 +78,7 @@ public class RecordingModule extends Module {
 
 	@Override
 	public void onDisable() {
+		if (calibrator.isRunning()) calibrator.cancel("");
 		recorder.stop();
 		com.flyvisual.record.AudioTap.enabled = false;
 		com.flyvisual.record.AudioTap.clear();
@@ -104,6 +100,10 @@ public class RecordingModule extends Module {
 	/** Вызывается из GameRendererMixin в конце каждого кадра. */
 	public void onFrame() {
 		sampleFps();
+		if (calibrator.isRunning() && MinecraftClient.getInstance().world == null) {
+			calibrator.cancel("Автонастройка прервана: ты вышел из мира");
+		}
+		calibrator.onFrame();
 		recorder.onFrame();
 	}
 
@@ -140,39 +140,83 @@ public class RecordingModule extends Module {
 
 	// ------------------------------------------------------------------ действия
 
-	private void toggleRecording() {
+	// ------------------------------------------------------------------ для окна настроек
+
+	public boolean isRecording() {
+		return recorder.isActive();
+	}
+
+	public long recordingSeconds() {
+		return recorder.elapsedSeconds();
+	}
+
+	public boolean isTuning() {
+		return calibrator.isRunning();
+	}
+
+	public float tuneProgress() {
+		return calibrator.progress();
+	}
+
+	/** Текст под кнопкой автонастройки: ход подбора или результат. */
+	public String tuneStatus() {
+		return calibrator.status();
+	}
+
+	// ------------------------------------------------------------------ запись
+
+	/** Начать или остановить запись (кнопка в настройках и клавиша F9). */
+	public void toggleRecording() {
 		if (recorder.isActive()) {
 			recorder.stop();
 			Notifications.push("Запись остановлена, сохраняю файл…", false);
 			return;
 		}
-		int res = RES_HEIGHT[resolution.getInt()];
-		int rate = FPS_VALUES[fps.getInt()];
-		int q = quality.getInt();
-		int codecChoice = codec.getInt();
-		boolean auto = autoTune.getBool();
-		if (auto) {
-			AutoTune.Config cfg = tune();
-			res = cfg.resHeight;
-			rate = cfg.fps;
-			q = cfg.quality;
-			codecChoice = cfg.codec;
+		if (calibrator.isRunning()) {
+			Notifications.pushWarning("Идёт автонастройка, запись можно начать после неё");
+			return;
 		}
-		lastWasAuto = auto;
-		String error = recorder.start(folder(), res, rate, q, audio.getBool(), codecChoice);
+		String error = recorder.start(folder(), RES_HEIGHT[resolution.getInt()], FPS_VALUES[fps.getInt()],
+				quality.getInt(), audio.getBool(), codec.getInt());
 		if (error != null) {
 			Notifications.pushWarning("Запись: " + error);
 		} else {
-			Notifications.push((auto ? "Запись началась (автонастройка): " : "Запись началась: ") + recorder.describe(), true);
+			Notifications.push("Запись началась: " + recorder.describe(), true);
 		}
 	}
 
-	/** Подбирает настройки под этот компьютер. */
-	private AutoTune.Config tune() {
+	// ------------------------------------------------------------------ автонастройка
+
+	/**
+	 * Автонастройка: замеряет FPS игры и делает пробные записи, чтобы найти настройки, при которых запись не лагает и
+	 * игра не тормозит. Результат записывается в настройки качества, разрешения, FPS и кодировщика.
+	 */
+	public void startTune() {
 		MinecraftClient mc = MinecraftClient.getInstance();
-		int w = mc.getWindow().getFramebufferWidth();
-		int h = mc.getWindow().getFramebufferHeight();
-		int cores = Runtime.getRuntime().availableProcessors();
+		if (recorder.isActive()) {
+			Notifications.pushWarning("Сначала останови запись");
+			return;
+		}
+		if (calibrator.isRunning()) return;
+		if (mc.world == null) {
+			Notifications.pushWarning("Зайди в мир или на сервер и нажми «Автонастройка» ещё раз: так она учтёт нагрузку игры");
+			return;
+		}
+		Path tmp = FabricLoader.getInstance().getGameDir().resolve("flyvisual").resolve("tmp");
+		try {
+			Files.createDirectories(tmp);
+			try (java.util.stream.Stream<Path> old = Files.list(tmp)) {
+				old.filter(p -> p.getFileName().toString().startsWith("trial_")).forEach(p -> {
+					try {
+						Files.deleteIfExists(p);
+					} catch (java.io.IOException ignored) {
+					}
+				});
+			}
+		} catch (java.io.IOException e) {
+			Notifications.pushWarning("Не удалось создать временную папку для автонастройки");
+			return;
+		}
 		String exe = FfmpegSink.find(FabricLoader.getInstance().getGameDir(), folder());
 		if (exe != null && !com.flyvisual.record.Encoders.isDetected()) {
 			com.flyvisual.record.Encoders.detect(exe);
@@ -182,29 +226,27 @@ public class RecordingModule extends Module {
 			gpu = GL11.glGetString(GL11.GL_RENDERER);
 		} catch (Throwable ignored) {
 		}
-		return AutoTune.choose(w, h, gameFps(), cores, exe != null, gpu, FlyConfig.get().recordingPenalty);
+		calibrator.start(tmp, exe, gpu, mc.getWindow().getFramebufferWidth(), mc.getWindow().getFramebufferHeight(),
+				gameFps(), this::applyTune);
+		Notifications.push("Автонастройка запущена (около 20 секунд). Можно закрыть меню и играть как обычно", true);
 	}
 
-	/** Кнопка в настройках: показывает, что автонастройка выбрала для этого компьютера. */
-	private void showTune() {
-		AutoTune.Config cfg = tune();
-		Notifications.push("Автонастройка: " + cfg.summary, true);
-	}
-
-	/** После записи: если было много повторов кадров, в следующий раз автонастройка выберет настройки полегче. */
-	private void onRecordingFinished(int dupPercent, boolean failed) {
-		if (!lastWasAuto) return;
-		FlyConfig cfg = FlyConfig.get();
-		int before = cfg.recordingPenalty;
-		if (dupPercent >= 15 || failed) {
-			cfg.recordingPenalty = Math.min(5, before + 1);
-			if (cfg.recordingPenalty != before) {
-				Notifications.push("Автонастройка запомнила лаги: в следующий раз выберу настройки полегче", false);
-			}
-		} else if (dupPercent <= 2 && before > 0) {
-			cfg.recordingPenalty = before - 1;
+	/** Записывает подобранные значения в настройки. */
+	private void applyTune(Calibrator.Result r) {
+		int resIndex = 0;
+		for (int i = 1; i < RES_HEIGHT.length; i++) {
+			if (RES_HEIGHT[i] == r.height) resIndex = i;
 		}
-		if (cfg.recordingPenalty != before) FlyConfig.save();
+		int fpsIndex = 1;
+		for (int i = 0; i < FPS_VALUES.length; i++) {
+			if (FPS_VALUES[i] == r.fps) fpsIndex = i;
+		}
+		resolution.set(resIndex);
+		fps.set(fpsIndex);
+		quality.set(r.quality);
+		codec.set(r.codec);
+		FlyConfig.save();
+		Notifications.push("Автонастройка готова: " + r.summary, true);
 	}
 
 	/** Папка для видео: выбранная тобой, иначе Видео/FlyVisual, иначе папка игры. */
