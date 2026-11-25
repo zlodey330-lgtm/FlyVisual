@@ -1,7 +1,7 @@
 {
   "blend": { "func": "add", "srcrgb": "one", "dstrgb": "zero" },
   "vertex": "blit",
-  "fragment": "flyvisual:season_grade",
+  "fragment": "flyvisual_season_grade",
   "attributes": ["Position"],
   "samplers": [{"name": "DiffuseSampler"}],
   "uniforms": [
