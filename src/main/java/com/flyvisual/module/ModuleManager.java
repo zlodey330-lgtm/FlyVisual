@@ -53,6 +53,7 @@ import com.flyvisual.module.impl.TimeChangerModule;
 import com.flyvisual.module.impl.TotemAnimationModule;
 import com.flyvisual.module.impl.TrailModule;
 import com.flyvisual.module.impl.WatermarkModule;
+import com.flyvisual.module.impl.WeatherModule;
 import com.flyvisual.module.impl.ZoomModule;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -77,6 +78,7 @@ public final class ModuleManager {
 	private static CrosshairModule crosshair;
 	private static CapesModule capes;
 	private static SkyModule sky;
+	private static WeatherModule weather;
 	private static DamageParticlesModule damageParticles;
 	private static OptimizationModule optimization;
 	private static SmoothChatModule smoothChat;
@@ -115,6 +117,7 @@ public final class ModuleManager {
 		crosshair = new CrosshairModule();
 		capes = new CapesModule();
 		sky = new SkyModule();
+		weather = new WeatherModule();
 		damageParticles = new DamageParticlesModule();
 		optimization = new OptimizationModule();
 		smoothChat = new SmoothChatModule();
@@ -176,6 +179,7 @@ public final class ModuleManager {
 		MODULES.add(new com.flyvisual.module.impl.LiveSplashModule());
 		MODULES.add(new TrailModule());
 		MODULES.add(sky);
+		MODULES.add(weather);
 		MODULES.add(customChat);
 		MODULES.add(new DurabilityWarningModule());
 		MODULES.add(new ServerIpModule());
@@ -344,6 +348,10 @@ public final class ModuleManager {
 
 	public static SkyModule sky() {
 		return sky;
+	}
+
+	public static WeatherModule weather() {
+		return weather;
 	}
 
 	public static List<Module> all() {

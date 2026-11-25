@@ -111,6 +111,10 @@ public class GameRendererMixin {
 		if (blur != null && blur.isEnabled()) {
 			blur.process(tickDelta);
 		}
+		com.flyvisual.module.impl.WeatherModule weather = ModuleManager.weather();
+		if (weather != null && weather.isEnabled()) {
+			weather.process(tickDelta);
+		}
 		SaturationModule module = ModuleManager.saturation();
 		if (module != null && module.isEnabled()) {
 			module.process(tickDelta);
