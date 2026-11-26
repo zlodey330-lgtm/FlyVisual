@@ -31,9 +31,9 @@ import java.util.Map;
  */
 public class FlyMenuScreen extends Screen {
 	private static final int MAX_W = 500;
-	private static final int MAX_H = 262;
+	private static final int MAX_H = 276;
 	private static final int HEAD = 28;
-	private static final int FOOT = 16;
+	private static final int FOOT = 30;
 	private static final int PAD = 8;
 	private static final int PANE_W = 164;
 	private static final int COLS = 3;
@@ -310,10 +310,10 @@ public class FlyMenuScreen extends Screen {
 		boolean bHover = mouseX >= x1 && mouseX < x1 + w && mouseY >= by && mouseY < by + bh;
 		float bv = animate("rec#start", bHover ? 1.0f : 0.0f, dt, 16.0f);
 		int red = 0xFFE5484D;
-		int base = recording ? red : Theme.accent();
+		int base = recording ? red : MenuStyles.accent();
 		float pulse = recording ? 0.5f + 0.5f * (float) Math.sin(now / 1.0e9 * 5.0) : 0.0f;
 		rr(ctx, x1 - 2, by - 2, w + 4, bh + 4, 11, mulA(base, 0.14f + 0.26f * bv + 0.28f * pulse));
-		rr(ctx, x1, by, w, bh, 9, lerp(Theme.tileCol(), base, 0.55f + 0.38f * bv));
+		rr(ctx, x1, by, w, bh, 9, lerp(MenuStyles.tile(), base, 0.55f + 0.38f * bv));
 		int cx = x1 + 19;
 		int cy = by + bh / 2;
 		if (recording) {
@@ -337,14 +337,14 @@ public class FlyMenuScreen extends Screen {
 		int ah = 26;
 		boolean aHover = !tuning && mouseX >= x1 && mouseX < x1 + w && mouseY >= ay && mouseY < ay + ah;
 		float av = animate("rec#tune", aHover ? 1.0f : 0.0f, dt, 16.0f);
-		rr(ctx, x1, ay, w, ah, 8, lerp(Theme.tileCol(), Theme.tileHoverCol(), av));
+		rr(ctx, x1, ay, w, ah, 8, lerp(MenuStyles.tile(), MenuStyles.tileHover(), av));
 		if (tuning) {
 			int fill = Math.max(10, (int) (w * clamp01(rec.tuneProgress())));
-			rr(ctx, x1, ay, fill, ah, 8, mulA(Theme.accent(), 0.55f));
+			rr(ctx, x1, ay, fill, ah, 8, mulA(MenuStyles.accent(), 0.55f));
 		}
-		rr(ctx, x1, ay, 4, ah, 2, Theme.accent());
+		rr(ctx, x1, ay, 4, ah, 2, MenuStyles.accent());
 		String tuneLabel = tuning ? "Подбор настроек… " + (int) (rec.tuneProgress() * 100.0f) + "%" : "Автонастройка под мой ПК";
-		text(ctx, tuneLabel, x1 + 14, ay + (ah - 8) / 2, Theme.TEXT);
+		text(ctx, tuneLabel, x1 + 14, ay + (ah - 8) / 2, MenuStyles.text());
 
 		// 3. Статус: ход подбора, результат или подсказка
 		String status = rec.tuneStatus();
@@ -354,7 +354,7 @@ public class FlyMenuScreen extends Screen {
 		java.util.List<net.minecraft.text.OrderedText> lines = textRenderer.wrapLines(net.minecraft.text.Text.literal(status), w);
 		for (int i = 0; i < Math.min(2, lines.size()); i++) {
 			ctx.draw();
-			ctx.drawText(textRenderer, lines.get(i), x1 + 2, ay + ah + 7 + i * 10, Theme.TEXT_DIM, false);
+			ctx.drawText(textRenderer, lines.get(i), x1 + 2, ay + ah + 7 + i * 10, MenuStyles.textDim(), false);
 			ctx.draw();
 		}
 	}
@@ -401,9 +401,9 @@ public class FlyMenuScreen extends Screen {
 	/** Круглый переключатель: серый выключен, горит цветом темы включён. Без надписей. */
 	private void pill(DrawContext ctx, int px, int py, int pw, int ph, float on) {
 		if (on > 0.03f) {
-			rr(ctx, px - 2, py - 2, pw + 4, ph + 4, ph / 2 + 2, mulA(Theme.accent(), 0.28f * on));
+			rr(ctx, px - 2, py - 2, pw + 4, ph + 4, ph / 2 + 2, mulA(MenuStyles.accent(), 0.28f * on));
 		}
-		rr(ctx, px, py, pw, ph, ph / 2, lerp(Theme.offCol(), Theme.accent(), on));
+		rr(ctx, px, py, pw, ph, ph / 2, lerp(MenuStyles.off(), MenuStyles.accent(), on));
 		int knob = ph - 4;
 		int kx = px + 2 + Math.round((pw - knob - 4) * on);
 		rr(ctx, kx, py + 2, knob, knob, knob / 2, lerp(0xFFB0B0B0, 0xFFFFFFFF, on));
@@ -491,7 +491,8 @@ public class FlyMenuScreen extends Screen {
 		scroll = Math.max(0, Math.min(maxScroll(), Math.round(scrollF)));
 		extra = 1.0f;
 
-		ctx.fill(0, 0, width, height, mulA(0x99000000, alpha));
+		MenuStyles.update(dt);
+		MenuStyles.drawBackground(ctx, width, height, alpha);
 
 		MatrixStack ms = ctx.getMatrices();
 		ms.push();
@@ -506,8 +507,9 @@ public class FlyMenuScreen extends Screen {
 		String[] hoverBox = new String[1];
 		ctx.draw(() -> hoverBox[0] = drawTiles(ctx, mouseX, mouseY, dt));
 		ctx.draw(() -> drawPane(ctx, mouseX, mouseY, dt));
-		drawFooter(ctx, hoverBox[0]);
+		drawFooter(ctx, hoverBox[0], mouseX, mouseY, dt);
 		drawPicker(ctx);
+		MenuStyles.drawFront(ctx, left(), top(), right(), bottom(), alpha, mouseX, mouseY);
 
 		ms.pop();
 		super.render(ctx, mouseX, mouseY, delta);
@@ -519,13 +521,17 @@ public class FlyMenuScreen extends Screen {
 		int r = right();
 		int b = bottom();
 
-		rr(ctx, l, t, r - l, b - t, 8, Theme.panelCol());
-		rr(ctx, l + 8, t, r - l - 16, 2, 1, Theme.accent());
-		rect(ctx, l, t + HEAD - 1, r, t + HEAD, 0x22FFFFFF);
+		rr(ctx, l, t, r - l, b - t, 8, MenuStyles.panel());
+		scissor(ctx, l, t, r, b);
+		MenuStyles.drawPanelDecor(ctx, l, t, r, b, alpha);
+		ctx.disableScissor();
+		MenuStyles.drawBorder(ctx, l, t, r, b, alpha);
+		rr(ctx, l + 8, t, r - l - 16, 2, 1, MenuStyles.accent());
+		rect(ctx, l, t + HEAD - 1, r, t + HEAD, MenuStyles.line());
 
 		int flyW = textRenderer.getWidth("Fly");
-		text(ctx, "Fly", l + PAD, t + 11, Theme.accent());
-		text(ctx, "Visual", l + PAD + flyW, t + 11, Theme.TEXT);
+		text(ctx, "Fly", l + PAD, t + 11, MenuStyles.accent());
+		text(ctx, "Visual", l + PAD + flyW, t + 11, MenuStyles.text());
 
 		// Цвета темы + свой цвет (радужный квадрат)
 		int cur = FlyConfig.get().accentColor;
@@ -555,15 +561,15 @@ public class FlyMenuScreen extends Screen {
 		int bx = btnX();
 		int by = btnY();
 		boolean hover = mouseX >= bx && mouseX < bx + BTN_W && mouseY >= by && mouseY < by + BTN_H;
-		rr(ctx, bx, by, BTN_W, BTN_H, 6, hover ? 0xFF3A3A3E : 0xFF2A2A2E);
+		rr(ctx, bx, by, BTN_W, BTN_H, 6, hover ? MenuStyles.btnHover() : MenuStyles.btn());
 		String label = "Редактор HUD";
-		text(ctx, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 4, Theme.TEXT);
+		text(ctx, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 4, MenuStyles.text());
 
 		int cx = cfgX();
 		boolean hov2 = mouseX >= cx && mouseX < cx + CFG_W && mouseY >= by && mouseY < by + BTN_H;
-		rr(ctx, cx, by, CFG_W, BTN_H, 6, hov2 ? 0xFF3A3A3E : 0xFF2A2A2E);
+		rr(ctx, cx, by, CFG_W, BTN_H, 6, hov2 ? MenuStyles.btnHover() : MenuStyles.btn());
 		String l2 = "Конфиги";
-		text(ctx, l2, cx + (CFG_W - textRenderer.getWidth(l2)) / 2, by + 4, Theme.TEXT);
+		text(ctx, l2, cx + (CFG_W - textRenderer.getWidth(l2)) / 2, by + 4, MenuStyles.text());
 	}
 
 	/** Рисует сетку плиток. Возвращает описание модуля под курсором (или null). */
@@ -587,12 +593,12 @@ public class FlyMenuScreen extends Screen {
 			float hv = animate(m.getName() + "#h", hover ? 1.0f : 0.0f, dt, 18.0f);
 
 			if (m == selected) {
-				rr(ctx, tx - 1, ty - 1, tw + 2, TILE_H + 2, 7, Theme.accent());
+				rr(ctx, tx - 1, ty - 1, tw + 2, TILE_H + 2, 7, MenuStyles.accent());
 			}
-			rr(ctx, tx, ty, tw, TILE_H, 6, lerp(Theme.tileCol(), Theme.tileHoverCol(), hv));
+			rr(ctx, tx, ty, tw, TILE_H, 6, lerp(MenuStyles.tile(), MenuStyles.tileHover(), hv));
 
 			String title = textRenderer.trimToWidth(Lang.module(m.getName()), tw - 14);
-			text(ctx, title, tx + 8, ty + 6, lerp(0xFFB8B8B8, Theme.TEXT, en));
+			text(ctx, title, tx + 8, ty + 6, lerp(MenuStyles.textOff(), MenuStyles.text(), en));
 
 			// Переключатель
 			pill(ctx, tx + 8, ty + 19, 26, 12, en);
@@ -619,28 +625,28 @@ public class FlyMenuScreen extends Screen {
 		int gy1 = gy1();
 		int gy2 = gy2();
 
-		rr(ctx, px1, gy1, px2 - px1, gy2 - gy1, 6, Theme.paneCol());
+		rr(ctx, px1, gy1, px2 - px1, gy2 - gy1, 6, MenuStyles.pane());
 		if (selected == null) {
 			String hint = "Выбери модуль";
-			text(ctx, hint, px1 + (PANE_W - textRenderer.getWidth(hint)) / 2, gy1 + 20, Theme.TEXT_DIM);
+			text(ctx, hint, px1 + (PANE_W - textRenderer.getWidth(hint)) / 2, gy1 + 20, MenuStyles.textDim());
 			return;
 		}
 
 		extra = paneAlpha;
 
-		text(ctx, textRenderer.trimToWidth(Lang.module(selected.getName()), PANE_W - 16), px1 + 8, gy1 + 8, Theme.accent());
+		text(ctx, textRenderer.trimToWidth(Lang.module(selected.getName()), PANE_W - 16), px1 + 8, gy1 + 8, MenuStyles.accent());
 
 		String desc = Lang.description(selected.getName(), selected.getDescription());
 		List<OrderedText> lines = textRenderer.wrapLines(Text.literal(desc), PANE_W - 16);
 		for (int i = 0; i < Math.min(5, lines.size()); i++) {
-			int c = col(Theme.TEXT_DIM);
+			int c = col(MenuStyles.textDim());
 			if (((c >>> 24) & 0xFF) >= 12) {
 				ctx.draw();
 				ctx.drawText(textRenderer, lines.get(i), px1 + 8, gy1 + 22 + i * 10, c, true);
 				ctx.draw();
 			}
 		}
-		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, 0x22FFFFFF);
+		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, MenuStyles.line());
 
 		if (selected instanceof MacroModule) {
 			drawMacroPane(ctx, mouseX, mouseY);
@@ -650,7 +656,7 @@ public class FlyMenuScreen extends Screen {
 
 		List<DoubleSetting> settings = selected.getSettings();
 		if (settings.isEmpty()) {
-			text(ctx, "Настроек нет, только вкл/выкл", px1 + 8, settingsTop() + 4, Theme.TEXT_DIM);
+			text(ctx, "Настроек нет, только вкл/выкл", px1 + 8, settingsTop() + 4, MenuStyles.textDim());
 			extra = 1.0f;
 			return;
 		}
@@ -673,19 +679,19 @@ public class FlyMenuScreen extends Screen {
 				boolean bh = mouseX >= bx1 && mouseX < bx1 + bw && mouseY >= ry + 1 && mouseY < ry + ROW_H - 1
 						&& mouseY >= gy1 && mouseY < gy2;
 				float hv = animate(selected.getName() + "." + s.getName() + "#b", bh ? 1.0f : 0.0f, dt, 18.0f);
-				rr(ctx, bx1 - 1, ry + 1, bw + 2, ROW_H - 2, 7, mulA(Theme.accent(), 0.20f + 0.35f * hv));
-				rr(ctx, bx1, ry + 2, bw, ROW_H - 4, 6, lerp(Theme.tileCol(), Theme.accent(), 0.45f + 0.4f * hv));
+				rr(ctx, bx1 - 1, ry + 1, bw + 2, ROW_H - 2, 7, mulA(MenuStyles.accent(), 0.20f + 0.35f * hv));
+				rr(ctx, bx1, ry + 2, bw, ROW_H - 4, 6, lerp(MenuStyles.tile(), MenuStyles.accent(), 0.45f + 0.4f * hv));
 				String bl = label + "  >";
 				text(ctx, bl, bx1 + (bw - textRenderer.getWidth(bl)) / 2, ry + 8, 0xFFFFFFFF);
 			} else if (s.isToggle()) {
 				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
-				text(ctx, fit(label, px2 - px1 - 16 - 26 - 8), px1 + 8, ry + 8, Theme.TEXT);
+				text(ctx, fit(label, px2 - px1 - 16 - 26 - 8), px1 + 8, ry + 8, MenuStyles.text());
 
 				pill(ctx, px2 - 8 - 26, ry + 6, 26, 12, on);
 			} else {
 				String val = fit(s.format(), 70);
-				text(ctx, fit(label, px2 - px1 - 16 - textRenderer.getWidth(val) - 8), px1 + 8, ry + 3, Theme.TEXT);
-				textRight(ctx, val, px2 - 8, ry + 3, Theme.TEXT_DIM);
+				text(ctx, fit(label, px2 - px1 - 16 - textRenderer.getWidth(val) - 8), px1 + 8, ry + 3, MenuStyles.text());
+				textRight(ctx, val, px2 - 8, ry + 3, MenuStyles.textDim());
 
 				int x1 = px1 + 8;
 				int x2 = px2 - 8;
@@ -699,16 +705,16 @@ public class FlyMenuScreen extends Screen {
 						rect(ctx, xx, cy - 2, Math.min(xx + 2, x2), cy + 2, 0xFF000000 | ColorUtil.hsv(hh, 0.9f, 1.0f));
 					}
 				} else {
-					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, Theme.offCol());
+					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, MenuStyles.off());
 					if (fx > x1) {
-						rr(ctx, x1, cy - 2, fx - x1, 4, 2, Theme.accent());
+						rr(ctx, x1, cy - 2, fx - x1, 4, 2, MenuStyles.accent());
 					}
 				}
 				rr(ctx, fx - 4, cy - 4, 8, 8, 4, 0xFFFFFFFF);
 			}
 			if (!selected.isEnabled() && !s.isButton()) {
 				// Функция выключена: настройки затемнены и не меняются
-				rect(ctx, px1 + 4, ry, px2 - 4, ry + ROW_H, 0x99141418);
+				rect(ctx, px1 + 4, ry, px2 - 4, ry + ROW_H, MenuStyles.disabled());
 			}
 		}
 		ctx.disableScissor();
@@ -785,7 +791,7 @@ public class FlyMenuScreen extends Screen {
 			int fx = mFieldX();
 			int fw = mFieldW();
 			boolean focus = macroFocus == i;
-			rr(ctx, fx - 1, ry - 1, fw + 2, 18, 5, focus ? mulA(Theme.accent(), 0.8f) : 0xFF2A2A2E);
+			rr(ctx, fx - 1, ry - 1, fw + 2, 18, 5, focus ? mulA(MenuStyles.accent(), 0.8f) : 0xFF2A2A2E);
 			rr(ctx, fx, ry, fw, 16, 4, 0xFF1C1C20);
 			String s = macroText(i);
 			if (s.isEmpty() && !focus) {
@@ -793,15 +799,15 @@ public class FlyMenuScreen extends Screen {
 			} else {
 				String shown = s;
 				while (shown.length() > 0 && textRenderer.getWidth(shown) > fw - 10) shown = shown.substring(1);
-				text(ctx, shown, fx + 4, ry + 4, Theme.TEXT);
+				text(ctx, shown, fx + 4, ry + 4, MenuStyles.text());
 				if (focus && blink) {
-					rect(ctx, fx + 4 + textRenderer.getWidth(shown), ry + 3, fx + 5 + textRenderer.getWidth(shown), ry + 13, Theme.TEXT);
+					rect(ctx, fx + 4 + textRenderer.getWidth(shown), ry + 3, fx + 5 + textRenderer.getWidth(shown), ry + 13, MenuStyles.text());
 				}
 			}
 			int kx = mKeyX();
 			boolean binding = macroBind == i;
 			boolean hover = mouseX >= kx && mouseX < kx + 46 && mouseY >= ry && mouseY < ry + 16;
-			rr(ctx, kx, ry, 46, 16, 4, binding ? Theme.accent() : (hover ? 0xFF3A3A40 : 0xFF2A2A2E));
+			rr(ctx, kx, ry, 46, 16, 4, binding ? MenuStyles.accent() : (hover ? 0xFF3A3A40 : 0xFF2A2A2E));
 			String label;
 			if (binding) {
 				label = "...";
@@ -812,7 +818,7 @@ public class FlyMenuScreen extends Screen {
 						: InputUtil.fromKeyCode(macroKey(i), 0).getLocalizedText().getString();
 			}
 			label = textRenderer.trimToWidth(label, 40);
-			text(ctx, label, kx + (46 - textRenderer.getWidth(label)) / 2, ry + 4, Theme.TEXT);
+			text(ctx, label, kx + (46 - textRenderer.getWidth(label)) / 2, ry + 4, MenuStyles.text());
 		}
 	}
 
@@ -854,20 +860,96 @@ public class FlyMenuScreen extends Screen {
 
 		int rgb = FlyConfig.get().accentColor & 0xFFFFFF;
 		rr(ctx, sx, hy + HUE_H + 8, 12, 12, 4, 0xFF000000 | rgb);
-		text(ctx, String.format("#%06X", rgb), sx + 18, hy + HUE_H + 10, Theme.TEXT);
+		text(ctx, String.format("#%06X", rgb), sx + 18, hy + HUE_H + 10, MenuStyles.text());
 	}
 
-	private void drawFooter(DrawContext ctx, String hoverDesc) {
-		int fy = bottom() - FOOT + 4;
-		if (hoverDesc != null) {
-			text(ctx, fit(hoverDesc, right() - left() - 2 * PAD), left() + PAD, fy, Theme.TEXT);
+	private void drawFooter(DrawContext ctx, String hoverDesc, int mouseX, int mouseY, float dt) {
+		int fy = bottom() - FOOT + 2;
+		int chip = chipAt(mouseX, mouseY);
+		if (chip >= 0) {
+			text(ctx, fit(MenuStyles.DESCRIPTIONS[chip], right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
+		} else if (hoverDesc != null) {
+			text(ctx, fit(hoverDesc, right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
 		} else if (selected != null && !selected.isEnabled() && !selected.getSettings().isEmpty()
 				&& !(selected instanceof MacroModule)) {
 			text(ctx, fit("Включи функцию «" + Lang.module(selected.getName()) + "», чтобы менять её настройки",
 					right() - left() - 2 * PAD), left() + PAD, fy, 0xFFFF6B6B);
 		} else {
 			text(ctx, fit("ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
-					right() - left() - 2 * PAD), left() + PAD, fy, Theme.TEXT_DIM);
+					right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.textDim());
+		}
+		drawStyleBar(ctx, mouseX, mouseY, dt);
+	}
+
+	// ---------- Переключатель стилей оформления (самый низ меню) ----------
+
+	private static final int CHIP_H = 12;
+
+	private int styleBarY() {
+		return bottom() - CHIP_H - 4;
+	}
+
+	private int styleLabelW() {
+		return textRenderer.getWidth("Стиль") + 10;
+	}
+
+	/** Отступ внутри кнопки стиля: на узком экране кнопки становятся компактнее. */
+	private int chipPad() {
+		int total = styleLabelW();
+		for (int i = 0; i < MenuStyles.COUNT; i++) {
+			total += textRenderer.getWidth(MenuStyles.NAMES[i]) + 12 + 4;
+		}
+		return total <= pw() - 2 * PAD ? 12 : 6;
+	}
+
+	private int chipW(int i) {
+		return textRenderer.getWidth(MenuStyles.NAMES[i]) + chipPad();
+	}
+
+	private int chipX(int i) {
+		int x = left() + PAD + styleLabelW();
+		for (int k = 0; k < i; k++) {
+			x += chipW(k) + 4;
+		}
+		return x;
+	}
+
+	/** Номер стиля под мышкой или -1. */
+	private int chipAt(double mx, double my) {
+		int y = styleBarY();
+		if (my < y || my >= y + CHIP_H) return -1;
+		for (int i = 0; i < MenuStyles.COUNT; i++) {
+			int x = chipX(i);
+			if (mx >= x && mx < x + chipW(i)) return i;
+		}
+		return -1;
+	}
+
+	private void drawStyleBar(DrawContext ctx, int mouseX, int mouseY, float dt) {
+		int y = styleBarY();
+		int cur = MenuStyles.current();
+		rect(ctx, left() + PAD, y - 3, right() - PAD, y - 2, MenuStyles.line());
+		text(ctx, "Стиль", left() + PAD, y + 2, MenuStyles.textDim());
+
+		// Подсветка выбранного стиля плавно переезжает на новую кнопку
+		float hx = animate("style#x", chipX(cur), dt, 14.0f);
+		float hw = animate("style#w", chipW(cur), dt, 14.0f);
+		int ihx = Math.round(hx);
+		int ihw = Math.round(hw);
+		rr(ctx, ihx - 1, y - 1, ihw + 2, CHIP_H + 2, 7, mulA(MenuStyles.accent(), 0.22f));
+		rr(ctx, ihx, y, ihw, CHIP_H, 6, mulA(MenuStyles.accent(), 0.30f));
+		rr(ctx, ihx + ihw / 2 - 6, y + CHIP_H - 2, 12, 2, 1, MenuStyles.accent());
+
+		int hover = chipAt(mouseX, mouseY);
+		for (int i = 0; i < MenuStyles.COUNT; i++) {
+			int x = chipX(i);
+			int cw = chipW(i);
+			float hv = animate("style#h" + i, i == hover ? 1.0f : 0.0f, dt, 18.0f);
+			if (hv > 0.02f && i != cur) {
+				rr(ctx, x, y, cw, CHIP_H, 6, mulA(MenuStyles.btnHover(), hv));
+			}
+			int tc = i == cur ? MenuStyles.text() : lerp(MenuStyles.textDim(), MenuStyles.text(), hv);
+			text(ctx, MenuStyles.NAMES[i], x + (cw - textRenderer.getWidth(MenuStyles.NAMES[i])) / 2, y + 2, tc);
 		}
 	}
 
@@ -896,6 +978,12 @@ public class FlyMenuScreen extends Screen {
 		}
 
 		if (button == 0) {
+			int chip = chipAt(mouseX, mouseY);
+			if (chip >= 0) {
+				MenuStyles.select(chip);
+				pickerOpen = false;
+				return true;
+			}
 			// Цвет темы
 			for (int i = 0; i <= Theme.PRESETS.length; i++) {
 				int sx = swatchX(i);

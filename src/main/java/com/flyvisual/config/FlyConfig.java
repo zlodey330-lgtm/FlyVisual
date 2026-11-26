@@ -39,6 +39,9 @@ public class FlyConfig {
 	/** Лучи, туман, листья и искры на фоне главного меню. */
 	public boolean titleParticles = true;
 
+	/** Стиль оформления главного меню (0 = Классика, прежний вид). */
+	public int menuStyle = 0;
+
 	/** Последний выбранный в меню модуль и прокрутка списка: меню открывается там, где ты закончил. */
 	public String lastModule = "";
 	public int lastScroll = 0;
