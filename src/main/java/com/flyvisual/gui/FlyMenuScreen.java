@@ -19,6 +19,7 @@ import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -491,6 +492,7 @@ public class FlyMenuScreen extends Screen {
 		scroll = Math.max(0, Math.min(maxScroll(), Math.round(scrollF)));
 		extra = 1.0f;
 
+		updateSearch(dt);
 		MenuStyles.update(dt);
 		MenuStyles.drawBackground(ctx, width, height, alpha);
 
@@ -505,10 +507,14 @@ public class FlyMenuScreen extends Screen {
 		// Рисуем пачками: меньше вызовов отрисовки, меню не роняет FPS
 		ctx.draw(() -> drawFrame(ctx, mouseX, mouseY));
 		String[] hoverBox = new String[1];
-		ctx.draw(() -> hoverBox[0] = drawTiles(ctx, mouseX, mouseY, dt));
-		ctx.draw(() -> drawPane(ctx, mouseX, mouseY, dt));
+		boolean covered = searchCovers(mouseX, mouseY);
+		final int tmx = covered ? -10000 : mouseX;
+		final int tmy = covered ? -10000 : mouseY;
+		ctx.draw(() -> hoverBox[0] = drawTiles(ctx, tmx, tmy, dt));
+		ctx.draw(() -> drawPane(ctx, tmx, tmy, dt));
 		drawFooter(ctx, hoverBox[0], mouseX, mouseY, dt);
 		drawPicker(ctx);
+		drawSearch(ctx, mouseX, mouseY, dt);
 		MenuStyles.drawFront(ctx, left(), top(), right(), bottom(), alpha, mouseX, mouseY);
 
 		ms.pop();
@@ -533,7 +539,8 @@ public class FlyMenuScreen extends Screen {
 		text(ctx, "Fly", l + PAD, t + 11, MenuStyles.accent());
 		text(ctx, "Visual", l + PAD + flyW, t + 11, MenuStyles.text());
 
-		// Цвета темы + свой цвет (радужный квадрат)
+		// Цвета темы + свой цвет (радужный квадрат); при поиске плавно уходят, освобождая место
+		extra = 1.0f - sf;
 		int cur = FlyConfig.get().accentColor;
 		boolean preset = false;
 		for (int c : Theme.PRESETS) {
@@ -557,6 +564,7 @@ public class FlyMenuScreen extends Screen {
 			}
 		}
 
+		extra = 1.0f;
 		// Кнопка HUD-редактора
 		int bx = btnX();
 		int by = btnY();
@@ -565,11 +573,13 @@ public class FlyMenuScreen extends Screen {
 		String label = "Редактор HUD";
 		text(ctx, label, bx + (BTN_W - textRenderer.getWidth(label)) / 2, by + 4, MenuStyles.text());
 
+		extra = 1.0f - sf;
 		int cx = cfgX();
 		boolean hov2 = mouseX >= cx && mouseX < cx + CFG_W && mouseY >= by && mouseY < by + BTN_H;
 		rr(ctx, cx, by, CFG_W, BTN_H, 6, hov2 ? MenuStyles.btnHover() : MenuStyles.btn());
 		String l2 = "Конфиги";
 		text(ctx, l2, cx + (CFG_W - textRenderer.getWidth(l2)) / 2, by + 4, MenuStyles.text());
+		extra = 1.0f;
 	}
 
 	/** Рисует сетку плиток. Возвращает описание модуля под курсором (или null). */
@@ -591,6 +601,12 @@ public class FlyMenuScreen extends Screen {
 					&& mouseY >= Math.max(ty, gy1) && mouseY < Math.min(ty + TILE_H, gy2);
 			float en = animate(m.getName() + "#e", m.isEnabled() ? 1.0f : 0.0f, dt, 14.0f);
 			float hv = animate(m.getName() + "#h", hover ? 1.0f : 0.0f, dt, 18.0f);
+			boolean searching = !query.trim().isEmpty();
+			float dim = animate(m.getName() + "#d", !searching || matchMods.contains(i) ? 1.0f : 0.32f, dt, 12.0f);
+			extra = dim;
+			if (flashModT > 0.01f && m.getName().equals(flashMod)) {
+				rr(ctx, tx - 3, ty - 3, tw + 6, TILE_H + 6, 9, mulA(MenuStyles.accent(), 0.55f * flashModT));
+			}
 
 			if (m == selected) {
 				rr(ctx, tx - 1, ty - 1, tw + 2, TILE_H + 2, 7, MenuStyles.accent());
@@ -606,6 +622,7 @@ public class FlyMenuScreen extends Screen {
 			if (hover) {
 				hoverDesc = Lang.description(m.getName(), m.getDescription());
 			}
+			extra = 1.0f;
 		}
 		ctx.disableScissor();
 
@@ -673,6 +690,9 @@ public class FlyMenuScreen extends Screen {
 			if (ry >= gy2) break;
 
 			String label = Lang.setting(s.getName());
+			if (flashSetT > 0.01f && k == flashSetIdx && selected.getName().equals(flashSetMod)) {
+				rr(ctx, px1 + 4, ry, px2 - px1 - 8, ROW_H, 6, mulA(MenuStyles.accent(), 0.38f * flashSetT));
+			}
 			if (s.isButton()) {
 				int bx1 = px1 + 8;
 				int bw = px2 - px1 - 16;
@@ -824,6 +844,14 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean charTyped(char chr, int modifiers) {
+		if (macroFocus < 0 && macroBind < 0 && chr >= 32 && chr != 127 && !closing) {
+			// Любая печатаемая буква сразу начинает поиск, ничего нажимать не нужно
+			if (!(chr == ' ' && query.isEmpty())) {
+				focusSearch();
+				if (query.length() < 40) setQuery(query + chr);
+			}
+			return true;
+		}
 		if (macroFocus >= 0 && chr >= 32 && chr != 127) {
 			String s = macroText(macroFocus);
 			if (s.length() < 256) setMacroText(macroFocus, s + chr);
@@ -953,6 +981,411 @@ public class FlyMenuScreen extends Screen {
 		}
 	}
 
+	// ---------- Умный поиск ----------
+
+	private static final int SF_H = 16;
+	private static final int SR_H = 22;
+	private static final int SR_MAX = 8;
+
+	private static final class Row {
+		SearchEngine.Hit hit;
+		final String key;
+		float a;
+		float y;
+		int slot;
+		boolean alive = true;
+
+		Row(SearchEngine.Hit hit, String key) {
+			this.hit = hit;
+			this.key = key;
+		}
+	}
+
+	private String query = "";
+	private boolean searchFocus;
+	private int sel;
+	private List<SearchEngine.Hit> hits = new ArrayList<>();
+	private final java.util.Set<Integer> matchMods = new java.util.HashSet<>();
+	private List<SearchEngine.Item> index;
+	private final List<Row> rows = new ArrayList<>();
+	private float sf;
+	private float panelH;
+	private float panelA;
+	private float selY;
+	private float noneA;
+	private long caretT = System.nanoTime();
+	private String flashMod;
+	private float flashModT;
+	private String flashSetMod;
+	private int flashSetIdx = -1;
+	private float flashSetT;
+
+	private int sfX() {
+		return left() + PAD + textRenderer.getWidth("FlyVisual") + 14;
+	}
+
+	private int sfY() {
+		return top() + 6;
+	}
+
+	private int sfCompactW() {
+		return Math.max(60, Math.min(120, cfgX() - 10 - sfX()));
+	}
+
+	private int sfExpandW() {
+		return Math.max(sfCompactW(), Math.min(290, btnX() - 10 - sfX()));
+	}
+
+	private int sfW() {
+		return Math.round(sfCompactW() + (sfExpandW() - sfCompactW()) * sf);
+	}
+
+	private int spX() {
+		return sfX();
+	}
+
+	private int spY() {
+		return top() + HEAD + 3;
+	}
+
+	private int spW() {
+		return Math.max(sfExpandW(), Math.min(270, right() - PAD - spX()));
+	}
+
+	private boolean inField(double mx, double my) {
+		return mx >= sfX() && mx < sfX() + sfW() && my >= sfY() && my < sfY() + SF_H;
+	}
+
+	private boolean searchCovers(double mx, double my) {
+		return panelA > 0.04f && panelH > 2.0f && mx >= spX() && mx < spX() + spW() && my >= spY() && my < spY() + panelH;
+	}
+
+	private static float flerp(float a, float b, float t) {
+		return a + (b - a) * t;
+	}
+
+	private void buildIndex() {
+		index = new ArrayList<>();
+		List<Module> mods = ModuleManager.all();
+		for (int i = 0; i < mods.size(); i++) {
+			Module m = mods.get(i);
+			String id = m.getName();
+			String ru = Lang.module(id);
+			index.add(new SearchEngine.Item(SearchEngine.KIND_MODULE, i, 0, ru, "Функция", new String[]{ru, id}, new String[0],
+					Lang.description(id, m.getDescription())));
+			List<DoubleSetting> ss = m.getSettings();
+			for (int k = 0; k < ss.size(); k++) {
+				String sn = ss.get(k).getName();
+				String sru = Lang.setting(sn);
+				index.add(new SearchEngine.Item(SearchEngine.KIND_SETTING, i, k, sru, "Настройка • " + ru,
+						new String[]{sru, sn}, new String[]{ru, id}, null));
+			}
+		}
+		for (int i = 0; i < MenuStyles.COUNT; i++) {
+			String n = MenuStyles.NAMES[i];
+			index.add(new SearchEngine.Item(SearchEngine.KIND_ACTION, 0, i, "Стиль: " + n, "Оформление меню",
+					new String[]{"Стиль меню " + n, "Menu style " + n, n}, new String[0], MenuStyles.DESCRIPTIONS[i]));
+		}
+		index.add(new SearchEngine.Item(SearchEngine.KIND_ACTION, 1, 0, "Редактор HUD", "Открыть", new String[]{"Редактор HUD", "HUD editor", "hud"},
+				new String[0], "Перемещение элементов интерфейса"));
+		index.add(new SearchEngine.Item(SearchEngine.KIND_ACTION, 1, 1, "Конфиги", "Открыть", new String[]{"Конфиги", "Configs", "config", "конфигурации", "пресеты"},
+				new String[0], "Сохранение и загрузка наборов настроек"));
+	}
+
+	private void setQuery(String q) {
+		query = q;
+		caretT = System.nanoTime();
+		if (index == null) buildIndex();
+		matchMods.clear();
+		if (q.trim().isEmpty()) {
+			hits = new ArrayList<>();
+		} else {
+			List<SearchEngine.Hit> all = SearchEngine.search(index, q, 80);
+			for (SearchEngine.Hit h : all) {
+				matchMods.add(h.item.kind == SearchEngine.KIND_ACTION ? -1 : h.item.a);
+			}
+			hits = all.size() > SR_MAX ? new ArrayList<>(all.subList(0, SR_MAX)) : all;
+		}
+		sel = Math.max(0, Math.min(sel, Math.max(0, hits.size() - 1)));
+		reconcile();
+	}
+
+	private void reconcile() {
+		for (Row r : rows) r.alive = false;
+		for (int i = 0; i < hits.size(); i++) {
+			SearchEngine.Hit h = hits.get(i);
+			Row found = null;
+			for (Row r : rows) {
+				if (r.key.equals(h.item.key) && !r.alive) {
+					found = r;
+					break;
+				}
+			}
+			if (found == null) {
+				found = new Row(h, h.item.key);
+				found.y = i * SR_H + 6;
+				rows.add(found);
+			}
+			found.hit = h;
+			found.slot = i;
+			found.alive = true;
+		}
+	}
+
+	private void focusSearch() {
+		if (!searchFocus) {
+			searchFocus = true;
+			pickerOpen = false;
+			caretT = System.nanoTime();
+		}
+	}
+
+	private void closeSearch() {
+		searchFocus = false;
+		sel = 0;
+		setQuery("");
+	}
+
+	private void updateSearch(float dt) {
+		sf += ((searchFocus ? 1.0f : 0.0f) - sf) * (1.0f - (float) Math.exp(-14.0f * dt));
+		if (Math.abs(sf - (searchFocus ? 1.0f : 0.0f)) < 0.002f) sf = searchFocus ? 1.0f : 0.0f;
+		float targetH = hits.isEmpty() ? (query.trim().isEmpty() ? 0.0f : 30.0f) : hits.size() * SR_H + 6;
+		panelH += (targetH - panelH) * (1.0f - (float) Math.exp(-16.0f * dt));
+		if (Math.abs(targetH - panelH) < 0.3f) panelH = targetH;
+		boolean show = !query.trim().isEmpty();
+		panelA += ((show ? 1.0f : 0.0f) - panelA) * (1.0f - (float) Math.exp(-18.0f * dt));
+		if (panelA < 0.01f && !show) panelA = 0.0f;
+		noneA += ((show && hits.isEmpty() ? 1.0f : 0.0f) - noneA) * (1.0f - (float) Math.exp(-18.0f * dt));
+		selY += (sel * SR_H - selY) * (1.0f - (float) Math.exp(-20.0f * dt));
+		for (int i = rows.size() - 1; i >= 0; i--) {
+			Row r = rows.get(i);
+			r.a += ((r.alive ? 1.0f : 0.0f) - r.a) * (1.0f - (float) Math.exp(-(r.alive ? 16.0f : 28.0f) * dt));
+			r.y += (r.slot * SR_H - r.y) * (1.0f - (float) Math.exp(-18.0f * dt));
+			if (!r.alive && r.a < 0.03f) rows.remove(i);
+		}
+		flashModT = Math.max(0.0f, flashModT - dt * 0.9f);
+		flashSetT = Math.max(0.0f, flashSetT - dt * 0.8f);
+	}
+
+	private void drawMagnifier(DrawContext ctx, int x, int y, int argb) {
+		rr(ctx, x, y, 8, 8, 4, argb);
+		rr(ctx, x + 1, y + 1, 6, 6, 3, MenuStyles.btn());
+		for (int i = 0; i < 3; i++) {
+			rect(ctx, x + 6 + i, y + 6 + i, x + 8 + i, y + 8 + i, argb);
+		}
+	}
+
+	private void drawSearch(DrawContext ctx, int mouseX, int mouseY, float dt) {
+		int x = sfX();
+		int y = sfY();
+		int w = sfW();
+		boolean hover = inField(mouseX, mouseY);
+		float hv = animate("sf#h", hover ? 1.0f : 0.0f, dt, 18.0f);
+		extra = 1.0f;
+		if (sf > 0.02f) {
+			rr(ctx, x - 2, y - 2, w + 4, SF_H + 4, 9, mulA(MenuStyles.accent(), 0.20f * sf));
+		}
+		rr(ctx, x, y, w, SF_H, 7, lerp(lerp(MenuStyles.btn(), MenuStyles.btnHover(), hv), MenuStyles.tileHover(), sf * 0.5f));
+		if (sf > 0.02f) {
+			outline(ctx, x + 1, y, x + w - 1, y + SF_H, mulA(MenuStyles.accent(), 0.55f * sf));
+		}
+		drawMagnifier(ctx, x + 6, y + 4, lerp(MenuStyles.textDim(), MenuStyles.accent(), sf));
+		int tx = x + 20;
+		int maxTextW = w - 20 - 16;
+		if (query.isEmpty()) {
+			String ph = sf > 0.5f ? "Поиск функций и настроек…" : "Поиск";
+			text(ctx, fit(ph, w - 24), tx, y + 4, MenuStyles.textDim());
+			if (sf > 0.6f && w > 200) {
+				textRight(ctx, "Ctrl+F", x + w - 8, y + 4, mulA(MenuStyles.textDim(), 0.6f * sf));
+			}
+		} else {
+			String shown = textRenderer.getWidth(query) > maxTextW ? textRenderer.trimToWidth(query, maxTextW, true) : query;
+			text(ctx, shown, tx, y + 4, MenuStyles.text());
+			if (searchFocus && ((System.nanoTime() - caretT) / 500_000_000L) % 2 == 0) {
+				rect(ctx, tx + textRenderer.getWidth(shown) + 1, y + 3, tx + textRenderer.getWidth(shown) + 2, y + SF_H - 3, MenuStyles.accent());
+			}
+			boolean hx = mouseX >= x + w - 15 && mouseX < x + w - 3 && mouseY >= y && mouseY < y + SF_H;
+			textRight(ctx, "×", x + w - 6, y + 4, hx ? MenuStyles.text() : MenuStyles.textDim());
+		}
+		if (query.isEmpty() && searchFocus && ((System.nanoTime() - caretT) / 500_000_000L) % 2 == 0) {
+			rect(ctx, tx - 2, y + 3, tx - 1, y + SF_H - 3, MenuStyles.accent());
+		}
+
+		if (panelA <= 0.01f || panelH < 2.0f) return;
+		int px = spX();
+		int py = spY();
+		int pw = spW();
+		int ph = Math.round(panelH);
+		extra = panelA;
+		rr(ctx, px - 1, py - 1, pw + 2, ph + 2, 9, mulA(MenuStyles.accent(), 0.40f));
+		rr(ctx, px, py, pw, ph, 8, 0xFF000000 | (lerp(MenuStyles.panel(), MenuStyles.pane(), 0.5f) & 0xFFFFFF));
+		rr(ctx, px, py, pw, ph, 8, mulA(MenuStyles.pane(), 0.45f));
+		scissor(ctx, px, py, px + pw, py + ph);
+		// выделенная строка плавно переезжает
+		if (!hits.isEmpty()) {
+			int sy = py + 3 + Math.round(selY);
+			rr(ctx, px + 3, sy, pw - 6, SR_H - 2, 6, mulA(MenuStyles.accent(), 0.24f));
+			rr(ctx, px + 3, sy + 4, 2, SR_H - 10, 1, MenuStyles.accent());
+		}
+		for (int pass = 0; pass < 2; pass++) {
+			for (Row r : rows) {
+				if (r.alive != (pass == 1)) continue;
+				if (r.a < 0.03f) continue;
+				extra = panelA * r.a;
+				int ry = py + 3 + Math.round(r.y);
+				drawResultRow(ctx, r.hit, px, ry, pw);
+			}
+		}
+		if (noneA > 0.03f) {
+			extra = panelA * noneA;
+			String t1 = "Ничего не найдено";
+			text(ctx, t1, px + (pw - textRenderer.getWidth(t1)) / 2, py + 6, MenuStyles.text());
+			String t2 = "Попробуй другое слово";
+			text(ctx, t2, px + (pw - textRenderer.getWidth(t2)) / 2, py + 17, MenuStyles.textDim());
+		}
+		ctx.disableScissor();
+		extra = 1.0f;
+	}
+
+	private void drawResultRow(DrawContext ctx, SearchEngine.Hit h, int px, int ry, int pw) {
+		SearchEngine.Item it = h.item;
+		int ix = px + 11;
+		int cy = ry + (SR_H - 2) / 2;
+		if (it.kind == SearchEngine.KIND_MODULE) {
+			rr(ctx, ix - 4, cy - 4, 8, 8, 3, MenuStyles.accent());
+		} else if (it.kind == SearchEngine.KIND_SETTING) {
+			rr(ctx, ix - 2, cy - 2, 5, 5, 2, MenuStyles.textDim());
+		} else {
+			rr(ctx, ix - 4, cy - 4, 8, 8, 4, MenuStyles.accent2());
+		}
+		String sub = fit(it.sub, 118);
+		int subW = textRenderer.getWidth(sub);
+		int maxW = pw - 26 - subW - 18;
+		String title = fit(it.title, Math.max(30, maxW));
+		int ty = ry + (SR_H - 2 - 8) / 2;
+		int tx = px + 24;
+		int hs = h.hlStart;
+		int he = h.hlStart + h.hlLen;
+		if (h.hlLen > 0 && he <= title.length() && !title.endsWith("…")) {
+			String a = title.substring(0, hs);
+			String b = title.substring(hs, he);
+			String c = title.substring(he);
+			text(ctx, a, tx, ty, MenuStyles.text());
+			int bx = tx + textRenderer.getWidth(a);
+			text(ctx, b, bx, ty, MenuStyles.accent());
+			text(ctx, c, bx + textRenderer.getWidth(b), ty, MenuStyles.text());
+		} else {
+			text(ctx, title, tx, ty, MenuStyles.text());
+		}
+		textRight(ctx, sub, px + pw - 10, ty, MenuStyles.textDim());
+	}
+
+	private void revealTile(int i) {
+		int row = i / COLS;
+		float target = row * (TILE_H + GAP) - (viewH() - TILE_H) / 2.0f;
+		scrollTarget = Math.max(0, Math.min(maxScroll(), target));
+	}
+
+	private void activate(SearchEngine.Hit h) {
+		SearchEngine.Item it = h.item;
+		closeSearch();
+		List<Module> mods = ModuleManager.all();
+		if (it.kind == SearchEngine.KIND_ACTION) {
+			if (it.a == 0) {
+				MenuStyles.select(it.b);
+			} else if (it.b == 0) {
+				MinecraftClient.getInstance().setScreen(new HudEditorScreen(parent));
+			} else {
+				MinecraftClient.getInstance().setScreen(new ConfigsScreen(this));
+			}
+			return;
+		}
+		if (it.a < 0 || it.a >= mods.size()) return;
+		Module m = mods.get(it.a);
+		select(m);
+		revealTile(it.a);
+		flashMod = m.getName();
+		flashModT = 1.0f;
+		if (it.kind == SearchEngine.KIND_SETTING) {
+			descLineCount();
+			int visible = gy2() - settingsTop();
+			int want = headerH() + it.b * ROW_H - (visible - ROW_H) / 2;
+			settingsScroll = Math.max(0, Math.min(settingsMaxScroll(), want));
+			flashSetMod = m.getName();
+			flashSetIdx = it.b;
+			flashSetT = 1.0f;
+		}
+	}
+
+	private boolean searchClick(double mx, double my, int button) {
+		if (searchCovers(mx, my)) {
+			int idx = (int) ((my - spY() - 3) / SR_H);
+			if (button == 0 && idx >= 0 && idx < hits.size()) activate(hits.get(idx));
+			return true;
+		}
+		if (button == 0 && inField(mx, my)) {
+			if (!query.isEmpty() && mx >= sfX() + sfW() - 15) {
+				setQuery("");
+				focusSearch();
+				return true;
+			}
+			focusSearch();
+			return true;
+		}
+		if (searchFocus || !query.isEmpty()) {
+			boolean header = my < top() + HEAD;
+			closeSearch();
+			if (header) return true;
+		}
+		return false;
+	}
+
+	private boolean searchKey(int keyCode, int modifiers) {
+		boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+		if (ctrl && keyCode == GLFW.GLFW_KEY_F) {
+			focusSearch();
+			return true;
+		}
+		if (!searchFocus && query.isEmpty()) return false;
+		if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+			closeSearch();
+			return true;
+		}
+		if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+			if (ctrl) setQuery("");
+			else if (!query.isEmpty()) setQuery(query.substring(0, query.length() - 1));
+			return true;
+		}
+		if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+			if (!hits.isEmpty()) activate(hits.get(Math.max(0, Math.min(sel, hits.size() - 1))));
+			return true;
+		}
+		if (keyCode == GLFW.GLFW_KEY_DOWN && !hits.isEmpty()) {
+			sel = (sel + 1) % hits.size();
+			return true;
+		}
+		if (keyCode == GLFW.GLFW_KEY_UP && !hits.isEmpty()) {
+			sel = (sel + hits.size() - 1) % hits.size();
+			return true;
+		}
+		if (Screen.isPaste(keyCode)) {
+			String clip = MinecraftClient.getInstance().keyboard.getClipboard().replaceAll("[\\r\\n]", " ");
+			String q = query + clip;
+			setQuery(q.length() > 40 ? q.substring(0, 40) : q);
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public void mouseMoved(double mouseX, double mouseY) {
+		if (searchCovers(mouseX, mouseY) && !hits.isEmpty()) {
+			int idx = (int) ((mouseY - spY() - 3) / SR_H);
+			if (idx >= 0 && idx < hits.size()) sel = idx;
+		}
+		super.mouseMoved(mouseX, mouseY);
+	}
+
 	// ---------- Ввод ----------
 
 	private void dragTo(double mouseX) {
@@ -966,6 +1399,7 @@ public class FlyMenuScreen extends Screen {
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
 		if (closing || open < 0.6f) return true;
+		if (searchClick(mouseX, mouseY, button)) return true;
 
 		if (pickerOpen && button == 0 && inPicker(mouseX, mouseY)) {
 			if (mouseX >= svX() && mouseX < svX() + SV_W && mouseY >= svY() && mouseY < svY() + SV_H) {
@@ -1137,6 +1571,7 @@ public class FlyMenuScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+		if (searchCovers(mouseX, mouseY)) return true;
 		if (selected != null && !(selected instanceof MacroModule) && mouseX >= px1() && mouseX < px2()
 				&& mouseY >= settingsTop() && mouseY < gy2() && settingsMaxScroll() > 0) {
 			settingsScroll = Math.max(0, Math.min(settingsMaxScroll(), settingsScroll - (int) (amount * 18.0)));
@@ -1181,6 +1616,7 @@ public class FlyMenuScreen extends Screen {
 				return true;
 			}
 		}
+		if (searchKey(keyCode, modifiers)) return true;
 		if (keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) {
 			close();
 			return true;
