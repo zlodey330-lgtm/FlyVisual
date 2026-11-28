@@ -304,7 +304,10 @@ public class KillEffectModule extends Module {
 			local.m01(m[4]).m11(m[5]).m21(m[6]).m31(m[7]);
 			local.m02(m[8]).m12(m[9]).m22(m[10]).m32(m[11]);
 			local.m03(0.0f).m13(0.0f).m23(0.0f).m33(1.0f);
-			Matrix3f normal = new Matrix3f().set(local).normalize();
+			// нормали: только поворот, без масштаба (масштаб у сцены равномерный)
+			float cs = (float) Math.sqrt(m[0] * m[0] + m[4] * m[4] + m[8] * m[8]);
+			Matrix3f normal = new Matrix3f().set(local);
+			if (cs > 1.0e-5f) normal.scale(1.0f / cs);
 
 			ms.push();
 			pushed = true;
