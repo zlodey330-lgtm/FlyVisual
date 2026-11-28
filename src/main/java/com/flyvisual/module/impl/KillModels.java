@@ -77,6 +77,8 @@ final class KillModels {
 		float mouth;
 		float lift;
 		float yaw;
+		/** Дрожь корпуса (для настоящей модели, у которой нельзя двигать руки). */
+		float roll;
 
 		/** Мечется и кричит. */
 		Pose flail(float t, float amp) {
@@ -88,6 +90,8 @@ final class KillModels {
 			armRz = 0.35f * amp + sin(t * 9.0f + 1.3f) * 0.2f * amp;
 			head = sin(t * 10.0f) * 0.2f * amp;
 			mouth = amp;
+			roll = sin(t * 12.0f) * 0.10f * amp;
+			pitch += sin(t * 9.0f + 1.0f) * 0.06f * amp;
 			return this;
 		}
 
@@ -98,12 +102,31 @@ final class KillModels {
 			armLz = 0.12f;
 			armRz = 0.12f;
 			head = sin(t * 17.0f) * 0.05f * amp;
+			roll = sin(t * 23.0f) * 0.02f * amp;
 			return this;
 		}
 	}
 
 	static void ghost(KillGfx g, float hgt, float wid, Pose p, float alpha) {
 		if (alpha <= 0.01f) return;
+		if (g.realVictim) {
+			// настоящая модель убитого: позу тела задаём здесь, саму модель рисует модуль
+			if (alpha < 0.03f) return;
+			float k = alpha * alpha * (3.0f - 2.0f * alpha);
+			g.push();
+			g.translate(0.0f, p.lift, 0.0f);
+			g.rotY(p.yaw);
+			float piv = Math.max(0.3f, hgt) * 0.42f;
+			g.translate(0.0f, piv, 0.0f);
+			g.rotX(p.pitch);
+			g.rotZ(p.roll);
+			g.translate(0.0f, -piv, 0.0f);
+			float sc = g.victimScale * (0.2f + 0.8f * k);
+			g.scale(sc, sc, sc);
+			g.victim(alpha, false);
+			g.pop();
+			return;
+		}
 		g.push();
 		g.translate(0.0f, p.lift, 0.0f);
 		g.rotY(p.yaw);
@@ -301,7 +324,7 @@ final class KillModels {
 		if (t < 1.25f) p.tremble(t, 1.0f);
 		else p.flail(t, sm(1.25f, 1.6f, t));
 		p.lift = -sink;
-		ghost(g, hgt, wid, p, sm(0.0f, 0.3f, t) * (1.0f - sm(2.9f, 3.3f, t)));
+		ghost(g, hgt, wid, p, g.in(sm(0.0f, 0.3f, t)) * (1.0f - sm(2.9f, 3.3f, t)));
 
 		g.push();
 		g.translate(0.0f, wy, -0.40f * hs);
@@ -497,7 +520,7 @@ final class KillModels {
 		if (t < 2.2f) p.tremble(t, 1.0f);
 		else p.flail(t, sm(2.2f, 2.5f, t));
 		p.lift = lift - lower;
-		ghost(g, hgt, wid, p, sm(0.0f, 0.4f, t) * (1.0f - sm(3.9f, 4.3f, t)));
+		ghost(g, hgt, wid, p, g.in(sm(0.0f, 0.4f, t)) * (1.0f - sm(3.9f, 4.3f, t)));
 
 		// реальная точка хвата в мире -> локальная система жнеца
 		float wx = 0.18f * (wid / 0.6f) - D;
@@ -554,7 +577,7 @@ final class KillModels {
 		if (t < 1.0f) p.tremble(t, 1.0f);
 		else p.flail(t, sm(1.0f, 1.5f, t) * (1.0f - 0.4f * squeeze));
 		p.lift = -sink * 0.97f;
-		ghost(g, hgt, wid, p, sm(0.0f, 0.3f, t) * (1.0f - sm(3.0f, 3.5f, t)));
+		ghost(g, hgt, wid, p, g.in(sm(0.0f, 0.3f, t)) * (1.0f - sm(3.0f, 3.5f, t)));
 
 		int count = 6;
 		int n = 18;
@@ -718,7 +741,7 @@ final class KillModels {
 		float hold = sm(2.0f, 2.5f, t);
 		float height = Math.max(0.0f, ay - 0.3f);
 		float gy = (t > 2.5f ? Math.max(0.0f, ay - 0.3f) : 0.0f) * hold + 0.18f * hold * sm(2.3f, 2.7f, t);
-		float ga = (1.0f - sm(6.0f, 11.0f, height)) * sm(0.0f, 0.3f, t);
+		float ga = (1.0f - sm(6.0f, 11.0f, height)) * g.in(sm(0.0f, 0.3f, t));
 
 		earth(g, 1.1f * sm(0.0f, 0.5f, t) * (1.0f - sm(1.0f, 2.2f, t)), 0.0f, seed);
 
@@ -869,7 +892,7 @@ final class KillModels {
 			p.tremble(t, 1.4f);
 			p.head = -0.35f * sm(0.2f, 1.0f, t);
 		} else p.flail(t, sm(1.6f, 1.9f, t) * (1.0f - 0.7f * wrapH));
-		ghost(g, hgt, wid, p, sm(0.0f, 0.3f, t) * (1.0f - sm(2.75f, 3.0f, t)));
+		ghost(g, hgt, wid, p, g.in(sm(0.0f, 0.3f, t)) * (1.0f - sm(2.75f, 3.0f, t)));
 
 		// нить
 		float tz = -0.62f;
@@ -1151,7 +1174,7 @@ final class KillModels {
 			int j = (i + 1) % 6;
 			float x1 = COF[j * 2];
 			float z1 = COF[j * 2 + 1];
-			g.flat(x0 * 1.035f, 0.06f, z0 * 1.035f, x1 * 1.035f, 0.06f, z1 * 1.035f, x1, H, z1, x0, H, z0);
+			g.tex(x0 * 1.035f, 0.06f, z0 * 1.035f, x1 * 1.035f, 0.06f, z1 * 1.035f, x1, H, z1, x0, H, z0, 6, 7, 0.16f, seed * 7 + i);
 			g.mat(line, 1.0f);
 			for (int k = 0; k < 4; k++) {
 				float f = 0.16f + k * 0.22f;
@@ -1184,6 +1207,33 @@ final class KillModels {
 		g.mat(0.46f, 0.09f, 0.15f, 1.0f);
 		g.box(0.0f, H - 0.30f, 0.62f, 0.15f, 0.04f, 0.14f);
 
+		// настоящая модель убитого лежит в гробу на боку (в позе смерти), по размеру гроба
+		if (g.realVictim) {
+			float vh = g.vh;
+			float vw = g.vw;
+			boolean tall = vh > vw * 1.4f;
+			float len = tall ? vh : vw * 1.25f;
+			float lateral = tall ? vw * 0.6f : vh;
+			float sc = Math.min(1.0f, Math.min(0.26f / Math.max(0.2f, vw), Math.min(1.5f / Math.max(0.2f, len), 0.62f / Math.max(0.2f, lateral))));
+			sc = Math.max(0.12f, sc);
+			float vis = 1.0f - sm(3.3f, 3.6f, t);
+			if (vis > 0.03f) {
+				float k = vis * vis * (3.0f - 2.0f * vis);
+				g.push();
+				g.translate(0.0f, H - 0.27f + 0.5f * vw * sc, 0.0f);
+				if (tall) {
+					g.translate(0.0f, 0.0f, -vh * sc * 0.5f);
+					g.rotY(1.5707964f);
+				} else {
+					g.translate(vh * sc * 0.5f, 0.0f, 0.0f);
+				}
+				float ss = sc * (0.2f + 0.8f * k);
+				g.scale(ss, ss, ss);
+				g.victim(vis, true);
+				g.pop();
+			}
+		}
+
 		// крышка
 		g.push();
 		g.translate(HINGE, H + 0.006f, 0.0f);
@@ -1206,7 +1256,7 @@ final class KillModels {
 			if (z1 <= z0) continue;
 			float v = 0.88f + 0.2f * rnd(k, seed + 4);
 			g.mat(wood[0] * v, wood[1] * v, wood[2] * v, 1.0f);
-			g.flat(xa, lh + 0.001f, z0, xb, lh + 0.001f, z0, xb, lh + 0.001f, z1, xa, lh + 0.001f, z1);
+			g.tex(xa, lh + 0.001f, z0, xb, lh + 0.001f, z0, xb, lh + 0.001f, z1, xa, lh + 0.001f, z1, 2, 14, 0.14f, seed * 5 + k);
 			g.mat(line, 1.0f);
 			g.flat(xa + 0.002f, lh + 0.0015f, z0 + 0.04f, xa + 0.006f, lh + 0.0015f, z0 + 0.04f, xa + 0.006f, lh + 0.0015f, z1 - 0.1f,
 					xa + 0.002f, lh + 0.0015f, z1 - 0.1f);

@@ -30,6 +30,16 @@ public class EntityRenderDispatcherMixin {
 		}
 	}
 
+	/** Kill Effect: убитого прячем, пока вместо него в эффекте показана его настоящая модель. */
+	@Inject(method = "shouldRender(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/render/Frustum;DDD)Z",
+			at = @At("HEAD"), cancellable = true)
+	private <E extends Entity> void flyvisual$killHide(E entity, Frustum frustum, double x, double y, double z,
+													   CallbackInfoReturnable<Boolean> cir) {
+		if (com.flyvisual.module.impl.KillEffectModule.hides(entity)) {
+			cir.setReturnValue(false);
+		}
+	}
+
 	/** Оптимизация: мобы за стенами и далёкие рамки не рисуются. */
 	@Inject(method = "shouldRender(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/render/Frustum;DDD)Z",
 			at = @At("RETURN"), cancellable = true)

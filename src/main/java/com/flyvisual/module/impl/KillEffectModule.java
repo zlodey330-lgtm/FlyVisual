@@ -8,7 +8,12 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.entity.EntityRenderDispatcher;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import org.joml.Matrix3f;
 import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.ActionResult;
@@ -48,6 +53,33 @@ public class KillEffectModule extends Module {
 		float toPlayer;
 		/** Угол для гроба: локальная ось +X уходит от игрока (на этой стороне петли крышки). */
 		float coffinYaw;
+		/** Убитый: его настоящая модель (моб или игрок со скином) рисуется внутри сцены. */
+		LivingEntity victim;
+		/** Модель уже показана: оригинал прячем, чтобы не было двойника. */
+		boolean shown;
+		/** Не удалось нарисовать настоящую модель: возвращаемся к призраку. */
+		boolean broken;
+	}
+
+	/** Что нарисовать после сцены: модель убитого и её матрица. */
+	private static final class VictimDraw {
+		Fx fx;
+		final float[] m = new float[12];
+		boolean lying;
+	}
+
+	private static KillEffectModule inst;
+	private final List<VictimDraw> victims = new ArrayList<>();
+
+	/** Спрятать ли оригинал убитого (его заменяет модель внутри эффекта). Зовётся из миксина. */
+	public static boolean hides(Entity e) {
+		KillEffectModule k = inst;
+		if (k == null || k.list.isEmpty()) return false;
+		for (int i = 0; i < k.list.size(); i++) {
+			Fx f = k.list.get(i);
+			if (f.victim == e && f.shown && !f.broken) return true;
+		}
+		return false;
 	}
 
 	private static final class Tracked {
@@ -81,6 +113,7 @@ public class KillEffectModule extends Module {
 
 	public KillEffectModule() {
 		super("Kill Effect", "3D effect where you kill a player or mob");
+		inst = this;
 		AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
 			if (world.isClient() && isEnabled() && player == MinecraftClient.getInstance().player
 					&& entity instanceof LivingEntity le && le != player && !(le instanceof ArmorStandEntity)
@@ -165,6 +198,7 @@ public class KillEffectModule extends Module {
 		f.life = KillModels.LIFE[f.effect];
 		f.seed = (int) (f.start % 1000);
 		LivingEntity le = t.entity;
+		f.victim = le;
 		f.hgt = Math.max(0.4f, Math.min(4.0f, le.getHeight()));
 		f.wid = Math.max(0.3f, Math.min(2.0f, le.getWidth()));
 		if (client.world != null) {
@@ -212,6 +246,13 @@ public class KillEffectModule extends Module {
 				if (gx * gx + gy * gy + gz * gz > 120.0f * 120.0f) continue;
 				try {
 					draw(f, t, gx, gy, gz, sz);
+					if (gfx.vOn && gfx.realVictim) {
+						VictimDraw vd = new VictimDraw();
+						vd.fx = f;
+						System.arraycopy(gfx.vm, 0, vd.m, 0, 12);
+						vd.lying = gfx.vLying;
+						victims.add(vd);
+					}
 				} catch (Throwable fxErr) {
 					com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: ошибка отрисовки", fxErr);
 					f.start = 0L;
@@ -221,6 +262,77 @@ public class KillEffectModule extends Module {
 			solid.flush();
 			glow.flush();
 		}
+		if (!victims.isEmpty()) {
+			try {
+				for (VictimDraw vd : victims) drawVictim(context, matrices, vd);
+			} finally {
+				victims.clear();
+			}
+		}
+	}
+
+	/** Рисует настоящую модель убитого (моба или игрока со скином) в месте, которое задала сцена. */
+	private void drawVictim(WorldRenderContext context, MatrixStack ms, VictimDraw vd) {
+		Fx f = vd.fx;
+		LivingEntity e = f.victim;
+		MinecraftClient mc = MinecraftClient.getInstance();
+		if (e == null || mc.world == null) return;
+		EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
+		int deathTime = e.deathTime;
+		int hurtTime = e.hurtTime;
+		float bodyYaw = e.bodyYaw;
+		float prevBodyYaw = e.prevBodyYaw;
+		float headYaw = e.headYaw;
+		float prevHeadYaw = e.prevHeadYaw;
+		float pitch = e.getPitch();
+		float prevPitch = e.prevPitch;
+		boolean pushed = false;
+		try {
+			// Модель стоит (или лежит на боку) лицом к игроку, без красной вспышки урона
+			e.deathTime = vd.lying ? 20 : 0;
+			e.hurtTime = 0;
+			e.bodyYaw = 0.0f;
+			e.prevBodyYaw = 0.0f;
+			e.headYaw = 0.0f;
+			e.prevHeadYaw = 0.0f;
+			e.setPitch(0.0f);
+			e.prevPitch = 0.0f;
+
+			float[] m = vd.m;
+			Matrix4f local = new Matrix4f();
+			local.m00(m[0]).m10(m[1]).m20(m[2]).m30(m[3]);
+			local.m01(m[4]).m11(m[5]).m21(m[6]).m31(m[7]);
+			local.m02(m[8]).m12(m[9]).m22(m[10]).m32(m[11]);
+			local.m03(0.0f).m13(0.0f).m23(0.0f).m33(1.0f);
+			Matrix3f normal = new Matrix3f().set(local).normalize();
+
+			ms.push();
+			pushed = true;
+			ms.peek().getPositionMatrix().mul(local);
+			ms.peek().getNormalMatrix().mul(normal);
+
+			net.minecraft.util.math.BlockPos bp = net.minecraft.util.math.BlockPos.ofFloored(f.x, f.y + 1.0, f.z);
+			int light = WorldRenderer.getLightmapCoordinates(mc.world, bp);
+			VertexConsumerProvider.Immediate vc = mc.getBufferBuilders().getEntityVertexConsumers();
+			dispatcher.setRenderShadows(false);
+			dispatcher.render(e, 0.0, 0.0, 0.0, 0.0f, 1.0f, ms, vc, light);
+			vc.draw();
+			f.shown = true;
+		} catch (Throwable err) {
+			f.broken = true;
+			com.flyvisual.fpsboost.FpsBoostInit.LOGGER.warn("Kill Effect: не удалось нарисовать модель убитого", err);
+		} finally {
+			if (pushed) ms.pop();
+			dispatcher.setRenderShadows(mc.options.getEntityShadows().getValue());
+			e.deathTime = deathTime;
+			e.hurtTime = hurtTime;
+			e.bodyYaw = bodyYaw;
+			e.prevBodyYaw = prevBodyYaw;
+			e.headYaw = headYaw;
+			e.prevHeadYaw = prevHeadYaw;
+			e.setPitch(pitch);
+			e.prevPitch = prevPitch;
+		}
 	}
 
 	private void draw(Fx f, float t, float gx, float gy, float gz, float sz) {
@@ -229,6 +341,10 @@ public class KillEffectModule extends Module {
 		g.emissive = false;
 		g.fresnel = false;
 		g.lum = 1.0f;
+		g.realVictim = f.victim != null && !f.broken;
+		g.vh = f.victim != null ? Math.max(0.3f, f.victim.getHeight()) : f.hgt;
+		g.vw = f.victim != null ? Math.max(0.2f, f.victim.getWidth()) : f.wid;
+		g.victimScale = Math.min(1.0f, 3.0f / Math.max(g.vh, g.vw));
 		g.translate(gx, gy, gz);
 		float hgt = f.hgt;
 		float wid = f.wid;

@@ -37,6 +37,36 @@ final class KillGfx {
 		this.sink = sink;
 	}
 
+	// ---------- Настоящая модель жертвы ----------
+
+	/** true: вместо призрака из кубиков сцена отдаёт место под настоящую модель убитого (рисует её модуль). */
+	boolean realVictim;
+	/** Масштаб модели жертвы (подгоняется под сцену, например под гроб). */
+	float victimScale = 1.0f;
+	/** Запрос на рисование модели в этом кадре. */
+	boolean vOn;
+	/** Матрица (3x4) модели жертвы в координатах камеры. */
+	final float[] vm = new float[12];
+	float vAlpha;
+	/** true: жертва лежит на боку (поза смерти), false: стоит. */
+	boolean vLying;
+	/** Настоящие размеры убитого (высота и ширина), чтобы вписать его в сцену. */
+	float vh = 1.8f;
+	float vw = 0.6f;
+
+	/** Для призрака плавное появление, для настоящей модели её нет (она уже стоит на месте). */
+	float in(float v) {
+		return realVictim ? 1.0f : v;
+	}
+
+	/** Запоминает текущее преобразование как место модели жертвы. */
+	void victim(float alpha, boolean lying) {
+		System.arraycopy(m, 0, vm, 0, 12);
+		vAlpha = alpha;
+		vLying = lying;
+		vOn = true;
+	}
+
 	// ---------- Цвет ----------
 
 	void mat(float r, float g, float b, float a) {
@@ -56,6 +86,7 @@ final class KillGfx {
 	// ---------- Преобразования ----------
 
 	void reset() {
+		vOn = false;
 		sp = 0;
 		m = new float[]{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
 	}
@@ -210,6 +241,53 @@ final class KillGfx {
 		float k = sh * lum;
 		sink.quad(q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8], q[9], q[10], q[11],
 				Math.min(1.0f, cr * k), Math.min(1.0f, cg * k), Math.min(1.0f, cb * k), alpha);
+	}
+
+	private static float h2(int a, int b) {
+		int x = a * 374761393 + b * 668265263;
+		x = (x ^ (x >>> 13)) * 1274126177;
+		x ^= x >>> 16;
+		return (x & 0xFFFFFF) / 16777216.0f;
+	}
+
+	/**
+	 * Грань с резким «пиксельным» зерном (дерево, камень): делится на клетки nu x nv, у каждой чуть своя яркость,
+	 * а вдоль доски (по u) яркость общая, как у волокон. Текстур-картинок нет, поэтому края всегда чёткие.
+	 * Точки: A-B нижний край, D-C верхний край (может быть трапецией).
+	 */
+	void tex(float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz,
+			 float dx, float dy, float dz, int nu, int nv, float amp, int seed) {
+		float baseLum = lum;
+		for (int i = 0; i < nu; i++) {
+			float u0 = i / (float) nu;
+			float u1 = (i + 1) / (float) nu;
+			float plank = (h2(seed, i * 7 + 1) - 0.5f) * 2.0f;
+			for (int j = 0; j < nv; j++) {
+				float v0 = j / (float) nv;
+				float v1 = (j + 1) / (float) nv;
+				float cell = (h2(seed + 17, i * 131 + j) - 0.5f) * 2.0f;
+				float streak = (h2(seed + 5, i * 31 + j / 3) - 0.5f) * 2.0f;
+				lum = baseLum * (1.0f + amp * (0.55f * plank + 0.30f * cell + 0.35f * streak));
+				float p0x = ax + (bx - ax) * u0;
+				float p0y = ay + (by - ay) * u0;
+				float p0z = az + (bz - az) * u0;
+				float p1x = ax + (bx - ax) * u1;
+				float p1y = ay + (by - ay) * u1;
+				float p1z = az + (bz - az) * u1;
+				float q0x = dx + (cx - dx) * u0;
+				float q0y = dy + (cy - dy) * u0;
+				float q0z = dz + (cz - dz) * u0;
+				float q1x = dx + (cx - dx) * u1;
+				float q1y = dy + (cy - dy) * u1;
+				float q1z = dz + (cz - dz) * u1;
+				face(p0x + (q0x - p0x) * v0, p0y + (q0y - p0y) * v0, p0z + (q0z - p0z) * v0,
+						p1x + (q1x - p1x) * v0, p1y + (q1y - p1y) * v0, p1z + (q1z - p1z) * v0,
+						p1x + (q1x - p1x) * v1, p1y + (q1y - p1y) * v1, p1z + (q1z - p1z) * v1,
+						p0x + (q0x - p0x) * v1, p0y + (q0y - p0y) * v1, p0z + (q0z - p0z) * v1,
+						false, 0, 0, 0);
+			}
+		}
+		lum = baseLum;
 	}
 
 	/** Двусторонний плоский четырёхугольник (лист, перо, трещина). */
