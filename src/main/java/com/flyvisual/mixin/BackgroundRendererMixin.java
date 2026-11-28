@@ -33,4 +33,21 @@ public class BackgroundRendererMixin {
 
 		fog.apply(viewDistance);
 	}
+
+	/** Погода: туман зимой, осенью и в дождь. Вода, лава, слепота и Незер не трогаются. */
+	@Inject(method = "applyFog", at = @At("RETURN"))
+	private static void flyvisual$weatherFog(Camera camera, BackgroundRenderer.FogType fogType, float viewDistance,
+											 boolean thickFog, float tickDelta, CallbackInfo ci) {
+		com.flyvisual.module.impl.WeatherModule weather = ModuleManager.weather();
+		if (weather == null || !weather.isEnabled()) return;
+		if (fogType != BackgroundRenderer.FogType.FOG_TERRAIN || thickFog) return;
+		if (camera.getSubmersionType() != CameraSubmersionType.NONE) return;
+
+		Entity focused = camera.getFocusedEntity();
+		if (focused instanceof LivingEntity living
+				&& (living.hasStatusEffect(StatusEffects.BLINDNESS) || living.hasStatusEffect(StatusEffects.DARKNESS))) {
+			return;
+		}
+		weather.applyFog(viewDistance);
+	}
 }

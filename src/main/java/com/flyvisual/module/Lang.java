@@ -70,7 +70,8 @@ public final class Lang {
 			Map.entry("Optimization", "Оптимизация"),
 			Map.entry("TargetESP", "TargetESP"),
 			Map.entry("FakePlayer", "FakePlayer"),
-			Map.entry("Recording", "Запись")
+			Map.entry("Recording", "Запись"),
+			Map.entry("Weather", "Погода")
 	);
 
 	private static final Map<String, String> MODULE_DESCRIPTIONS = Map.ofEntries(
@@ -136,7 +137,8 @@ public final class Lang {
 			Map.entry("Optimization", "Повышает FPS: убирает лишнее (небо, частицы, мобов за стенами и др.). Кнопка «Настроить» открывает FPS Boost"),
 			Map.entry("TargetESP", "Красивый эффект вокруг цели: души, кольцо, куб или спираль"),
 			Map.entry("FakePlayer", "Манекен-игрок для тестов: бей его, он сразу возрождается. Броня, бесконечный тотем, здоровье. Виден только тебе"),
-			Map.entry("Recording", "Запись видео и звука прямо из игры (F9): качество, разрешение, FPS и папка на выбор")
+			Map.entry("Recording", "Запись видео и звука прямо из игры (F9): качество, разрешение, FPS и папка на выбор"),
+			Map.entry("Weather", "Времена года и погода: снег, листья, лепестки, дождь, лужи, ветер и плавная смена сезонов")
 	);
 
 	private static final Map<String, String> SETTINGS = Map.ofEntries(
@@ -312,7 +314,51 @@ public final class Lang {
 			Map.entry("Length", "Длина"),
 			Map.entry("Glow", "Свечение"),
 			Map.entry("Spin speed", "Скорость вращения"),
-			Map.entry("Baby", "Малыш")
+			Map.entry("Baby", "Малыш"),
+			Map.entry("Season / Weather", "Сезон / погода"),
+			Map.entry("Shader strength", "Сила шейдера"),
+			Map.entry("Weather quality", "Качество погоды"),
+			Map.entry("Own effects", "Свои эффекты"),
+			Map.entry("Effect range", "Дальность эффектов"),
+			Map.entry("Effect density", "Плотность эффектов"),
+			Map.entry("Season change time", "Время смены сезона"),
+			Map.entry("Auto seasons", "Авто-смена сезонов"),
+			Map.entry("Auto season minutes", "Минут на сезон"),
+			Map.entry("Wind power", "Сила ветра"),
+			Map.entry("Wind angle", "Направление ветра"),
+			Map.entry("Wind gusts", "Порывы ветра"),
+			Map.entry("Weather sound volume", "Громкость звуков погоды"),
+			Map.entry("Block colors", "Цвета блоков"),
+			Map.entry("Block color interval", "Частота смены цветов блоков"),
+			Map.entry("Weather fog", "Туман погоды"),
+			Map.entry("Weather fog density", "Плотность тумана"),
+			Map.entry("Ground effects", "Эффекты на земле"),
+			Map.entry("Ground range", "Дальность эффектов земли"),
+			Map.entry("Snow amount", "Количество снега"),
+			Map.entry("Snow flake size", "Размер снежинок"),
+			Map.entry("Snow cover", "Снежный покров"),
+			Map.entry("Freeze time", "Время замерзания"),
+			Map.entry("Blizzard", "Метель"),
+			Map.entry("Blizzard density", "Сила метели"),
+			Map.entry("Leaf amount", "Количество листьев"),
+			Map.entry("Leaf fall speed", "Скорость падения листьев"),
+			Map.entry("Leaf spin", "Вращение листьев"),
+			Map.entry("Leaf palette", "Палитра листьев"),
+			Map.entry("Autumn color strength", "Сила осенних цветов"),
+			Map.entry("Leaf vortices", "Вихри листьев"),
+			Map.entry("Petal amount", "Количество лепестков"),
+			Map.entry("Petal palette", "Палитра лепестков"),
+			Map.entry("Bloom strength", "Сила цветения"),
+			Map.entry("Sun motes", "Солнечные пылинки"),
+			Map.entry("Lush green strength", "Сила зелени"),
+			Map.entry("Rain type", "Тип дождя"),
+			Map.entry("Rain amount", "Сила дождя"),
+			Map.entry("Rain splashes", "Брызги дождя"),
+			Map.entry("Puddles", "Лужи"),
+			Map.entry("Puddle size", "Размер луж"),
+			Map.entry("Puddle time", "Время луж"),
+			Map.entry("Step splashes", "Брызги от шагов"),
+			Map.entry("Rain slant", "Наклон дождя")
 	);
 
 	private Lang() {

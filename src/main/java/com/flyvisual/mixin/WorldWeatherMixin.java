@@ -16,8 +16,11 @@ public abstract class WorldWeatherMixin {
     private void flyvisual$localRain(float tickDelta, CallbackInfoReturnable<Float> cir) {
         if (!((Object) this instanceof ClientWorld)) return;
         WeatherModule weather = ModuleManager.weather();
-        if (weather != null && weather.isRainMode()) {
-            cir.setReturnValue(1.0F);
+        if (weather != null) {
+            float g = weather.rainGradient();
+            if (g > 0.001F && g > cir.getReturnValue()) {
+                cir.setReturnValue(g);
+            }
         }
     }
 }

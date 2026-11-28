@@ -61,7 +61,8 @@
 		"FramerateLimitMixin",
 		"SourceAudioMixin",
 		"StaticSoundAudioMixin",
-		"WorldWeatherMixin"
+		"WorldWeatherMixin",
+		"BiomeColorsMixin"
   ],
   "injectors": {
     "defaultRequire": 0

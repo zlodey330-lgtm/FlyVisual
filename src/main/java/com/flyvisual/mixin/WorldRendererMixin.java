@@ -21,6 +21,24 @@ public class WorldRendererMixin {
 		}
 	}
 
+	/** Погода FlyVisual: свой дождь заменяет ванильные капли. */
+	@Inject(method = "renderWeather", at = @At("HEAD"), cancellable = true)
+	private void flyvisual$ownRainVisual(CallbackInfo ci) {
+		com.flyvisual.module.impl.WeatherModule weather = ModuleManager.weather();
+		if (weather != null && weather.replacesVanillaRain()) {
+			ci.cancel();
+		}
+	}
+
+	/** Погода FlyVisual: свои звуки и брызги дождя заменяют ванильные. */
+	@Inject(method = "tickRainSplashing", at = @At("HEAD"), cancellable = true)
+	private void flyvisual$ownRainSound(CallbackInfo ci) {
+		com.flyvisual.module.impl.WeatherModule weather = ModuleManager.weather();
+		if (weather != null && weather.replacesVanillaRain()) {
+			ci.cancel();
+		}
+	}
+
 	/** Оптимизация: без дождя и снега. */
 	@Inject(method = "renderWeather", at = @At("HEAD"), cancellable = true)
 	private void flyvisual$noWeather(CallbackInfo ci) {
