@@ -4,14 +4,11 @@ import com.flyvisual.config.Theme;
 import com.flyvisual.module.DoubleSetting;
 import com.flyvisual.module.Module;
 import com.flyvisual.util.ColorUtil;
-import com.flyvisual.util.Shape3D;
+import com.flyvisual.util.Draw3d;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
@@ -22,23 +19,58 @@ import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 /**
- * TargetESP: красивый 3D-эффект вокруг цели (души, кольцо, куб, спираль). Чисто визуальный.
- * Появляется, когда ты ударил цель и урон реально прошёл (цель вздрогнула), а если включено
- * "При наведении", то ещё и просто когда смотришь на неё. Невидимых игроков без брони не показывает.
+ * TargetESP: объёмный 3D-эффект вокруг цели (души, шляпа, гироскоп, кристалл, змей, сфера, воронка).
+ * Чисто визуальный. Появляется, когда ты ударил цель и урон реально прошёл (цель вздрогнула), а если
+ * включено "При наведении", то ещё и просто когда смотришь на неё. Невидимых игроков без брони не показывает.
+ * Модели собраны из мягких свечений, лент, шаров и трубок (см. EspGfx / EspModels).
  */
 public class TargetEspModule extends Module {
-	private static final String[] STYLES = {"Души", "Кольцо", "Куб", "Спираль", "Нимб", "Орбиты", "Вихрь", "Светлячки", "Волны"};
+	private static final String[] STYLES = {"Души", "Шляпа", "Гироскоп", "Кристалл", "Змей", "Сфера", "Воронка"};
 	/** Сколько тиков ждём подтверждения урона после удара (запас на пинг). */
 	private static final int HIT_WINDOW_TICKS = 20;
 
 	private final DoubleSetting style = addChoice("Style", 0, STYLES);
 	private final DoubleSetting onAim = addToggle("Show on aim", false);
 	private final DoubleSetting holdTime = addSetting("Hold time (s)", 3.0, 0.5, 10.0, 0.5);
-	private final DoubleSetting size = addSetting("Size", 0.12, 0.05, 0.3, 0.01);
+	private final DoubleSetting scale = addSetting("Scale", 1.0, 0.5, 2.0, 0.05);
+	private final DoubleSetting glow = addSetting("Glow", 1.0, 0.3, 2.0, 0.05);
+	private final DoubleSetting animSpeed = addSetting("Anim speed", 1.0, 0.3, 2.5, 0.05);
 	private final DoubleSetting themeColor = addToggle("Theme color", true);
 	private final DoubleSetting hue = addSetting("Color (hue)", 200.0, 0.0, 355.0, 5.0);
 	private final DoubleSetting rainbow = addToggle("Rainbow", false);
 	private final DoubleSetting playersOnly = addToggle("Players only", false);
+
+	/** Накопитель вершин: сцену собираем целиком, потом рисуем двумя вызовами (обычный и аддитивный слой). */
+	private static final class Buf {
+		float[] d = new float[8 * 2048];
+		int n;
+
+		void v(float x, float y, float z, float r, float g, float b, float a) {
+			if (n + 8 > d.length) d = java.util.Arrays.copyOf(d, d.length * 2);
+			d[n++] = x;
+			d[n++] = y;
+			d[n++] = z;
+			d[n++] = r;
+			d[n++] = g;
+			d[n++] = b;
+			d[n++] = a;
+			n++;
+		}
+
+		void emit(Draw3d out, Matrix4f m) {
+			for (int i = 0; i < n; i += 8) {
+				out.vertex(m, d[i], d[i + 1], d[i + 2], d[i + 3], d[i + 4], d[i + 5], d[i + 6]);
+			}
+			n = 0;
+		}
+	}
+
+	private final Buf solidBuf = new Buf();
+	private final Buf addBuf = new Buf();
+	private final Draw3d solidOut = new Draw3d(true, false);
+	private final Draw3d addOut = new Draw3d(true, true);
+	private final EspGfx gfx = new EspGfx(solidBuf::v, addBuf::v);
+	private final EspModels.P frame = new EspModels.P();
 
 	// Удар, который ждёт подтверждения урона
 	private LivingEntity pending;
@@ -53,6 +85,7 @@ public class TargetEspModule extends Module {
 	private LivingEntity shown;
 	private float alpha;
 	private long lastNanos = System.nanoTime();
+	private double animT;
 
 	public TargetEspModule() {
 		super("TargetESP", "Visual effect around your target");
@@ -117,14 +150,31 @@ public class TargetEspModule extends Module {
 		return true;
 	}
 
-	private int rgb(double t, int k) {
+	private static float[] toRgb(int rgb) {
+		return new float[]{((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f};
+	}
+
+	private static float[] lighten(float[] c, float k) {
+		return new float[]{c[0] + (1.0f - c[0]) * k, c[1] + (1.0f - c[1]) * k, c[2] + (1.0f - c[2]) * k};
+	}
+
+	/** Выбирает цвета кадра: основной, второй и светлый. */
+	private void pickColors(EspModels.P p, double t) {
+		float[] c1;
+		float[] c2;
 		if (rainbow.getBool()) {
-			return ColorUtil.hsv((float) ((t * 60.0 + k * 40.0) % 360.0), 0.8f, 1.0f);
+			c1 = toRgb(ColorUtil.hsv((float) ((t * 50.0) % 360.0), 0.75f, 1.0f));
+			c2 = toRgb(ColorUtil.hsv((float) ((t * 50.0 + 70.0) % 360.0), 0.75f, 1.0f));
+		} else if (themeColor.getBool()) {
+			c1 = toRgb(Theme.accent() & 0xFFFFFF);
+			c2 = lighten(c1, 0.4f);
+		} else {
+			c1 = toRgb(ColorUtil.hsv(hue.getFloat(), 0.85f, 1.0f));
+			c2 = toRgb(ColorUtil.hsv((hue.getFloat() + 40.0f) % 360.0f, 0.8f, 1.0f));
 		}
-		if (themeColor.getBool()) {
-			return Theme.accent() & 0xFFFFFF;
-		}
-		return ColorUtil.hsv(hue.getFloat(), 0.85f, 1.0f);
+		p.c1 = c1;
+		p.c2 = c2;
+		p.cw = lighten(c1, 0.75f);
 	}
 
 	private void render(WorldRenderContext context) {
@@ -135,6 +185,7 @@ public class TargetEspModule extends Module {
 		long nowNanos = System.nanoTime();
 		float dt = Math.min((nowNanos - lastNanos) / 1.0e9f, 0.1f);
 		lastNanos = nowNanos;
+		animT = (animT + dt * animSpeed.get()) % 3600.0;
 
 		// Кого показываем: цель под прицелом (если включено) либо цель после удара
 		LivingEntity want = null;
@@ -153,9 +204,9 @@ public class TargetEspModule extends Module {
 				shown = want;
 				alpha = 0.0f;
 			}
-			alpha += (1.0f - alpha) * (1.0f - (float) Math.exp(-10.0f * dt));
+			alpha += (1.0f - alpha) * (1.0f - (float) Math.exp(-7.0f * dt));
 		} else {
-			alpha += (0.0f - alpha) * (1.0f - (float) Math.exp(-8.0f * dt));
+			alpha += (0.0f - alpha) * (1.0f - (float) Math.exp(-6.0f * dt));
 			if (alpha < 0.02f) {
 				alpha = 0.0f;
 				shown = null;
@@ -164,172 +215,45 @@ public class TargetEspModule extends Module {
 		}
 		if (shown == null || shown.isRemoved()) return;
 
-		VertexConsumerProvider consumers = context.consumers();
 		MatrixStack matrices = context.matrixStack();
-		if (consumers == null || matrices == null) return;
-
-		VertexConsumer vc = consumers.getBuffer(RenderLayer.getLightning());
+		if (matrices == null) return;
 		Matrix4f m = matrices.peek().getPositionMatrix();
 		Vec3d cam = context.camera().getPos();
 		Vec3d pos = shown.getLerpedPos(context.tickDelta()).subtract(cam);
 
-		double t = System.nanoTime() / 1.0e9;
-		double h = shown.getHeight();
-		double r = shown.getWidth() * 0.5 + 0.35;
-		double half = size.get();
+		EspModels.P p = frame;
+		p.x = (float) pos.x;
+		p.y = (float) pos.y;
+		p.z = (float) pos.z;
+		p.h = shown.getHeight();
+		p.w = shown.getWidth();
+		p.t = (float) animT;
+		// плавное появление: растёт и проявляется
+		float appear = alpha * alpha * (3.0f - 2.0f * alpha);
+		p.a = appear;
+		p.sc = scale.getFloat() * (0.8f + 0.2f * appear);
+		p.gl = glow.getFloat();
+		pickColors(p, animT);
 
-		switch (style.getInt()) {
-			case 1 -> ring(vc, m, pos, h, r, half, t);
-			case 2 -> crystal(vc, m, pos, h, half, t);
-			case 3 -> spiral(vc, m, pos, h, r, half, t);
-			case 4 -> halo(vc, m, pos, h, half, t);
-			case 5 -> orbits(vc, m, pos, h, r, half, t);
-			case 6 -> vortex(vc, m, pos, h, r, half, t);
-			case 7 -> fireflies(vc, m, pos, h, r, half, t);
-			case 8 -> waves(vc, m, pos, h, r, half, t);
-			default -> souls(vc, m, pos, h, r, half, t);
-		}
-	}
-
-	/** Души: светящиеся шарики кружат вокруг цели на разной высоте и тянут за собой хвост. */
-	private void souls(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int n = 6;
-		for (int k = 0; k < n; k++) {
-			int rgb = rgb(t, k);
-			for (int j = 0; j < 7; j++) {
-				double tt = t - j * 0.045;
-				double a = tt * 1.7 + k * 2.0 * Math.PI / n;
-				double y = pos.y + h * (0.5 + 0.42 * Math.sin(tt * 1.3 + k * 1.1));
-				double fade = 1.0 - j / 7.0;
-				double hf = half * (0.35 + 0.65 * fade);
-				double x = pos.x + Math.cos(a) * r;
-				double z = pos.z + Math.sin(a) * r;
-				Shape3D.cube(vc, m, x, y, z, hf, a, rgb, (float) (0.95 * fade * alpha));
-				if (j < 3) {
-					Shape3D.cube(vc, m, x, y, z, hf * 2.4, a, rgb, (float) (0.16 * fade * alpha));
-				}
+		solidBuf.n = 0;
+		addBuf.n = 0;
+		try {
+			switch (style.getInt()) {
+				case 1 -> EspModels.hat(gfx, p);
+				case 2 -> EspModels.gyro(gfx, p);
+				case 3 -> EspModels.crystal(gfx, p);
+				case 4 -> EspModels.serpent(gfx, p);
+				case 5 -> EspModels.sphere(gfx, p);
+				case 6 -> EspModels.funnel(gfx, p);
+				default -> EspModels.souls(gfx, p);
 			}
-		}
-	}
-
-	/** Кольцо ездит вверх-вниз по телу цели, за ним тянутся две бледные копии. */
-	private void ring(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int points = 30;
-		for (int trail = 0; trail < 3; trail++) {
-			double tt = t - trail * 0.12;
-			double y = pos.y + h * (0.5 + 0.5 * Math.sin(tt * 1.6));
-			float a = (float) (alpha * (trail == 0 ? 0.95 : trail == 1 ? 0.4 : 0.18));
-			for (int i = 0; i < points; i++) {
-				double ang = i * 2.0 * Math.PI / points + tt * 0.8;
-				int rgb = rgb(t, i);
-				Shape3D.cube(vc, m, pos.x + Math.cos(ang) * r, y, pos.z + Math.sin(ang) * r, half * 0.45, ang, rgb, a);
-			}
-		}
-	}
-
-	/** Куб-кристалл вращается над головой цели. */
-	private void crystal(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double half, double t) {
-		double y = pos.y + h + 0.5 + 0.08 * Math.sin(t * 2.2);
-		int rgb = rgb(t, 0);
-		double big = half * 1.8;
-		Shape3D.cube(vc, m, pos.x, y, pos.z, big, t * 2.0, rgb, (float) (0.9 * alpha));
-		Shape3D.cube(vc, m, pos.x, y, pos.z, big * 0.55, -t * 3.0, 0xFFFFFF, (float) (0.9 * alpha));
-		Shape3D.cube(vc, m, pos.x, y, pos.z, big * 2.4, t * 2.0, rgb, (float) (0.14 * alpha));
-	}
-
-	/** Две светящиеся ленты-спирали поднимаются вокруг цели. */
-	private void spiral(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int steps = 26;
-		for (int strand = 0; strand < 2; strand++) {
-			for (int i = 0; i < steps; i++) {
-				double f = i / (double) steps;
-				double a = t * 2.0 + f * 5.0 * Math.PI + strand * Math.PI;
-				double y = pos.y + ((f + t * 0.25) % 1.0) * h;
-				int rgb = rgb(t, i);
-				double fade = Math.sin(((f + t * 0.25) % 1.0) * Math.PI);
-				Shape3D.cube(vc, m, pos.x + Math.cos(a) * r, y, pos.z + Math.sin(a) * r, half * 0.5, a, rgb,
-						(float) (0.95 * fade * alpha));
-			}
-		}
-	}
-
-	/** Нимб: светящееся кольцо над головой, медленно вращается и чуть покачивается. */
-	private void halo(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double half, double t) {
-		int n = 28;
-		double y = pos.y + h + 0.3 + 0.04 * Math.sin(t * 2.0);
-		for (int i = 0; i < n; i++) {
-			double a = i * 2.0 * Math.PI / n + t * 1.2;
-			int rgb = rgb(t, i);
-			double x = pos.x + Math.cos(a) * 0.38;
-			double z = pos.z + Math.sin(a) * 0.38;
-			Shape3D.cube(vc, m, x, y, z, half * 0.5, a, rgb, (float) (0.95 * alpha));
-			Shape3D.cube(vc, m, x, y, z, half * 1.3, a, rgb, (float) (0.15 * alpha));
-		}
-	}
-
-	/** Орбиты: три кольца из огоньков под разными углами крутятся вокруг тела, как атом. */
-	private void orbits(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int per = 9;
-		for (int k = 0; k < 3; k++) {
-			double tilt = k * Math.PI / 3.0;
-			for (int j = 0; j < per; j++) {
-				double a = t * (1.6 + k * 0.4) + j * 2.0 * Math.PI / per;
-				double ox = Math.cos(a) * r * 1.1;
-				double oy = Math.sin(a) * r * 1.1 * Math.sin(tilt + 0.6);
-				double oz = Math.sin(a) * r * 1.1 * Math.cos(tilt + 0.6);
-				int rgb = rgb(t, j + k * per);
-				double cx = pos.x + ox;
-				double cy = pos.y + h * 0.5 + oy;
-				double cz = pos.z + oz;
-				Shape3D.cube(vc, m, cx, cy, cz, half * 0.6, a, rgb, (float) (0.95 * alpha));
-				Shape3D.cube(vc, m, cx, cy, cz, half * 1.5, a, rgb, (float) (0.14 * alpha));
-			}
-		}
-	}
-
-	/** Вихрь: воронка из огоньков, расширяется кверху и закручивается. */
-	private void vortex(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int n = 46;
-		for (int i = 0; i < n; i++) {
-			double f = i / (double) n;
-			double a = t * 3.0 + f * 9.0 * Math.PI;
-			double rad = r * (0.25 + 0.85 * f);
-			double y = pos.y + f * h * 1.15;
-			int rgb = rgb(t, i);
-			Shape3D.cube(vc, m, pos.x + Math.cos(a) * rad, y, pos.z + Math.sin(a) * rad, half * (0.45 + 0.4 * f), a, rgb,
-					(float) (0.9 * (1.0 - 0.5 * f) * alpha));
-		}
-	}
-
-	/** Светлячки: огоньки плавно летают вокруг цели и мерцают. */
-	private void fireflies(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int n = 16;
-		for (int k = 0; k < n; k++) {
-			double x = pos.x + Math.sin(t * (0.6 + k * 0.05) + k * 1.9) * r * 1.2;
-			double z = pos.z + Math.cos(t * (0.5 + k * 0.04) + k * 2.7) * r * 1.2;
-			double y = pos.y + h * (0.5 + 0.55 * Math.sin(t * (0.8 + k * 0.03) + k * 1.3));
-			double blink = 0.55 + 0.45 * Math.sin(t * 4.0 + k * 2.1);
-			int rgb = rgb(t, k);
-			Shape3D.cube(vc, m, x, y, z, half * 0.55, t + k, rgb, (float) (0.95 * blink * alpha));
-			Shape3D.cube(vc, m, x, y, z, half * 1.6, t + k, rgb, (float) (0.14 * blink * alpha));
-		}
-	}
-
-	/** Волны: несколько колец одно за другим поднимаются от ног к голове и тают. */
-	private void waves(VertexConsumer vc, Matrix4f m, Vec3d pos, double h, double r, double half, double t) {
-		int rings = 4;
-		int n = 18;
-		for (int k = 0; k < rings; k++) {
-			double f = (t * 0.55 + k / (double) rings) % 1.0;
-			double y = pos.y + f * h * 1.2;
-			double fade = Math.sin(f * Math.PI);
-			double rad = r * (0.85 + 0.25 * f);
-			for (int i = 0; i < n; i++) {
-				double a = i * 2.0 * Math.PI / n + t * 0.6;
-				int rgb = rgb(t, i);
-				Shape3D.cube(vc, m, pos.x + Math.cos(a) * rad, y, pos.z + Math.sin(a) * rad, half * 0.5, a, rgb,
-						(float) (0.9 * fade * alpha));
-			}
+			solidBuf.emit(solidOut, m);
+			addBuf.emit(addOut, m);
+		} finally {
+			solidBuf.n = 0;
+			addBuf.n = 0;
+			solidOut.flush();
+			addOut.flush();
 		}
 	}
 }

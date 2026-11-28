@@ -1,5 +1,6 @@
 package com.flyvisual.util;
 
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.GameRenderer;
@@ -15,12 +16,19 @@ import org.joml.Matrix4f;
  */
 public final class Draw3d {
 	private final boolean translucent;
+	/** Аддитивное смешивание: свечения складываются со сценой, а не перекрывают её. */
+	private final boolean additive;
 	private BufferBuilder buf;
 	/** Кто сейчас пишет в общий буфер Tessellator: двум Draw3d одновременно нельзя. */
 	private static Draw3d active;
 
 	public Draw3d(boolean translucent) {
+		this(translucent, false);
+	}
+
+	public Draw3d(boolean translucent, boolean additive) {
 		this.translucent = translucent;
+		this.additive = additive;
 	}
 
 	private BufferBuilder buffer() {
@@ -32,7 +40,11 @@ public final class Draw3d {
 			active = this;
 			RenderSystem.setShader(GameRenderer::getPositionColorProgram);
 			RenderSystem.enableBlend();
-			RenderSystem.defaultBlendFunc();
+			if (additive) {
+				RenderSystem.blendFunc(GlStateManager.SrcFactor.SRC_ALPHA, GlStateManager.DstFactor.ONE);
+			} else {
+				RenderSystem.defaultBlendFunc();
+			}
 			RenderSystem.disableCull();
 			RenderSystem.enableDepthTest();
 			if (translucent) {
@@ -52,6 +64,7 @@ public final class Draw3d {
 			RenderSystem.depthMask(true);
 		}
 		RenderSystem.enableCull();
+		RenderSystem.defaultBlendFunc();
 		RenderSystem.disableBlend();
 		buf = null;
 		if (active == this) {
