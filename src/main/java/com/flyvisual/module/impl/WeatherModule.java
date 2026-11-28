@@ -9,7 +9,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.GlUniform;
 import net.minecraft.client.gl.PostEffectPass;
 import net.minecraft.client.gl.PostEffectProcessor;
-import net.minecraft.client.gl.ShaderProgram;
+import net.minecraft.client.gl.JsonEffectShaderProgram;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import org.slf4j.Logger;
@@ -510,7 +510,7 @@ public final class WeatherModule extends Module {
 		}
 	}
 
-	private static void setUniform(ShaderProgram program, String name, float a) {
+	private static void setUniform(JsonEffectShaderProgram program, String name, float a) {
 		GlUniform u = program.getUniformByName(name);
 		if (u != null) u.set(a);
 	}
@@ -519,7 +519,7 @@ public final class WeatherModule extends Module {
 		List<PostEffectPass> list = passes();
 		if (list == null) return;
 		for (PostEffectPass pass : list) {
-			ShaderProgram program = pass.getProgram();
+			JsonEffectShaderProgram program = pass.getProgram();
 			GlUniform tint = program.getUniformByName("Tint");
 			if (tint != null) tint.set(mix[0], mix[1], mix[2]);
 			setUniform(program, "Strength", mix[3]);
