@@ -79,7 +79,38 @@ public class FlyMenuScreen extends Screen {
 	private float extra = 1.0f;
 	private float paneAlpha = 1.0f;
 
+	/** Редкие анимации с постоянными строковыми ключами (кнопки записи, поле поиска). */
 	private final Map<String, Float> anims = new HashMap<>();
+	/** Состояния анимаций настроек: на каждую настройку свой маленький массив (без склейки строк каждый кадр). */
+	private final java.util.IdentityHashMap<Object, float[]> animObj = new java.util.IdentityHashMap<>();
+	/** Состояния плиток: 0 включён, 1 наведение, 2 затемнение поиском, 3 блик, 4 был ли курсор, 5 волна от клика. */
+	private float[][] tileSt = new float[0][];
+	private String[] tileTitle = new String[0];
+	private int tileTitleW = -1;
+
+	/** Время с открытия меню и с выбора функции (для поэтапного появления). */
+	private float age;
+	private float paneAge = 1.0f;
+
+	/** Автоматический облегчённый режим для слабых устройств. */
+	private float perfAvg = 0.016f;
+	private int perfFrames;
+	private boolean lite;
+
+	// Очередь текста: сначала рисуются все фигуры слоя, потом весь текст разом (в разы меньше переключений).
+	private Object[] tqText = new Object[192];
+	private int[] tqX = new int[192];
+	private int[] tqY = new int[192];
+	private int[] tqC = new int[192];
+	private int tqN;
+	private boolean defer;
+	/** Если dimA больше нуля, текст смешивается с этим цветом (затемнение выключенных функций). */
+	private int dimRgb;
+	private float dimA;
+
+	// Кэш описания выбранной функции
+	private List<OrderedText> descCache = new ArrayList<>();
+	private int descCacheLines;
 
 	/** Экран, на который вернёмся при закрытии (главное меню или null в игре). */
 	private final Screen parent;
@@ -218,7 +249,7 @@ public class FlyMenuScreen extends Screen {
 	}
 
 	private int pickHeight() {
-		return 8 + SV_H + 6 + HUE_H + 8 + 12 + 6;
+		return 8 + SV_H + 6 + HUE_H + 8 + 12 + 6 + 18;
 	}
 
 	private int svX() {
@@ -244,6 +275,7 @@ public class FlyMenuScreen extends Screen {
 
 	private void applyPicker() {
 		FlyConfig.get().accentColor = Color.HSBtoRGB(pickH, pickS, pickV) & 0xFFFFFF;
+		FlyConfig.get().menuTint = true;
 	}
 
 	private void dragPicker(double mx, double my) {
@@ -271,7 +303,8 @@ public class FlyMenuScreen extends Screen {
 		if (descMod != selected) {
 			descMod = selected;
 			String d = Lang.description(selected.getName(), selected.getDescription());
-			descLines = Math.max(1, Math.min(5, textRenderer.wrapLines(Text.literal(d), PANE_W - 16).size()));
+			descCache = textRenderer.wrapLines(Text.literal(d), PANE_W - 16);
+			descLines = Math.max(1, Math.min(5, descCache.size()));
 		}
 		return descLines;
 	}
@@ -354,9 +387,7 @@ public class FlyMenuScreen extends Screen {
 		}
 		java.util.List<net.minecraft.text.OrderedText> lines = textRenderer.wrapLines(net.minecraft.text.Text.literal(status), w);
 		for (int i = 0; i < Math.min(2, lines.size()); i++) {
-			ctx.draw();
-			ctx.drawText(textRenderer, lines.get(i), x1 + 2, ay + ah + 7 + i * 10, MenuStyles.textDim(), false);
-			ctx.draw();
+			textOrdered(ctx, lines.get(i), x1 + 2, ay + ah + 7 + i * 10, MenuStyles.textDim());
 		}
 	}
 
@@ -391,12 +422,16 @@ public class FlyMenuScreen extends Screen {
 	}
 
 	private void rect(DrawContext ctx, int x1, int y1, int x2, int y2, int argb) {
-		ctx.fill(x1, y1, x2, y2, col(argb));
+		int c = col(argb);
+		if ((c >>> 24) == 0) return;
+		ctx.fill(x1, y1, x2, y2, c);
 	}
 
 	/** Закруглённый прямоугольник с учётом прозрачности меню. */
 	private void rr(DrawContext ctx, int x, int y, int w, int h, int r, int argb) {
-		UiShapes.roundRect(ctx, x, y, w, h, r, col(argb));
+		int c = col(argb);
+		if ((c >>> 24) == 0) return;
+		UiShapes.roundRect(ctx, x, y, w, h, r, c);
 	}
 
 	/** Круглый переключатель: серый выключен, горит цветом темы включён. Без надписей. */
@@ -406,8 +441,10 @@ public class FlyMenuScreen extends Screen {
 		}
 		rr(ctx, px, py, pw, ph, ph / 2, lerp(MenuStyles.off(), MenuStyles.accent(), on));
 		int knob = ph - 4;
-		int kx = px + 2 + Math.round((pw - knob - 4) * on);
-		rr(ctx, kx, py + 2, knob, knob, knob / 2, lerp(0xFFB0B0B0, 0xFFFFFFFF, on));
+		// во время переключения шарик чуть вытягивается, как капля
+		int kw = knob + Math.round(4.0f * (float) Math.sin(Math.PI * on));
+		int kx = px + 2 + Math.round((pw - kw - 4) * on);
+		rr(ctx, kx, py + 2, kw, knob, knob / 2, lerp(0xFFB0B0B0, 0xFFFFFFFF, on));
 	}
 
 	private void outline(DrawContext ctx, int x1, int y1, int x2, int y2, int argb) {
@@ -417,11 +454,81 @@ public class FlyMenuScreen extends Screen {
 		rect(ctx, x2 - 1, y1, x2, y2, argb);
 	}
 
+	// ---------- Очередь текста ----------
+
+	private void growQueue() {
+		int n = tqText.length * 2;
+		tqText = java.util.Arrays.copyOf(tqText, n);
+		tqX = java.util.Arrays.copyOf(tqX, n);
+		tqY = java.util.Arrays.copyOf(tqY, n);
+		tqC = java.util.Arrays.copyOf(tqC, n);
+	}
+
+	private void queue(Object t, int x, int y, int c) {
+		if (tqN == tqText.length) growQueue();
+		tqText[tqN] = t;
+		tqX[tqN] = x;
+		tqY[tqN] = y;
+		tqC[tqN] = c;
+		tqN++;
+	}
+
+	private int dimmed(int c) {
+		if (dimA <= 0.0f) return c;
+		return (c & 0xFF000000) | (lerp(c | 0xFF000000, dimRgb | 0xFF000000, dimA) & 0xFFFFFF);
+	}
+
+	/** Начало слоя: фигуры и свечения копятся, текст встаёт в очередь. */
+	private void beginPass(DrawContext ctx) {
+		MenuStyles.gfx().begin(ctx);
+		tqN = 0;
+		defer = true;
+	}
+
+	/** Отправляет на экран накопленное по порядку: фигуры, блики, потом текст. */
+	private void flushNow(DrawContext ctx) {
+		MenuStyles.gfx().flush();
+		if (tqN == 0) return;
+		ctx.draw();
+		for (int i = 0; i < tqN; i++) {
+			Object o = tqText[i];
+			if (o instanceof String str) {
+				ctx.drawText(textRenderer, str, tqX[i], tqY[i], tqC[i], true);
+			} else {
+				ctx.drawText(textRenderer, (OrderedText) o, tqX[i], tqY[i], tqC[i], true);
+			}
+			tqText[i] = null;
+		}
+		tqN = 0;
+		ctx.draw();
+	}
+
+	private void endPass(DrawContext ctx) {
+		flushNow(ctx);
+		defer = false;
+	}
+
 	private void text(DrawContext ctx, String s, int x, int y, int argb) {
-		int c = col(argb);
+		int c = dimmed(col(argb));
 		// Ванильный шрифт считает почти прозрачный цвет непрозрачным, поэтому такой текст не рисуем
 		if (((c >>> 24) & 0xFF) < 12) return;
+		if (defer) {
+			queue(s, x, y, c);
+			return;
+		}
 		ctx.draw(); // порядок слоёв: всё нарисованное раньше уходит на экран до текста
+		ctx.drawText(textRenderer, s, x, y, c, true);
+		ctx.draw();
+	}
+
+	private void textOrdered(DrawContext ctx, OrderedText s, int x, int y, int argb) {
+		int c = dimmed(col(argb));
+		if (((c >>> 24) & 0xFF) < 12) return;
+		if (defer) {
+			queue(s, x, y, c);
+			return;
+		}
+		ctx.draw();
 		ctx.drawText(textRenderer, s, x, y, c, true);
 		ctx.draw();
 	}
@@ -439,8 +546,30 @@ public class FlyMenuScreen extends Screen {
 		return v;
 	}
 
-	/** Обрезка по области с учётом масштаба анимации открытия. */
+	/** Массив состояний анимаций для объекта (настройки). Значения начинаются как «не задано». */
+	private float[] st(Object o) {
+		float[] a = animObj.get(o);
+		if (a == null) {
+			a = new float[4];
+			java.util.Arrays.fill(a, Float.NaN);
+			animObj.put(o, a);
+		}
+		return a;
+	}
+
+	/** Двигает a[i] к цели; первое обращение сразу ставит цель (без «разгона» при открытии). */
+	private static float an(float[] a, int i, float target, float dt, float speed) {
+		float v = a[i];
+		if (Float.isNaN(v)) v = target;
+		v += (target - v) * (1.0f - (float) Math.exp(-speed * dt));
+		if (Math.abs(target - v) < 0.002f) v = target;
+		a[i] = v;
+		return v;
+	}
+
+	/** Обрезка по области с учётом масштаба анимации открытия. Всё накопленное до этого рисуется без обрезки. */
 	private void scissor(DrawContext ctx, int x1, int y1, int x2, int y2) {
+		flushNow(ctx);
 		float cx = left() + pw() / 2.0f;
 		float cy = top() + ph() / 2.0f;
 		int a = Math.round(cx + (x1 - cx) * scale);
@@ -450,22 +579,30 @@ public class FlyMenuScreen extends Screen {
 		ctx.enableScissor(a, b, c, d);
 	}
 
+	/** Снимает обрезку, сначала дорисовав всё, что было внутри неё. */
+	private void unscissor(DrawContext ctx) {
+		flushNow(ctx);
+		ctx.disableScissor();
+	}
+
 	/** Обрезает текст с «…», если он шире max пикселей. */
 	private String fit(String s, int max) {
 		if (textRenderer.getWidth(s) <= max) return s;
-		return textRenderer.trimToWidth(s, Math.max(0, max - textRenderer.getWidth("…"))) + "…";
+		if (ellW < 0) ellW = textRenderer.getWidth("…");
+		return textRenderer.trimToWidth(s, Math.max(0, max - ellW)) + "…";
 	}
+
+	private int ellW = -1;
 
 	private void select(Module m) {
 		if (selected != m) {
 			selected = m;
 			paneAlpha = 0.0f;
+			paneAge = 0.0f;
 			settingsScroll = 0;
 		}
-		if (!m.getName().equals(FlyConfig.get().lastModule)) {
-			FlyConfig.get().lastModule = m.getName();
-			FlyConfig.save();
-		}
+		// Файл настроек не пишем на каждом клике: последний выбор сохранится при закрытии меню
+		FlyConfig.get().lastModule = m.getName();
 	}
 
 	// ---------- Отрисовка ----------
@@ -473,8 +610,13 @@ public class FlyMenuScreen extends Screen {
 	@Override
 	public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
 		long now = System.nanoTime();
-		float dt = Math.min((now - lastNanos) / 1.0e9f, 0.05f);
+		float raw = (now - lastNanos) / 1.0e9f;
+		float dt = Math.min(raw, 0.05f);
+		lastDt = dt;
 		lastNanos = now;
+		age = Math.min(age + dt, 100.0f);
+		paneAge = Math.min(paneAge + dt, 5.0f);
+		trackPerf(raw);
 
 		open = clamp01(open + (closing ? -dt : dt) / OPEN_TIME);
 		if (closing && open <= 0.0f) {
@@ -484,7 +626,15 @@ public class FlyMenuScreen extends Screen {
 		}
 		float inv = 1.0f - open;
 		alpha = 1.0f - inv * inv * inv;
-		scale = 0.9f + 0.1f * alpha;
+		// при открытии окно чуть «перелетает» размер и возвращается, при закрытии просто сжимается
+		float e;
+		if (closing) {
+			e = alpha;
+		} else {
+			float x = open - 1.0f;
+			e = 1.0f + 2.2f * x * x * x + 1.2f * x * x;
+		}
+		scale = 0.92f + 0.08f * e;
 		paneAlpha += (1.0f - paneAlpha) * (1.0f - (float) Math.exp(-16.0f * dt));
 		scrollTarget = Math.max(0, Math.min(scrollTarget, maxScroll()));
 		scrollF += (scrollTarget - scrollF) * (1.0f - (float) Math.exp(-14.0f * dt));
@@ -492,6 +642,23 @@ public class FlyMenuScreen extends Screen {
 		scroll = Math.max(0, Math.min(maxScroll(), Math.round(scrollF)));
 		extra = 1.0f;
 
+		// Всё меню одной пачкой: ни одного лишнего сброса отрисовки внутри кадра
+		ctx.draw(() -> renderAll(ctx, mouseX, mouseY, dt));
+		super.render(ctx, mouseX, mouseY, delta);
+	}
+
+	/** Следит за скоростью кадров: если слабое устройство, декор автоматически облегчается. */
+	private void trackPerf(float raw) {
+		if (++perfFrames < 8) return;
+		perfAvg += (Math.min(raw, 0.2f) - perfAvg) * 0.06f;
+		boolean want = lite ? perfAvg > 0.024f : perfAvg > 0.034f;
+		if (want != lite) {
+			lite = want;
+			MenuStyles.setLite(lite);
+		}
+	}
+
+	private void renderAll(DrawContext ctx, int mouseX, int mouseY, float dt) {
 		updateSearch(dt);
 		MenuStyles.update(dt);
 		MenuStyles.drawBackground(ctx, width, height, alpha);
@@ -504,21 +671,18 @@ public class FlyMenuScreen extends Screen {
 		ms.scale(scale, scale, 1.0f);
 		ms.translate(-cx, -cy, 0.0f);
 
-		// Рисуем пачками: меньше вызовов отрисовки, меню не роняет FPS
-		ctx.draw(() -> drawFrame(ctx, mouseX, mouseY));
-		String[] hoverBox = new String[1];
+		drawFrame(ctx, mouseX, mouseY);
 		boolean covered = searchCovers(mouseX, mouseY);
-		final int tmx = covered ? -10000 : mouseX;
-		final int tmy = covered ? -10000 : mouseY;
-		ctx.draw(() -> hoverBox[0] = drawTiles(ctx, tmx, tmy, dt));
-		ctx.draw(() -> drawPane(ctx, tmx, tmy, dt));
-		drawFooter(ctx, hoverBox[0], mouseX, mouseY, dt);
+		int tmx = covered ? -10000 : mouseX;
+		int tmy = covered ? -10000 : mouseY;
+		String hover = drawTiles(ctx, tmx, tmy, dt);
+		drawPane(ctx, tmx, tmy, dt);
+		drawFooter(ctx, hover, mouseX, mouseY, dt);
 		drawPicker(ctx);
 		drawSearch(ctx, mouseX, mouseY, dt);
 		MenuStyles.drawFront(ctx, left(), top(), right(), bottom(), alpha, mouseX, mouseY);
 
 		ms.pop();
-		super.render(ctx, mouseX, mouseY, delta);
 	}
 
 	private void drawFrame(DrawContext ctx, int mouseX, int mouseY) {
@@ -532,8 +696,16 @@ public class FlyMenuScreen extends Screen {
 		MenuStyles.drawPanelDecor(ctx, l, t, r, b, alpha);
 		ctx.disableScissor();
 		MenuStyles.drawBorder(ctx, l, t, r, b, alpha);
+
+		beginPass(ctx);
 		rr(ctx, l + 8, t, r - l - 16, 2, 1, MenuStyles.accent());
 		rect(ctx, l, t + HEAD - 1, r, t + HEAD, MenuStyles.line());
+		// мягкое свечение под цветной линией и бегущий блик
+		MenuGfx g = MenuStyles.gfx();
+		g.gradV(l + 10, t + 2, r - 10, t + 14, col(mulA(MenuStyles.accent(), 0.10f)), col(mulA(MenuStyles.accent(), 0.0f)));
+		float cyc = (age % 3.6f) / 3.6f;
+		float sweep = cyc * cyc * (3.0f - 2.0f * cyc);
+		g.softBand(l - 40 + (r - l + 80) * sweep, 44.0f, t, t + 2, 0xFFFFFF, 0.75f * alpha, l + 8, r - 8);
 
 		int flyW = textRenderer.getWidth("Fly");
 		text(ctx, "Fly", l + PAD, t + 11, MenuStyles.accent());
@@ -556,8 +728,8 @@ public class FlyMenuScreen extends Screen {
 				rr(ctx, sx - 2, sy - 2, SW + 4, SW + 4, 5, 0xFFFFFFFF);
 			}
 			if (custom) {
-				for (int xx = 0; xx < SW; xx++) {
-					rect(ctx, sx + xx, sy + 1, sx + xx + 1, sy + SW - 1, 0xFF000000 | ColorUtil.hsv(xx / (float) SW * 360.0f, 0.85f, 1.0f));
+				for (int xx = 0; xx < SW; xx += 2) {
+					rect(ctx, sx + xx, sy + 1, sx + xx + 2, sy + SW - 1, 0xFF000000 | ColorUtil.hsv(xx / (float) SW * 360.0f, 0.85f, 1.0f));
 				}
 			} else {
 				rr(ctx, sx, sy, SW, SW, 4, 0xFF000000 | Theme.PRESETS[i]);
@@ -580,51 +752,103 @@ public class FlyMenuScreen extends Screen {
 		String l2 = "Конфиги";
 		text(ctx, l2, cx + (CFG_W - textRenderer.getWidth(l2)) / 2, by + 4, MenuStyles.text());
 		extra = 1.0f;
+		endPass(ctx);
+	}
+
+	private void ensureTiles(int n) {
+		if (tileSt.length == n) return;
+		tileSt = new float[n][];
+		tileTitle = new String[n];
+		tileTitleW = -1;
+		for (int i = 0; i < n; i++) {
+			float[] a = new float[6];
+			a[0] = Float.NaN;
+			a[1] = Float.NaN;
+			a[2] = Float.NaN;
+			a[3] = 1.0f;
+			tileSt[i] = a;
+		}
 	}
 
 	/** Рисует сетку плиток. Возвращает описание модуля под курсором (или null). */
 	private String drawTiles(DrawContext ctx, int mouseX, int mouseY, float dt) {
 		List<Module> mods = ModuleManager.all();
+		ensureTiles(mods.size());
 		String hoverDesc = null;
 		int gy1 = gy1();
 		int gy2 = gy2();
 		int tw = tileW();
+		if (tw != tileTitleW) {
+			tileTitleW = tw;
+			for (int i = 0; i < mods.size(); i++) {
+				tileTitle[i] = textRenderer.trimToWidth(Lang.module(mods.get(i).getName()), tw - 14);
+			}
+		}
+		boolean searching = !query.isBlank();
+		MenuGfx g = MenuStyles.gfx();
 
 		scissor(ctx, gx1() - 2, gy1, gx2() + 2, gy2);
+		beginPass(ctx);
 		for (int i = 0; i < mods.size(); i++) {
 			Module m = mods.get(i);
 			int tx = tileX(i);
 			int ty = tileY(i);
 			if (ty + TILE_H <= gy1 || ty >= gy2) continue;
+			float[] st = tileSt[i];
 
 			boolean hover = mouseX >= tx && mouseX < tx + tw
 					&& mouseY >= Math.max(ty, gy1) && mouseY < Math.min(ty + TILE_H, gy2);
-			float en = animate(m.getName() + "#e", m.isEnabled() ? 1.0f : 0.0f, dt, 14.0f);
-			float hv = animate(m.getName() + "#h", hover ? 1.0f : 0.0f, dt, 18.0f);
-			boolean searching = !query.trim().isEmpty();
-			float dim = animate(m.getName() + "#d", !searching || matchMods.contains(i) ? 1.0f : 0.32f, dt, 12.0f);
-			extra = dim;
+			float en = an(st, 0, m.isEnabled() ? 1.0f : 0.0f, dt, 14.0f);
+			float hv = an(st, 1, hover ? 1.0f : 0.0f, dt, 18.0f);
+			float dim = an(st, 2, !searching || matchMods.contains(i) ? 1.0f : 0.32f, dt, 12.0f);
+
+			// блик пробегает по плитке при наведении
+			if (hover) {
+				if (st[4] < 0.5f) st[3] = 0.0f;
+				st[4] = 1.0f;
+			} else {
+				st[4] = 0.0f;
+			}
+			if (st[3] < 1.0f) st[3] = Math.min(1.0f, st[3] + dt * 2.6f);
+			if (st[5] > 0.0f) st[5] = Math.max(0.0f, st[5] - dt * 2.4f);
+
+			// появление волной от левого верхнего угла
+			float ap = clamp01((age - 0.04f - (i % COLS + i / COLS) * 0.035f) / 0.26f);
+			ap = 1.0f - (1.0f - ap) * (1.0f - ap) * (1.0f - ap);
+			int dy = Math.round((1.0f - ap) * 9.0f);
+			int y = ty + dy;
+			extra = dim * ap;
+
 			if (flashModT > 0.01f && m.getName().equals(flashMod)) {
-				rr(ctx, tx - 3, ty - 3, tw + 6, TILE_H + 6, 9, mulA(MenuStyles.accent(), 0.55f * flashModT));
+				rr(ctx, tx - 3, y - 3, tw + 6, TILE_H + 6, 9, mulA(MenuStyles.accent(), 0.55f * flashModT));
 			}
-
+			if (st[5] > 0.01f) {
+				int e = Math.round((1.0f - st[5]) * 8.0f) + 1;
+				rr(ctx, tx - e, y - e, tw + 2 * e, TILE_H + 2 * e, 6 + e, mulA(MenuStyles.accent(), 0.42f * st[5]));
+			}
 			if (m == selected) {
-				rr(ctx, tx - 1, ty - 1, tw + 2, TILE_H + 2, 7, MenuStyles.accent());
+				float pulse = 0.5f + 0.5f * (float) Math.sin(age * 3.0f);
+				rr(ctx, tx - 3, y - 3, tw + 6, TILE_H + 6, 9, mulA(MenuStyles.accent(), 0.07f + 0.10f * pulse));
+				rr(ctx, tx - 1, y - 1, tw + 2, TILE_H + 2, 7, MenuStyles.accent());
 			}
-			rr(ctx, tx, ty, tw, TILE_H, 6, lerp(MenuStyles.tile(), MenuStyles.tileHover(), hv));
+			rr(ctx, tx, y, tw, TILE_H, 6, lerp(MenuStyles.tile(), MenuStyles.tileHover(), hv));
+			if (st[3] < 1.0f && hv > 0.05f) {
+				float p = st[3] * st[3] * (3.0f - 2.0f * st[3]);
+				g.softBand(tx - 14 + (tw + 28) * p, 16.0f, y + 1, y + TILE_H - 1, 0xFFFFFF, 0.16f * alpha * extra, tx + 3, tx + tw - 3);
+			}
 
-			String title = textRenderer.trimToWidth(Lang.module(m.getName()), tw - 14);
-			text(ctx, title, tx + 8, ty + 6, lerp(MenuStyles.textOff(), MenuStyles.text(), en));
+			text(ctx, tileTitle[i], tx + 8, y + 6, lerp(MenuStyles.textOff(), MenuStyles.text(), en));
 
 			// Переключатель
-			pill(ctx, tx + 8, ty + 19, 26, 12, en);
+			pill(ctx, tx + 8, y + 19, 26, 12, en);
 
 			if (hover) {
 				hoverDesc = Lang.description(m.getName(), m.getDescription());
 			}
 			extra = 1.0f;
 		}
-		ctx.disableScissor();
+		unscissor(ctx);
+		beginPass(ctx);
 
 		// Полоса прокрутки
 		if (maxScroll() > 0) {
@@ -633,10 +857,25 @@ public class FlyMenuScreen extends Screen {
 			int barY = gy1 + (vh - barH) * scroll / maxScroll();
 			rect(ctx, gx2() + 3, barY, gx2() + 5, barY + barH, 0x60FFFFFF);
 		}
+		endPass(ctx);
 		return hoverDesc;
 	}
 
+	/** Строки описания выбранной функции: считаем один раз на функцию и ширину. */
+	private List<OrderedText> descLines() {
+		descLineCount();
+		return descCache;
+	}
+
 	private void drawPane(DrawContext ctx, int mouseX, int mouseY, float dt) {
+		beginPass(ctx);
+		drawPaneInner(ctx, mouseX, mouseY, dt);
+		dimA = 0.0f;
+		extra = 1.0f;
+		endPass(ctx);
+	}
+
+	private void drawPaneInner(DrawContext ctx, int mouseX, int mouseY, float dt) {
 		int px1 = px1();
 		int px2 = px2();
 		int gy1 = gy1();
@@ -653,41 +892,45 @@ public class FlyMenuScreen extends Screen {
 
 		text(ctx, textRenderer.trimToWidth(Lang.module(selected.getName()), PANE_W - 16), px1 + 8, gy1 + 8, MenuStyles.accent());
 
-		String desc = Lang.description(selected.getName(), selected.getDescription());
-		List<OrderedText> lines = textRenderer.wrapLines(Text.literal(desc), PANE_W - 16);
+		List<OrderedText> lines = descLines();
 		for (int i = 0; i < Math.min(5, lines.size()); i++) {
-			int c = col(MenuStyles.textDim());
-			if (((c >>> 24) & 0xFF) >= 12) {
-				ctx.draw();
-				ctx.drawText(textRenderer, lines.get(i), px1 + 8, gy1 + 22 + i * 10, c, true);
-				ctx.draw();
-			}
+			textOrdered(ctx, lines.get(i), px1 + 8, gy1 + 22 + i * 10, MenuStyles.textDim());
 		}
 		rect(ctx, px1 + 8, settingsTop() - 4, px2 - 8, settingsTop() - 3, MenuStyles.line());
 
 		if (selected instanceof MacroModule) {
 			drawMacroPane(ctx, mouseX, mouseY);
-			extra = 1.0f;
 			return;
 		}
 
 		List<DoubleSetting> settings = selected.getSettings();
 		if (settings.isEmpty()) {
 			text(ctx, "Настроек нет, только вкл/выкл", px1 + 8, settingsTop() + 4, MenuStyles.textDim());
-			extra = 1.0f;
 			return;
 		}
 
 		settingsScroll = Math.max(0, Math.min(settingsMaxScroll(), settingsScroll));
 		scissor(ctx, px1, settingsTop() - 3, px2, gy2);
+		beginPass(ctx);
 		if (selected instanceof RecordingModule rec) {
 			drawRecordHeader(ctx, rec, mouseX, mouseY, dt);
 		}
+		boolean off = !selected.isEnabled();
+		int stTop = settingsTop() - 3;
 		for (int k = 0; k < settings.size(); k++) {
 			DoubleSetting s = settings.get(k);
 			int ry = rowY(k);
-			if (ry + ROW_H <= settingsTop() - 3) continue;
+			if (ry + ROW_H <= stTop) continue;
 			if (ry >= gy2) break;
+			float[] ss = st(s);
+			// строки появляются по очереди
+			float rowIn = clamp01(paneAge * 9.0f - Math.min(k, 8) * 0.5f);
+			extra = paneAlpha * rowIn;
+			boolean dimRow = off && !s.isButton();
+			if (dimRow) {
+				dimRgb = MenuStyles.disabled() & 0xFFFFFF;
+				dimA = ((MenuStyles.disabled() >>> 24) & 0xFF) / 255.0f;
+			}
 
 			String label = Lang.setting(s.getName());
 			if (flashSetT > 0.01f && k == flashSetIdx && selected.getName().equals(flashSetMod)) {
@@ -698,13 +941,13 @@ public class FlyMenuScreen extends Screen {
 				int bw = px2 - px1 - 16;
 				boolean bh = mouseX >= bx1 && mouseX < bx1 + bw && mouseY >= ry + 1 && mouseY < ry + ROW_H - 1
 						&& mouseY >= gy1 && mouseY < gy2;
-				float hv = animate(selected.getName() + "." + s.getName() + "#b", bh ? 1.0f : 0.0f, dt, 18.0f);
+				float hv = an(ss, 1, bh ? 1.0f : 0.0f, dt, 18.0f);
 				rr(ctx, bx1 - 1, ry + 1, bw + 2, ROW_H - 2, 7, mulA(MenuStyles.accent(), 0.20f + 0.35f * hv));
 				rr(ctx, bx1, ry + 2, bw, ROW_H - 4, 6, lerp(MenuStyles.tile(), MenuStyles.accent(), 0.45f + 0.4f * hv));
 				String bl = label + "  >";
 				text(ctx, bl, bx1 + (bw - textRenderer.getWidth(bl)) / 2, ry + 8, 0xFFFFFFFF);
 			} else if (s.isToggle()) {
-				float on = animate(selected.getName() + "." + s.getName(), s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
+				float on = an(ss, 0, s.getBool() ? 1.0f : 0.0f, dt, 16.0f);
 				text(ctx, fit(label, px2 - px1 - 16 - 26 - 8), px1 + 8, ry + 8, MenuStyles.text());
 
 				pill(ctx, px2 - 8 - 26, ry + 6, 26, 12, on);
@@ -716,13 +959,16 @@ public class FlyMenuScreen extends Screen {
 				int x1 = px1 + 8;
 				int x2 = px2 - 8;
 				int cy = ry + 17;
+				boolean sh = dragging == s || (mouseX >= x1 - 4 && mouseX < x2 + 4 && mouseY >= ry + 8 && mouseY < ry + ROW_H
+						&& mouseY >= gy1 && mouseY < gy2);
+				float hv = an(ss, 2, sh ? 1.0f : 0.0f, dt, 18.0f);
 				double frac = (s.get() - s.getMin()) / (s.getMax() - s.getMin());
 				int fx = x1 + (int) Math.round(frac * (x2 - x1));
 				if (s.getName().endsWith("(hue)")) {
 					// Радужная дорожка: выбирай любой оттенок
-					for (int xx = x1; xx < x2; xx += 2) {
+					for (int xx = x1; xx < x2; xx += 3) {
 						float hh = (xx - x1) / (float) (x2 - x1) * 360.0f;
-						rect(ctx, xx, cy - 2, Math.min(xx + 2, x2), cy + 2, 0xFF000000 | ColorUtil.hsv(hh, 0.9f, 1.0f));
+						rect(ctx, xx, cy - 2, Math.min(xx + 3, x2), cy + 2, 0xFF000000 | ColorUtil.hsv(hh, 0.9f, 1.0f));
 					}
 				} else {
 					rr(ctx, x1, cy - 2, x2 - x1, 4, 2, MenuStyles.off());
@@ -730,15 +976,19 @@ public class FlyMenuScreen extends Screen {
 						rr(ctx, x1, cy - 2, fx - x1, 4, 2, MenuStyles.accent());
 					}
 				}
-				rr(ctx, fx - 4, cy - 4, 8, 8, 4, 0xFFFFFFFF);
+				int kr = 4 + Math.round(1.5f * hv);
+				if (hv > 0.03f) rr(ctx, fx - kr - 2, cy - kr - 2, 2 * kr + 4, 2 * kr + 4, kr + 2, mulA(MenuStyles.accent(), 0.30f * hv));
+				rr(ctx, fx - kr, cy - kr, 2 * kr, 2 * kr, kr, 0xFFFFFFFF);
 			}
-			if (!selected.isEnabled() && !s.isButton()) {
+			if (dimRow) {
 				// Функция выключена: настройки затемнены и не меняются
 				rect(ctx, px1 + 4, ry, px2 - 4, ry + ROW_H, MenuStyles.disabled());
+				dimA = 0.0f;
 			}
 		}
-		ctx.disableScissor();
 		extra = 1.0f;
+		unscissor(ctx);
+		beginPass(ctx);
 	}
 
 	private static final int MROW = 20;
@@ -860,8 +1110,19 @@ public class FlyMenuScreen extends Screen {
 		return super.charTyped(chr, modifiers);
 	}
 
+	private int tintRowY() {
+		return hueY() + HUE_H + 8 + 18;
+	}
+
+	private boolean inTintRow(double mx, double my) {
+		return mx >= svX() && mx < svX() + SV_W && my >= tintRowY() - 2 && my < tintRowY() + 14;
+	}
+
+	private float tintAnim = Float.NaN;
+
 	private void drawPicker(DrawContext ctx) {
 		if (!pickerOpen) return;
+		beginPass(ctx);
 		int x = pickX();
 		int y = pickY();
 		rr(ctx, x - 1, y - 1, PICK_W + 2, pickHeight() + 2, 8, 0xFF3A3A3E);
@@ -880,8 +1141,8 @@ public class FlyMenuScreen extends Screen {
 		rr(ctx, cx - 3, cy - 3, 6, 6, 3, 0xFF000000 | (Color.HSBtoRGB(pickH, pickS, pickV) & 0xFFFFFF));
 
 		int hy = hueY();
-		for (int i = 0; i < SV_W; i++) {
-			rect(ctx, sx + i, hy, sx + i + 1, hy + HUE_H, 0xFF000000 | (Color.HSBtoRGB(i / (float) SV_W, 1.0f, 1.0f) & 0xFFFFFF));
+		for (int i = 0; i < SV_W; i += 2) {
+			rect(ctx, sx + i, hy, sx + i + 2, hy + HUE_H, 0xFF000000 | (Color.HSBtoRGB(i / (float) SV_W, 1.0f, 1.0f) & 0xFFFFFF));
 		}
 		int hx = sx + Math.round(pickH * (SV_W - 1));
 		rr(ctx, hx - 2, hy - 2, 4, HUE_H + 4, 2, 0xFFFFFFFF);
@@ -889,21 +1150,58 @@ public class FlyMenuScreen extends Screen {
 		int rgb = FlyConfig.get().accentColor & 0xFFFFFF;
 		rr(ctx, sx, hy + HUE_H + 8, 12, 12, 4, 0xFF000000 | rgb);
 		text(ctx, String.format("#%06X", rgb), sx + 18, hy + HUE_H + 10, MenuStyles.text());
+
+		// Переключатель: красить ли все стили в выбранный цвет
+		int ty = tintRowY();
+		tintAnim = an1(tintAnim, FlyConfig.get().menuTint ? 1.0f : 0.0f, 0.05f, 16.0f);
+		text(ctx, "Все стили", sx, ty + 2, MenuStyles.text());
+		pill(ctx, sx + SV_W - 26, ty, 26, 12, tintAnim);
+		endPass(ctx);
+	}
+
+	private float an1(float v, float target, float dt, float speed) {
+		if (Float.isNaN(v)) return target;
+		v += (target - v) * (1.0f - (float) Math.exp(-speed * lastDt));
+		return Math.abs(target - v) < 0.002f ? target : v;
+	}
+
+	private float lastDt = 0.016f;
+
+	private String footSrc;
+	private int footMax;
+	private String footOut;
+
+	/** fit с запоминанием последнего результата: подсказка внизу почти не меняется. */
+	private String footFit(String s, int max) {
+		if (s.equals(footSrc) && max == footMax) return footOut;
+		footSrc = s;
+		footMax = max;
+		footOut = fit(s, max);
+		return footOut;
 	}
 
 	private void drawFooter(DrawContext ctx, String hoverDesc, int mouseX, int mouseY, float dt) {
+		beginPass(ctx);
+		drawFooterInner(ctx, hoverDesc, mouseX, mouseY, dt);
+		endPass(ctx);
+	}
+
+	private void drawFooterInner(DrawContext ctx, String hoverDesc, int mouseX, int mouseY, float dt) {
 		int fy = bottom() - FOOT + 2;
 		int chip = chipAt(mouseX, mouseY);
-		if (chip >= 0) {
-			text(ctx, fit(MenuStyles.DESCRIPTIONS[chip], right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
+		if (pickerOpen && inTintRow(mouseX, mouseY)) {
+			text(ctx, footFit("Красит все стили меню (Blood, Sakura, Abyss…) в выбранный цвет. Выключено: у стилей свои цвета",
+					right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
+		} else if (chip >= 0) {
+			text(ctx, footFit(MenuStyles.DESCRIPTIONS[chip], right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
 		} else if (hoverDesc != null) {
-			text(ctx, fit(hoverDesc, right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
+			text(ctx, footFit(hoverDesc, right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.text());
 		} else if (selected != null && !selected.isEnabled() && !selected.getSettings().isEmpty()
 				&& !(selected instanceof MacroModule)) {
-			text(ctx, fit("Включи функцию «" + Lang.module(selected.getName()) + "», чтобы менять её настройки",
+			text(ctx, footFit("Включи функцию «" + Lang.module(selected.getName()) + "», чтобы менять её настройки",
 					right() - left() - 2 * PAD), left() + PAD, fy, 0xFFFF6B6B);
 		} else {
-			text(ctx, fit("ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
+			text(ctx, footFit("ЛКМ: вкл/выкл  |  ПКМ: настройки  |  Колесо: прокрутка  |  Right Shift: закрыть",
 					right() - left() - 2 * PAD), left() + PAD, fy, MenuStyles.textDim());
 		}
 		drawStyleBar(ctx, mouseX, mouseY, dt);
@@ -917,29 +1215,46 @@ public class FlyMenuScreen extends Screen {
 		return bottom() - CHIP_H - 4;
 	}
 
-	private int styleLabelW() {
-		return textRenderer.getWidth("Стиль") + 10;
+	// Раскладка кнопок стилей считается один раз на ширину окна, а не каждый кадр
+	private int chipKey = -1;
+	private int chipLabel;
+	private final int[] chipWs = new int[MenuStyles.COUNT];
+	private final int[] chipRel = new int[MenuStyles.COUNT];
+	private final int[] chipNameW = new int[MenuStyles.COUNT];
+
+	private void ensureChips() {
+		int key = pw();
+		if (key == chipKey) return;
+		chipKey = key;
+		chipLabel = textRenderer.getWidth("Стиль") + 10;
+		int total = chipLabel;
+		for (int i = 0; i < MenuStyles.COUNT; i++) {
+			chipNameW[i] = textRenderer.getWidth(MenuStyles.NAMES[i]);
+			total += chipNameW[i] + 12 + 4;
+		}
+		// на узком экране кнопки становятся компактнее
+		int pad = total <= key - 2 * PAD ? 12 : 6;
+		int x = chipLabel;
+		for (int i = 0; i < MenuStyles.COUNT; i++) {
+			chipWs[i] = chipNameW[i] + pad;
+			chipRel[i] = x;
+			x += chipWs[i] + 4;
+		}
 	}
 
-	/** Отступ внутри кнопки стиля: на узком экране кнопки становятся компактнее. */
-	private int chipPad() {
-		int total = styleLabelW();
-		for (int i = 0; i < MenuStyles.COUNT; i++) {
-			total += textRenderer.getWidth(MenuStyles.NAMES[i]) + 12 + 4;
-		}
-		return total <= pw() - 2 * PAD ? 12 : 6;
+	private int styleLabelW() {
+		ensureChips();
+		return chipLabel;
 	}
 
 	private int chipW(int i) {
-		return textRenderer.getWidth(MenuStyles.NAMES[i]) + chipPad();
+		ensureChips();
+		return chipWs[i];
 	}
 
 	private int chipX(int i) {
-		int x = left() + PAD + styleLabelW();
-		for (int k = 0; k < i; k++) {
-			x += chipW(k) + 4;
-		}
-		return x;
+		ensureChips();
+		return left() + PAD + chipRel[i];
 	}
 
 	/** Номер стиля под мышкой или -1. */
@@ -952,6 +1267,8 @@ public class FlyMenuScreen extends Screen {
 		}
 		return -1;
 	}
+
+	private float[] chipSt;
 
 	private void drawStyleBar(DrawContext ctx, int mouseX, int mouseY, float dt) {
 		int y = styleBarY();
@@ -969,15 +1286,19 @@ public class FlyMenuScreen extends Screen {
 		rr(ctx, ihx + ihw / 2 - 6, y + CHIP_H - 2, 12, 2, 1, MenuStyles.accent());
 
 		int hover = chipAt(mouseX, mouseY);
+		if (chipSt == null) {
+			chipSt = new float[MenuStyles.COUNT];
+			java.util.Arrays.fill(chipSt, Float.NaN);
+		}
 		for (int i = 0; i < MenuStyles.COUNT; i++) {
 			int x = chipX(i);
 			int cw = chipW(i);
-			float hv = animate("style#h" + i, i == hover ? 1.0f : 0.0f, dt, 18.0f);
+			float hv = an(chipSt, i, i == hover ? 1.0f : 0.0f, dt, 18.0f);
 			if (hv > 0.02f && i != cur) {
 				rr(ctx, x, y, cw, CHIP_H, 6, mulA(MenuStyles.btnHover(), hv));
 			}
 			int tc = i == cur ? MenuStyles.text() : lerp(MenuStyles.textDim(), MenuStyles.text(), hv);
-			text(ctx, MenuStyles.NAMES[i], x + (cw - textRenderer.getWidth(MenuStyles.NAMES[i])) / 2, y + 2, tc);
+			text(ctx, MenuStyles.NAMES[i], x + (cw - chipNameW[i]) / 2, y + 2, tc);
 		}
 	}
 
@@ -1176,6 +1497,13 @@ public class FlyMenuScreen extends Screen {
 	}
 
 	private void drawSearch(DrawContext ctx, int mouseX, int mouseY, float dt) {
+		beginPass(ctx);
+		drawSearchInner(ctx, mouseX, mouseY, dt);
+		extra = 1.0f;
+		endPass(ctx);
+	}
+
+	private void drawSearchInner(DrawContext ctx, int mouseX, int mouseY, float dt) {
 		int x = sfX();
 		int y = sfY();
 		int w = sfW();
@@ -1243,7 +1571,8 @@ public class FlyMenuScreen extends Screen {
 			String t2 = "Попробуй другое слово";
 			text(ctx, t2, px + (pw - textRenderer.getWidth(t2)) / 2, py + 17, MenuStyles.textDim());
 		}
-		ctx.disableScissor();
+		unscissor(ctx);
+		beginPass(ctx);
 		extra = 1.0f;
 	}
 
@@ -1402,6 +1731,11 @@ public class FlyMenuScreen extends Screen {
 		if (searchClick(mouseX, mouseY, button)) return true;
 
 		if (pickerOpen && button == 0 && inPicker(mouseX, mouseY)) {
+			if (inTintRow(mouseX, mouseY)) {
+				FlyConfig.get().menuTint = !FlyConfig.get().menuTint;
+				FlyConfig.save();
+				return true;
+			}
 			if (mouseX >= svX() && mouseX < svX() + SV_W && mouseY >= svY() && mouseY < svY() + SV_H) {
 				dragSv = true;
 			} else if (mouseX >= svX() && mouseX < svX() + SV_W && mouseY >= hueY() - 3 && mouseY < hueY() + HUE_H + 3) {
@@ -1431,6 +1765,7 @@ public class FlyMenuScreen extends Screen {
 						}
 					} else {
 						FlyConfig.get().accentColor = Theme.PRESETS[i];
+						FlyConfig.get().menuTint = true;
 						FlyConfig.save();
 						pickerOpen = false;
 					}
@@ -1465,6 +1800,8 @@ public class FlyMenuScreen extends Screen {
 					if (button == 0) {
 						mods.get(i).toggle();
 					}
+					ensureTiles(mods.size());
+					tileSt[i][5] = 1.0f;
 					select(mods.get(i));
 					return true;
 				}

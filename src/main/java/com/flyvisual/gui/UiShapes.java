@@ -26,10 +26,30 @@ public final class UiShapes {
 		return (a << 24) | (r << 16) | (g << 8) | b;
 	}
 
+	/** Заготовленные отступы скруглений для радиусов 0..32 (чтобы не считать корни каждый кадр). */
+	private static final int[][] INSETS = new int[33][];
+
+	private static int[] insets(int r) {
+		int[] t = r < INSETS.length ? INSETS[r] : null;
+		if (t != null) return t;
+		t = new int[r];
+		for (int row = 0; row < r; row++) {
+			double dy = r - (row + 0.5);
+			double dx = Math.sqrt(Math.max(0.0, (double) r * r - dy * dy));
+			t[row] = (int) Math.round(r - dx);
+		}
+		if (r < INSETS.length) INSETS[r] = t;
+		return t;
+	}
+
 	/** Закруглённый прямоугольник, рисуется построчно. */
 	public static void roundRect(DrawContext ctx, int x, int y, int w, int h, int radius, int argb) {
 		if (((argb >>> 24) & 0xFF) == 0 || w <= 0 || h <= 0) return;
 		int r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
+		if (r == 0) {
+			ctx.fill(x, y, x + w, y + h, argb);
+			return;
+		}
 
 		// Середина без скруглений рисуется одним прямоугольником (быстрее, меньше вызовов)
 		int midTop = r;
@@ -37,10 +57,9 @@ public final class UiShapes {
 		if (midBottom > midTop) {
 			ctx.fill(x, y + midTop, x + w, y + midBottom, argb);
 		}
+		int[] ins = insets(r);
 		for (int row = 0; row < r; row++) {
-			double dy = r - (row + 0.5);
-			double dx = Math.sqrt(Math.max(0.0, (double) r * r - dy * dy));
-			int inset = (int) Math.round(r - dx);
+			int inset = ins[row];
 			ctx.fill(x + inset, y + row, x + w - inset, y + row + 1, argb);
 			int rowB = h - 1 - row;
 			if (rowB >= midTop && rowB != row) {

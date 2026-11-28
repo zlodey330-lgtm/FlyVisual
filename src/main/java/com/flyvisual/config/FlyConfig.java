@@ -42,6 +42,9 @@ public class FlyConfig {
 	/** Стиль оформления главного меню (0 = Классика, прежний вид). */
 	public int menuStyle = 0;
 
+	/** Красить все стили меню в выбранный акцентный цвет (false = у каждого стиля свои цвета). */
+	public boolean menuTint = false;
+
 	/** Последний выбранный в меню модуль и прокрутка списка: меню открывается там, где ты закончил. */
 	public String lastModule = "";
 	public int lastScroll = 0;

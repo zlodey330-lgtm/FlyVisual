@@ -3,9 +3,8 @@ package com.flyvisual.gui;
 import com.flyvisual.config.FlyConfig;
 import com.flyvisual.config.Theme;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.RotationAxis;
 
+import java.awt.Color;
 import java.util.Random;
 
 /**
@@ -267,104 +266,236 @@ public final class MenuStyles {
 		}
 	}
 
-	/** Вызывается каждый кадр меню: сдвигает веса стилей, смешивает палитру, двигает частицы. */
+	// ---------- Свой цвет: все стили перекрашиваются под выбранный акцент ----------
+
+	/** Матрицы подкраски стилей (null: цвета стиля без изменений). */
+	private static final float[][] TM = new float[COUNT][];
+	/** Палитры стилей после подкраски. */
+	private static final int[][] STYLE_T = new int[COUNT][FIELDS];
+	private static int tintKey = -1;
+
+	/** Матрица поворота оттенка на theta градусов вместе с изменением насыщенности. */
+	private static float[] hueSat(float theta, float satK) {
+		float rad = theta * 0.017453292f;
+		float c = (float) Math.cos(rad);
+		float sn = (float) Math.sin(rad);
+		float k = (1.0f - c) / 3.0f;
+		float q = sn * 0.57735027f;
+		float[] rot = {c + k, k - q, k + q, k + q, c + k, k - q, k - q, k + q, c + k};
+		float[] lum = {0.299f, 0.587f, 0.114f};
+		float[] sat = new float[9];
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
+				sat[i * 3 + j] = (1.0f - satK) * lum[j] + (i == j ? satK : 0.0f);
+			}
+		}
+		float[] out = new float[9];
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
+				float sum = 0.0f;
+				for (int m = 0; m < 3; m++) sum += sat[i * 3 + m] * rot[m * 3 + j];
+				out[i * 3 + j] = sum;
+			}
+		}
+		return out;
+	}
+
+	private static int applyM(float[] m, int argb) {
+		int r = (argb >> 16) & 0xFF;
+		int g = (argb >> 8) & 0xFF;
+		int b = argb & 0xFF;
+		int nr = clampByte(m[0] * r + m[1] * g + m[2] * b);
+		int ng = clampByte(m[3] * r + m[4] * g + m[5] * b);
+		int nb = clampByte(m[6] * r + m[7] * g + m[8] * b);
+		return (argb & 0xFF000000) | (nr << 16) | (ng << 8) | nb;
+	}
+
+	private static float hueOf(int rgb) {
+		return Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null)[0];
+	}
+
+	private static float wrapDeg(float d) {
+		while (d > 180.0f) d -= 360.0f;
+		while (d < -180.0f) d += 360.0f;
+		return d;
+	}
+
+	/** Пересчитывает палитры, только если цвет или переключатель изменились. */
+	private static void refreshTint() {
+		FlyConfig cfg = FlyConfig.get();
+		int rgb = cfg.accentColor & 0xFFFFFF;
+		int key = cfg.menuTint ? (0x1000000 | rgb) : 0;
+		if (key == tintKey) return;
+		tintKey = key;
+		float[] ht = Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null);
+		for (int i = 1; i < COUNT; i++) {
+			if (key == 0) {
+				TM[i] = null;
+				System.arraycopy(STYLE[i], 0, STYLE_T[i], 0, FIELDS);
+				continue;
+			}
+			int acc = STYLE[i][P_ACCENT];
+			float[] ha = Color.RGBtoHSB((acc >> 16) & 0xFF, (acc >> 8) & 0xFF, acc & 0xFF, null);
+			float satK = ha[1] < 0.05f ? 1.0f : Math.min(1.25f, ht[1] / ha[1]);
+			float theta = 0.0f;
+			if (ht[1] > 0.08f && ha[1] > 0.05f) {
+				theta = wrapDeg((ht[0] - ha[0]) * 360.0f);
+				for (int it = 0; it < 3; it++) {
+					float h = hueOf(applyM(hueSat(theta, satK), acc));
+					theta += wrapDeg((ht[0] - h) * 360.0f);
+				}
+			}
+			float[] m = hueSat(theta, satK);
+			TM[i] = m;
+			for (int f = 0; f < FIELDS; f++) {
+				int c = STYLE[i][f];
+				float[] hc = Color.RGBtoHSB((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF, null);
+				if (hc[2] < 0.5f && ht[1] > 0.08f) {
+					// тёмные поверхности (панель, плитки, фон) получают оттенок выбранного цвета напрямую
+					STYLE_T[i][f] = (c & 0xFF000000) | (Color.HSBtoRGB(ht[0], Math.min(1.0f, hc[1] * satK), hc[2]) & 0xFFFFFF);
+				} else {
+					STYLE_T[i][f] = applyM(m, c);
+				}
+			}
+			STYLE_T[i][P_ACCENT] = 0xFF000000 | (Color.HSBtoRGB(ht[0], ht[1], Math.max(ht[2], 0.55f)) & 0xFFFFFF);
+			// второй акцент: соседний оттенок, чтобы пара смотрелась согласованно
+			STYLE_T[i][P_ACCENT2] = 0xFF000000 | (Color.HSBtoRGB((ht[0] + 0.08f) % 1.0f, Math.max(0.2f, ht[1] * 0.7f), 1.0f) & 0xFFFFFF);
+		}
+	}
+
+	/** Включает облегчённый режим: меньше частиц и сегментов (для слабых устройств). */
+	static void setLite(boolean on) {
+		lite = on;
+		G.setLite(on);
+	}
+
+	private static boolean lite;
+
+	private static int liteN(int n) {
+		return lite ? Math.max(1, n * 55 / 100) : n;
+	}
+
+	static MenuGfx gfx() {
+		return G;
+	}
+
+	/** Вызывается каждый кадр меню: сдвигает веса стилей, смешивает палитру, двигает частицы только видимых стилей. */
 	static void update(float dt) {
 		t = (System.nanoTime() - T0) / 1.0e9f;
+		refreshTint();
 		fillClassic();
 		int target = current();
 		float k = 1.0f - (float) Math.exp(-dt * 5.0f);
 		for (int i = 0; i < COUNT; i++) {
 			float tv = i == target ? 1.0f : 0.0f;
-			w[i] += (tv - w[i]) * k;
-			if (Math.abs(tv - w[i]) < 0.003f) w[i] = tv;
-		}
-		for (int f = 0; f < FIELDS; f++) {
-			float a = 0.0f;
-			float r = 0.0f;
-			float g = 0.0f;
-			float b = 0.0f;
-			for (int i = 0; i < COUNT; i++) {
-				float wi = w[i];
-				if (wi <= 0.0f) continue;
-				int c = STYLE[i][f];
-				a += ((c >>> 24) & 0xFF) * wi;
-				r += ((c >> 16) & 0xFF) * wi;
-				g += ((c >> 8) & 0xFF) * wi;
-				b += (c & 0xFF) * wi;
+			if (w[i] != tv) {
+				w[i] += (tv - w[i]) * k;
+				if (Math.abs(tv - w[i]) < 0.003f) w[i] = tv;
 			}
-			pal[f] = (clampByte(a) << 24) | (clampByte(r) << 16) | (clampByte(g) << 8) | clampByte(b);
+		}
+		if (w[target] == 1.0f) {
+			// обычный случай: один стиль, смешивать нечего
+			System.arraycopy(target == CLASSIC ? STYLE[CLASSIC] : STYLE_T[target], 0, pal, 0, FIELDS);
+		} else {
+			for (int f = 0; f < FIELDS; f++) {
+				float a = 0.0f;
+				float r = 0.0f;
+				float g = 0.0f;
+				float b = 0.0f;
+				for (int i = 0; i < COUNT; i++) {
+					float wi = w[i];
+					if (wi <= 0.0f) continue;
+					int c = (i == CLASSIC ? STYLE[CLASSIC] : STYLE_T[i])[f];
+					a += ((c >>> 24) & 0xFF) * wi;
+					r += ((c >> 16) & 0xFF) * wi;
+					g += ((c >> 8) & 0xFF) * wi;
+					b += (c & 0xFF) * wi;
+				}
+				pal[f] = (clampByte(a) << 24) | (clampByte(r) << 16) | (clampByte(g) << 8) | clampByte(b);
+			}
 		}
 
-		// Пульс (два удара подряд, как сердце)
-		float ph = (t % 1.15f) / 1.15f;
-		beatV = clamp01((float) Math.exp(-sq((ph - 0.05f) / 0.05f)) + 0.55f * (float) Math.exp(-sq((ph - 0.27f) / 0.06f)));
-
-		// Моргание
-		if (blinkT >= 0.0f) {
-			blinkT += dt / 0.24f;
-			if (blinkT >= 1.0f) {
-				blinkT = -1.0f;
-				nextBlink = t + (R.nextFloat() < 0.2f ? 0.12f : 2.2f + R.nextFloat() * 4.0f);
+		if (w[BLOOD] > 0.0f) {
+			// Пульс (два удара подряд, как сердце)
+			float ph = (t % 1.15f) / 1.15f;
+			beatV = clamp01((float) Math.exp(-sq((ph - 0.05f) / 0.05f)) + 0.55f * (float) Math.exp(-sq((ph - 0.27f) / 0.06f)));
+			// Моргание
+			if (blinkT >= 0.0f) {
+				blinkT += dt / 0.24f;
+				if (blinkT >= 1.0f) {
+					blinkT = -1.0f;
+					nextBlink = t + (R.nextFloat() < 0.2f ? 0.12f : 2.2f + R.nextFloat() * 4.0f);
+				}
+			} else if (t >= nextBlink) {
+				blinkT = 0.0f;
 			}
-		} else if (t >= nextBlink) {
-			blinkT = 0.0f;
+			for (int i = 0; i < EMB; i++) {
+				emY[i] -= emV[i] * dt;
+				emX[i] += (float) Math.sin(t * 1.1f + emPh[i]) * 0.008f * dt;
+				if (emY[i] < -0.05f) {
+					emY[i] = 1.05f;
+					emX[i] = R.nextFloat();
+				}
+			}
+		} else {
+			beatV = 0.0f;
 		}
 
-		// Частицы
-		for (int i = 0; i < PET; i++) {
-			petY[i] += petV[i] * dt;
-			petX[i] += ((float) Math.sin(t * 0.7f + petPh[i]) * 0.035f + 0.03f) * dt;
-			petR[i] += petRv[i] * dt;
-			if (petY[i] > 1.06f) {
-				petY[i] = -0.06f;
-				petX[i] = R.nextFloat() * 1.1f - 0.1f;
-			}
-			if (petX[i] > 1.08f) petX[i] -= 1.16f;
-		}
-		for (int i = 0; i < EMB; i++) {
-			emY[i] -= emV[i] * dt;
-			emX[i] += (float) Math.sin(t * 1.1f + emPh[i]) * 0.008f * dt;
-			if (emY[i] < -0.05f) {
-				emY[i] = 1.05f;
-				emX[i] = R.nextFloat();
+		if (w[SAKURA] > 0.0f) {
+			for (int i = 0; i < PET; i++) {
+				petY[i] += petV[i] * dt;
+				petX[i] += ((float) Math.sin(t * 0.7f + petPh[i]) * 0.035f + 0.03f) * dt;
+				petR[i] += petRv[i] * dt;
+				if (petY[i] > 1.06f) {
+					petY[i] = -0.06f;
+					petX[i] = R.nextFloat() * 1.1f - 0.1f;
+				}
+				if (petX[i] > 1.08f) petX[i] -= 1.16f;
 			}
 		}
-		for (int i = 0; i < BUB; i++) {
-			buY[i] -= buV[i] * dt;
-			if (buY[i] < -0.05f) {
-				buY[i] = 1.05f;
-				buX[i] = R.nextFloat();
+		if (w[ABYSS] > 0.0f) {
+			for (int i = 0; i < BUB; i++) {
+				buY[i] -= buV[i] * dt;
+				if (buY[i] < -0.05f) {
+					buY[i] = 1.05f;
+					buX[i] = R.nextFloat();
+				}
 			}
 		}
-		for (int i = 0; i < STAR; i++) {
-			stX[i] += 0.0035f * (0.3f + stS[i] * 0.35f) * dt;
-			if (stX[i] > 1.02f) stX[i] -= 1.04f;
-		}
-		float cellsH = screenH / CELL;
-		for (int i = 0; i < COLS; i++) {
-			cY[i] += cV[i] * dt;
-			if (cY[i] - cL[i] > cellsH + 1.0f) {
-				cY[i] = -R.nextFloat() * 18.0f;
-				cV[i] = 5.0f + R.nextFloat() * 11.0f;
-				cL[i] = 7.0f + R.nextFloat() * 8.0f;
+		if (w[GALAXY] > 0.0f) {
+			for (int i = 0; i < STAR; i++) {
+				stX[i] += 0.0035f * (0.3f + stS[i] * 0.35f) * dt;
+				if (stX[i] > 1.02f) stX[i] -= 1.04f;
+			}
+			ssTimer -= dt;
+			for (int i = 0; i < 2; i++) {
+				if (ssLife[i] > 0.0f) {
+					ssLife[i] -= dt;
+					ssX[i] += ssVX[i] * dt;
+					ssY[i] += ssVY[i] * dt;
+				} else if (ssTimer <= 0.0f && w[GALAXY] > 0.1f) {
+					ssX[i] = R.nextFloat() * 0.7f;
+					ssY[i] = R.nextFloat() * 0.35f;
+					ssVX[i] = 0.55f + R.nextFloat() * 0.35f;
+					ssVY[i] = 0.25f + R.nextFloat() * 0.2f;
+					ssLife[i] = 0.9f;
+					ssTimer = 2.5f + R.nextFloat() * 4.0f;
+				}
 			}
 		}
-		gridOff = (gridOff + dt * 0.55f) % 1.0f;
-
-		ssTimer -= dt;
-		for (int i = 0; i < 2; i++) {
-			if (ssLife[i] > 0.0f) {
-				ssLife[i] -= dt;
-				ssX[i] += ssVX[i] * dt;
-				ssY[i] += ssVY[i] * dt;
-			} else if (ssTimer <= 0.0f && w[GALAXY] > 0.1f) {
-				ssX[i] = R.nextFloat() * 0.7f;
-				ssY[i] = R.nextFloat() * 0.35f;
-				ssVX[i] = 0.55f + R.nextFloat() * 0.35f;
-				ssVY[i] = 0.25f + R.nextFloat() * 0.2f;
-				ssLife[i] = 0.9f;
-				ssTimer = 2.5f + R.nextFloat() * 4.0f;
+		if (w[MATRIX] > 0.0f) {
+			float cellsH = screenH / CELL;
+			for (int i = 0; i < COLS; i++) {
+				cY[i] += cV[i] * dt;
+				if (cY[i] - cL[i] > cellsH + 1.0f) {
+					cY[i] = -R.nextFloat() * 18.0f;
+					cV[i] = 5.0f + R.nextFloat() * 11.0f;
+					cL[i] = 7.0f + R.nextFloat() * 8.0f;
+				}
 			}
+		}
+		if (w[NEON] > 0.0f) {
+			gridOff = (gridOff + dt * 0.55f) % 1.0f;
 		}
 	}
 
@@ -400,64 +531,28 @@ public final class MenuStyles {
 		return (x & 0xFFFFFF) / 16777216.0f;
 	}
 
-	/** Прямоугольник любого размера и поворота (центр в cx, cy). Двигается плавно, без привязки к пикселям. */
-	private static void quad(DrawContext ctx, float cx, float cy, float ww, float hh, float rot, int argb) {
-		if (((argb >>> 24) & 0xFF) == 0) return;
-		MatrixStack ms = ctx.getMatrices();
-		ms.push();
-		ms.translate(cx, cy, 0.0f);
-		if (rot != 0.0f) ms.multiply(RotationAxis.POSITIVE_Z.rotation(rot));
-		ms.scale(ww * 0.5f, hh * 0.5f, 1.0f);
-		ctx.fill(-1, -1, 1, 1, argb);
-		ms.pop();
+	private static final MenuGfx G = new MenuGfx();
+
+	/** Прямоугольник любого размера и поворота (центр в cx, cy). */
+	private static void quad(float cx, float cy, float ww, float hh, float rot, int argb) {
+		G.box(cx, cy, ww, hh, rot, argb);
 	}
 
-	/** Круг, рисуется строками. */
-	private static void disc(DrawContext ctx, float cx, float cy, float r, int argb) {
-		if (((argb >>> 24) & 0xFF) == 0 || r < 0.5f) return;
-		MatrixStack ms = ctx.getMatrices();
-		ms.push();
-		ms.translate(cx, cy, 0.0f);
-		int rr = (int) Math.ceil(r);
-		int step = r > 60.0f ? 4 : (r > 30.0f ? 2 : 1);
-		for (int dy = -rr; dy < rr; dy += step) {
-			float yc = dy + step * 0.5f;
-			float half = (float) Math.sqrt(Math.max(0.0f, r * r - yc * yc));
-			int hi = Math.round(half);
-			if (hi > 0) ctx.fill(-hi, dy, hi, Math.min(rr, dy + step), argb);
-		}
-		ms.pop();
+	private static void disc(float cx, float cy, float r, int argb) {
+		G.disc(cx, cy, r, argb);
 	}
 
-	/** Верхняя половина круга (шляпка медузы). */
-	private static void halfDisc(DrawContext ctx, float cx, float cy, float r, int argb) {
-		if (((argb >>> 24) & 0xFF) == 0 || r < 0.5f) return;
-		MatrixStack ms = ctx.getMatrices();
-		ms.push();
-		ms.translate(cx, cy, 0.0f);
-		int rr = (int) Math.ceil(r);
-		for (int dy = -rr; dy < 0; dy++) {
-			float yc = dy + 0.5f;
-			float half = (float) Math.sqrt(Math.max(0.0f, r * r - yc * yc));
-			int hi = Math.round(half);
-			if (hi > 0) ctx.fill(-hi, dy, hi, dy + 1, argb);
-		}
-		ms.pop();
+	private static void halfDisc(float cx, float cy, float r, int argb) {
+		G.halfDisc(cx, cy, r, argb);
 	}
 
-	/** Мягкое свечение: несколько кругов с падающей прозрачностью. */
-	private static void glow(DrawContext ctx, float cx, float cy, float r, int rgb, float a) {
-		for (int i = 0; i < 4; i++) {
-			float k = 1.0f - i * 0.22f;
-			disc(ctx, cx, cy, r * k, ca(rgb, a * 0.22f));
-		}
+	/** Мягкое свечение с плавным краем. */
+	private static void glow(float cx, float cy, float r, int rgb, float a) {
+		G.glow(cx, cy, r * 1.15f, rgb, a * 0.55f);
 	}
 
-	private static void outline(DrawContext ctx, int l, int t0, int r, int b, int argb) {
-		ctx.fill(l, t0, r, t0 + 1, argb);
-		ctx.fill(l, b - 1, r, b, argb);
-		ctx.fill(l, t0, l + 1, b, argb);
-		ctx.fill(r - 1, t0, r, b, argb);
+	private static void outline(int l, int t0, int r, int b, int argb) {
+		G.outline(l, t0, r, b, argb);
 	}
 
 	// ---------- Фон экрана (за панелью) ----------
@@ -465,39 +560,49 @@ public final class MenuStyles {
 	static void drawBackground(DrawContext ctx, int sw, int sh, float a) {
 		screenH = sh;
 		screenWidthV = sw;
-		ctx.fill(0, 0, sw, sh, ca(pal[P_BG], a));
+		G.begin(ctx);
+		G.rect(0, 0, sw, sh, ca(pal[P_BG], a));
 		for (int i = 1; i < COUNT; i++) {
 			float aw = a * w[i];
 			if (aw < 0.01f) continue;
+			G.setTint(TM[i]);
 			switch (i) {
-				case BLOOD -> bgBlood(ctx, sw, sh, aw);
-				case SAKURA -> bgSakura(ctx, sw, sh, aw);
-				case ABYSS -> bgAbyss(ctx, sw, sh, aw);
-				case MATRIX -> matrixRain(ctx, 0, sw, sh, aw * 0.8f);
-				case NEON -> bgNeon(ctx, sw, sh, aw);
-				case GALAXY -> bgGalaxy(ctx, sw, sh, aw);
+				case BLOOD -> bgBlood(sw, sh, aw);
+				case SAKURA -> bgSakura(sw, sh, aw);
+				case ABYSS -> bgAbyss(sw, sh, aw);
+				case MATRIX -> {
+					matrixRain(0, sw, sh, aw * 0.8f);
+					matrixGlitch(sw, sh, aw);
+				}
+				case NEON -> bgNeon(sw, sh, aw);
+				case GALAXY -> bgGalaxy(sw, sh, aw);
 				default -> {
 				}
 			}
 		}
+		G.setTint(null);
+		G.flush();
 	}
 
-	private static void bgBlood(DrawContext ctx, int sw, int sh, float a) {
-		ctx.fillGradient(0, 0, sw, sh / 3, ca(0x78500008, a), 0x00000000);
-		ctx.fillGradient(0, sh * 2 / 3, sw, sh, 0x00000000, ca(0x90300004, a));
-		ctx.fill(0, 0, sw, sh, ca(0x28FF0010, a * beatV * 0.55f));
-		for (int i = 0; i < EMB; i++) {
+	private static void bgBlood(int sw, int sh, float a) {
+		G.gradV(0, 0, sw, sh / 3, ca(0x78500008, a), 0x00000000);
+		G.gradV(0, sh * 2 / 3, sw, sh, 0x00000000, ca(0x90300004, a));
+		G.rect(0, 0, sw, sh, ca(0x28FF0010, a * beatV * 0.55f));
+		// кровавый туман: два больших пятна медленно плывут и дышат в такт пульсу
+		glow(sw * (0.18f + 0.05f * (float) Math.sin(t * 0.21f)), sh * 0.85f, sh * 0.62f, 0xFF8A0010, a * (0.16f + 0.14f * beatV));
+		glow(sw * (0.82f + 0.05f * (float) Math.cos(t * 0.17f)), sh * 0.2f, sh * 0.5f, 0xFF600008, a * (0.14f + 0.12f * beatV));
+		for (int i = 0, n = liteN(EMB); i < n; i++) {
 			float x = (emX[i] + (float) Math.sin(t * 0.9f + emPh[i]) * 0.012f) * sw;
 			float y = emY[i] * sh;
 			float fl = 0.45f + 0.55f * (float) Math.sin(t * 3.0f + emPh[i] * 2.0f);
 			int c = mix(0xFFFF4A1E, 0xFF8A0E10, emPh[i] / 6.28f);
-			quad(ctx, x, y, emS[i], emS[i], 0.0f, ca(c, a * (0.2f + 0.45f * fl * fl)));
+			quad(x, y, emS[i], emS[i], 0.0f, ca(c, a * (0.2f + 0.45f * fl * fl)));
 		}
 	}
 
 	private static final int[] PETAL_COL = {0xFFFFC4D8, 0xFFFFA8C6, 0xFFFFD9E6, 0xFFF48FB1};
 
-	private static void petals(DrawContext ctx, int sw, int sh, float a, int from, int to) {
+	private static void petals(int sw, int sh, float a, int from, int to) {
 		for (int i = from; i < to; i++) {
 			float flut = Math.abs((float) Math.cos(petR[i] * 0.8f + petPh[i]));
 			float wd = petS[i] * (0.55f + 0.45f * flut);
@@ -505,57 +610,84 @@ public final class MenuStyles {
 			float x = petX[i] * sw;
 			float y = petY[i] * sh;
 			float edge = clamp01(Math.min(petY[i] + 0.05f, 1.05f - petY[i]) * 8.0f);
-			quad(ctx, x, y, wd, hd, petR[i], ca(PETAL_COL[i & 3], a * 0.9f * edge));
+			quad(x, y, wd, hd, petR[i], ca(PETAL_COL[i & 3], a * 0.9f * edge));
 		}
 	}
 
-	private static void bgSakura(DrawContext ctx, int sw, int sh, float a) {
-		ctx.fillGradient(0, 0, sw, sh, ca(0x38FFA6C8, a), ca(0x50300A24, a));
+	private static void bgSakura(int sw, int sh, float a) {
+		G.gradV(0, 0, sw, sh, ca(0x38FFA6C8, a), ca(0x50300A24, a));
 		float sweep = 0.5f + 0.5f * (float) Math.sin(t * 0.35f);
-		ctx.fillGradient(0, 0, sw, sh / 2, ca(0x20FFD0E4, a * sweep), 0x00000000);
-		petals(ctx, sw, sh, a, 0, PET - 8);
+		G.gradV(0, 0, sw, sh / 2, ca(0x20FFD0E4, a * sweep), 0x00000000);
+		// мягкое солнце и лучи, которые покачиваются
+		float sx = sw * 0.1f;
+		float sy = sh * 0.06f;
+		glow(sx, sy, sh * 0.75f, 0xFFFFC8DC, a * (0.34f + 0.06f * (float) Math.sin(t * 0.6f)));
+		for (int k = 0; k < 4; k++) {
+			float ang = 0.35f + k * 0.28f + 0.07f * (float) Math.sin(t * 0.25f + k * 1.7f);
+			float len = sh * 1.5f;
+			float al = 0.05f + 0.035f * (float) Math.sin(t * 0.5f + k * 2.0f);
+			G.line(sx, sy, sx + (float) Math.cos(ang) * len, sy + (float) Math.sin(ang) * len, 22.0f + k * 8.0f,
+					ca(0xFFFFE4EE, a * Math.max(0.0f, al)), 0x00FFE4EE);
+		}
+		petals(sw, sh, a, 0, lite ? (PET - 8) * 55 / 100 : PET - 8);
 	}
 
-	private static void bgAbyss(DrawContext ctx, int sw, int sh, float a) {
-		ctx.fillGradient(0, 0, sw, sh, ca(0x5000C8D8, a), ca(0x90001018, a));
+	private static void bgAbyss(int sw, int sh, float a) {
+		G.gradV(0, 0, sw, sh, ca(0x5000C8D8, a), ca(0x90001018, a));
 		// лучи света сверху
 		for (int k = 0; k < 6; k++) {
 			float x = sw * (0.08f + 0.17f * k) + (float) Math.sin(t * 0.3f + k * 1.7f) * 22.0f;
 			float wd = 26.0f + 18.0f * (float) Math.sin(t * 0.5f + k);
 			float al = 0.035f + 0.03f * (float) Math.sin(t * 0.7f + k * 2.1f);
-			quad(ctx, x, sh * 0.42f, Math.abs(wd), sh * 1.5f, 0.3f, ca(0xFFAEEFFF, a * Math.max(0.0f, al)));
+			quad(x, sh * 0.42f, Math.abs(wd), sh * 1.5f, 0.3f, ca(0xFFAEEFFF, a * Math.max(0.0f, al)));
 		}
-		bubbles(ctx, 0, 0, sw, sh, a, BUB);
-		jelly(ctx, sw * 0.2f, sh * (0.55f + 0.06f * (float) Math.sin(t * 0.5f)), 1.0f, a, 0.0f);
-		jelly(ctx, sw * 0.82f, sh * (0.35f + 0.05f * (float) Math.sin(t * 0.43f + 2.0f)), 0.75f, a, 1.7f);
+		// блики света на воде: волнистые линии у поверхности
+		int pts = lite ? 7 : 12;
+		for (int k = 0; k < 4; k++) {
+			float yb = sh * (0.05f + 0.055f * k);
+			float al = 0.10f - k * 0.02f;
+			float px0 = 0.0f;
+			float py0 = yb + (float) Math.sin(t * 0.9f + k * 1.3f) * 3.0f;
+			for (int i = 1; i <= pts; i++) {
+				float px1 = sw * i / (float) pts;
+				float py1 = yb + (float) Math.sin(t * 0.9f + k * 1.3f + i * 0.8f) * 3.0f + (float) Math.sin(t * 1.7f + i * 1.9f) * 1.2f;
+				float fl = 0.55f + 0.45f * (float) Math.sin(t * 1.3f + i * 1.1f + k);
+				G.line(px0, py0, px1, py1, 1.6f, ca(0xFFD8FBFF, a * al * fl), ca(0xFFD8FBFF, a * al * fl));
+				px0 = px1;
+				py0 = py1;
+			}
+		}
+		bubbles(0, 0, sw, sh, a, liteN(BUB));
+		jelly(sw * 0.2f, sh * (0.55f + 0.06f * (float) Math.sin(t * 0.5f)), 1.0f, a, 0.0f);
+		jelly(sw * 0.82f, sh * (0.35f + 0.05f * (float) Math.sin(t * 0.43f + 2.0f)), 0.75f, a, 1.7f);
 	}
 
-	private static void bubbles(DrawContext ctx, int x0, int y0, int bw, int bh, float a, int n) {
+	private static void bubbles(int x0, int y0, int bw, int bh, float a, int n) {
 		for (int i = 0; i < n; i++) {
 			float x = x0 + (buX[i] + (float) Math.sin(t * 0.9f + buPh[i]) * 0.012f) * bw;
 			float y = y0 + buY[i] * bh;
 			float s = buS[i];
-			disc(ctx, x, y, s, ca(0xFF8FE8FF, a * 0.10f));
-			quad(ctx, x - s * 0.35f, y - s * 0.4f, Math.max(1.0f, s * 0.35f), Math.max(1.0f, s * 0.35f), 0.0f, ca(0xFFFFFFFF, a * 0.55f));
+			disc(x, y, s, ca(0xFF8FE8FF, a * 0.10f));
+			quad(x - s * 0.35f, y - s * 0.4f, Math.max(1.0f, s * 0.35f), Math.max(1.0f, s * 0.35f), 0.0f, ca(0xFFFFFFFF, a * 0.55f));
 		}
 	}
 
-	private static void jelly(DrawContext ctx, float x, float y, float s, float a, float ph) {
+	private static void jelly(float x, float y, float s, float a, float ph) {
 		float pulse = 1.0f + 0.12f * (float) Math.sin(t * 1.6f + ph);
-		halfDisc(ctx, x, y, 11.0f * s * pulse, ca(0xFF7FE8FF, a * 0.30f));
-		halfDisc(ctx, x, y, 7.0f * s * pulse, ca(0xFFC8F8FF, a * 0.22f));
+		halfDisc(x, y, 11.0f * s * pulse, ca(0xFF7FE8FF, a * 0.30f));
+		halfDisc(x, y, 7.0f * s * pulse, ca(0xFFC8F8FF, a * 0.22f));
 		for (int k = -2; k <= 2; k++) {
 			float sw = (float) Math.sin(t * 1.4f + ph + k * 0.9f) * 3.0f * s;
-			quad(ctx, x + k * 3.6f * s + sw * 0.5f, y + 11.0f * s, 1.2f, 22.0f * s, sw * 0.04f, ca(0xFF7FE8FF, a * 0.22f));
+			quad(x + k * 3.6f * s + sw * 0.5f, y + 11.0f * s, 1.2f, 22.0f * s, sw * 0.04f, ca(0xFF7FE8FF, a * 0.22f));
 		}
 	}
 
-	private static void matrixRain(DrawContext ctx, int x0, int regionW, int regionH, float a) {
+	private static void matrixRain(int x0, int regionW, int regionH, float a) {
 		int cols = Math.min(COLS, regionW / CELL + 1);
 		int seedT = (int) (t * 2.5f);
 		for (int c = 0; c < cols; c++) {
 			float head = cY[c];
-			int len = (int) cL[c];
+			int len = lite ? (int) cL[c] * 6 / 10 : (int) cL[c];
 			int px = x0 + c * CELL + 1;
 			for (int k = 0; k < len; k++) {
 				float cy = (head - k) * CELL;
@@ -570,35 +702,50 @@ public final class MenuStyles {
 				int py = Math.round(cy);
 				switch (pat) {
 					case 0 -> {
-						ctx.fill(px + 2, py, px + 4, py + 7, colA);
-						ctx.fill(px, py, px + 6, py + 2, colA);
+						G.rect(px + 2, py, px + 4, py + 7, colA);
+						G.rect(px, py, px + 6, py + 2, colA);
 					}
 					case 1 -> {
-						ctx.fill(px, py + 3, px + 6, py + 5, colA);
-						ctx.fill(px, py, px + 2, py + 7, colA);
+						G.rect(px, py + 3, px + 6, py + 5, colA);
+						G.rect(px, py, px + 2, py + 7, colA);
 					}
 					case 2 -> {
-						ctx.fill(px, py, px + 6, py + 2, colA);
-						ctx.fill(px, py + 5, px + 6, py + 7, colA);
-						ctx.fill(px + 4, py, px + 6, py + 7, colA);
+						G.rect(px, py, px + 6, py + 2, colA);
+						G.rect(px, py + 5, px + 6, py + 7, colA);
+						G.rect(px + 4, py, px + 6, py + 7, colA);
 					}
 					default -> {
-						ctx.fill(px + 1, py, px + 3, py + 7, colA);
-						ctx.fill(px + 3, py + 3, px + 6, py + 5, colA);
+						G.rect(px + 1, py, px + 3, py + 7, colA);
+						G.rect(px + 3, py + 3, px + 6, py + 5, colA);
 					}
 				}
 			}
 		}
 	}
 
-	private static void neonGrid(DrawContext ctx, int x1, int x2, int horizon, int bottom, float a) {
+	/** Редкий «сбой»: на долю секунды по экрану пробегают светлые полосы. */
+	private static void matrixGlitch(int sw, int sh, float a) {
+		float cyc = t % 4.3f;
+		if (cyc > 0.22f) return;
+		int n = (int) (t / 4.3f);
+		float k = 1.0f - cyc / 0.22f;
+		for (int i = 0; i < 3; i++) {
+			float y = h01(n * 7 + i * 13) * sh;
+			float hgt = 2.0f + h01(n * 5 + i * 3) * 9.0f;
+			float off = (h01(n * 11 + i) - 0.5f) * 40.0f;
+			G.rect(off, y, sw + off, y + hgt, ca(0xFF2BFF6A, a * 0.10f * k));
+			G.rect(off * 0.5f, y + hgt, sw + off * 0.5f, y + hgt + 1, ca(0xFFD8FFE6, a * 0.18f * k));
+		}
+	}
+
+	private static void neonGrid(int x1, int x2, int horizon, int bottom, float a) {
 		if (bottom <= horizon + 4) return;
 		int wd = x2 - x1;
 		float cx = x1 + wd * 0.5f;
 		for (int i = 0; i < 11; i++) {
 			float f = (i + gridOff) / 11.0f;
 			float yy = horizon + (bottom - horizon) * f * f * 1.0f;
-			ctx.fill(x1, Math.round(yy), x2, Math.round(yy) + 1, ca(0xFFFF3DDC, a * (0.12f + 0.7f * f)));
+			G.rect(x1, Math.round(yy), x2, Math.round(yy) + 1, ca(0xFFFF3DDC, a * (0.12f + 0.7f * f)));
 		}
 		for (int j = -10; j <= 10; j++) {
 			float xh = cx + j * wd * 0.018f;
@@ -606,22 +753,20 @@ public final class MenuStyles {
 			float dx = xb - xh;
 			float dy = bottom - horizon;
 			float len = (float) Math.sqrt(dx * dx + dy * dy);
-			quad(ctx, (xh + xb) * 0.5f, (horizon + bottom) * 0.5f, 1.2f, len, (float) -Math.atan2(dx, dy), ca(0xFF2DE2FF, a * 0.42f));
+			quad((xh + xb) * 0.5f, (horizon + bottom) * 0.5f, 1.2f, len, (float) -Math.atan2(dx, dy), ca(0xFF2DE2FF, a * 0.42f));
 		}
-		ctx.fill(x1, horizon, x2, horizon + 1, ca(0xFFFF8AEE, a * 0.9f));
+		G.rect(x1, horizon, x2, horizon + 1, ca(0xFFFF8AEE, a * 0.9f));
 	}
 
-	private static void bgNeon(DrawContext ctx, int sw, int sh, float a) {
+	private static void bgNeon(int sw, int sh, float a) {
 		int horizon = Math.round(sh * 0.60f);
-		ctx.fillGradient(0, 0, sw, horizon, ca(0x40200060, a), ca(0x50FF2DB4, a));
-		ctx.fillGradient(0, horizon, sw, sh, ca(0x60200040, a), ca(0xA0100024, a));
+		G.gradV(0, 0, sw, horizon, ca(0x40200060, a), ca(0x50FF2DB4, a));
+		G.gradV(0, horizon, sw, sh, ca(0x60200040, a), ca(0xA0100024, a));
 		// закат
 		float cx = sw * 0.5f;
 		float rad = Math.min(sh * 0.2f, sw * 0.18f);
 		float cy = horizon - rad * 0.15f;
-		MatrixStack ms = ctx.getMatrices();
-		ms.push();
-		ms.translate(cx, cy, 0.0f);
+		float cyi = Math.round(cy);
 		int rr = Math.round(rad);
 		for (int dy = -rr; dy < rr; dy++) {
 			float yc = dy + 0.5f;
@@ -629,18 +774,52 @@ public final class MenuStyles {
 			float frac = (dy + rr) / (2.0f * rr);
 			if (frac > 0.5f && (((int) ((dy + rr) * 0.5f + gridOff * 4.0f)) % 4) < (frac - 0.5f) * 8.0f) continue;
 			int hi = Math.round((float) Math.sqrt(Math.max(0.0f, rad * rad - yc * yc)));
-			if (hi > 0) ctx.fill(-hi, dy, hi, dy + 1, ca(mix(0xFFFFE04A, 0xFFFF2D95, frac), a * 0.9f));
+			if (hi > 0) G.rect(cx - hi, cyi + dy, cx + hi, cyi + dy + 1, ca(mix(0xFFFFE04A, 0xFFFF2D95, frac), a * 0.9f));
 		}
-		ms.pop();
-		neonGrid(ctx, 0, sw, horizon, sh, a);
+		neonGrid(0, sw, horizon, sh, a);
+		// плавающие неоновые ромбы
+		for (int k = 0; k < (lite ? 3 : 6); k++) {
+			float dx = sw * (0.08f + 0.17f * k) + (float) Math.sin(t * 0.3f + k * 1.9f) * 14.0f;
+			float dy = horizon * (0.18f + 0.55f * ((k * 37 % 10) / 10.0f)) + (float) Math.sin(t * 0.45f + k) * 6.0f;
+			float sz = 5.0f + (k % 3) * 2.5f;
+			float rot = t * (0.35f + 0.1f * k) * (k % 2 == 0 ? 1.0f : -1.0f);
+			int c1 = ca(k % 2 == 0 ? 0xFF2DE2FF : 0xFFFF3DDC, a * (0.28f + 0.14f * (float) Math.sin(t * 1.4f + k)));
+			for (int j = 0; j < 4; j++) {
+				float a0 = rot + j * 1.5707964f;
+				float a1 = a0 + 1.5707964f;
+				G.line(dx + (float) Math.cos(a0) * sz, dy + (float) Math.sin(a0) * sz,
+						dx + (float) Math.cos(a1) * sz, dy + (float) Math.sin(a1) * sz, 1.2f, c1, c1);
+			}
+		}
 	}
 
-	private static void bgGalaxy(DrawContext ctx, int sw, int sh, float a) {
-		ctx.fillGradient(0, 0, sw, sh, ca(0x30202080, a), ca(0x40100030, a));
-		disc(ctx, sw * (0.25f + 0.03f * (float) Math.sin(t * 0.07f)), sh * 0.35f, sh * 0.34f, ca(0xFF7A3CFF, a * 0.07f));
-		disc(ctx, sw * (0.78f + 0.03f * (float) Math.cos(t * 0.06f)), sh * 0.62f, sh * 0.40f, ca(0xFF2F6BFF, a * 0.07f));
-		disc(ctx, sw * 0.55f, sh * 0.2f, sh * 0.26f, ca(0xFFC03CFF, a * 0.05f));
-		stars(ctx, 0, 0, sw, sh, a, STAR);
+	private static void bgGalaxy(int sw, int sh, float a) {
+		G.gradV(0, 0, sw, sh, ca(0x30202080, a), ca(0x40100030, a));
+		disc(sw * (0.25f + 0.03f * (float) Math.sin(t * 0.07f)), sh * 0.35f, sh * 0.34f, ca(0xFF7A3CFF, a * 0.07f));
+		disc(sw * (0.78f + 0.03f * (float) Math.cos(t * 0.06f)), sh * 0.62f, sh * 0.40f, ca(0xFF2F6BFF, a * 0.07f));
+		disc(sw * 0.55f, sh * 0.2f, sh * 0.26f, ca(0xFFC03CFF, a * 0.05f));
+		stars(0, 0, sw, sh, a, liteN(STAR));
+		// далёкая планета с кольцом
+		float pr = Math.max(8.0f, sh * 0.055f);
+		float pcx = sw * 0.88f;
+		float pcy = sh * (0.2f + 0.012f * (float) Math.sin(t * 0.3f));
+		G.fan(pcx, pcy, pr, 0.0f, 6.2831855f, ca(0xFFB7A6FF, a * 0.55f), ca(0xFF3A2C8C, a * 0.5f));
+		float rot = -0.42f;
+		float rcs = (float) Math.cos(rot);
+		float rsn = (float) Math.sin(rot);
+		int segs = lite ? 16 : 26;
+		float lx = 0.0f;
+		float ly = 0.0f;
+		for (int i = 0; i <= segs; i++) {
+			float ang = i * 6.2831855f / segs;
+			float ex = (float) Math.cos(ang) * pr * 1.9f;
+			float ey = (float) Math.sin(ang) * pr * 0.55f;
+			float qx = pcx + ex * rcs - ey * rsn;
+			float qy = pcy + ex * rsn + ey * rcs;
+			if (i > 0) G.line(lx, ly, qx, qy, 1.4f, ca(0xFFD9CCFF, a * 0.4f), ca(0xFFD9CCFF, a * 0.4f));
+			lx = qx;
+			ly = qy;
+		}
 		for (int i = 0; i < 2; i++) {
 			if (ssLife[i] <= 0.0f) continue;
 			float al = clamp01(ssLife[i] / 0.9f);
@@ -648,22 +827,22 @@ public final class MenuStyles {
 			float hy = ssY[i] * sh;
 			float ang = (float) Math.atan2(ssVY[i] * sh, ssVX[i] * sw);
 			float tail = 54.0f;
-			quad(ctx, hx - (float) Math.cos(ang) * tail * 0.5f, hy - (float) Math.sin(ang) * tail * 0.5f, tail, 1.4f, ang, ca(0xFFBFD4FF, a * al * 0.55f));
-			quad(ctx, hx, hy, 2.6f, 2.6f, 0.0f, ca(0xFFFFFFFF, a * al));
+			quad(hx - (float) Math.cos(ang) * tail * 0.5f, hy - (float) Math.sin(ang) * tail * 0.5f, tail, 1.4f, ang, ca(0xFFBFD4FF, a * al * 0.55f));
+			quad(hx, hy, 2.6f, 2.6f, 0.0f, ca(0xFFFFFFFF, a * al));
 		}
 	}
 
-	private static void stars(DrawContext ctx, int x0, int y0, int bw, int bh, float a, int n) {
+	private static void stars(int x0, int y0, int bw, int bh, float a, int n) {
 		for (int i = 0; i < n; i++) {
 			float tw = 0.5f + 0.5f * (float) Math.sin(t * stV[i] + stPh[i]);
 			float al = 0.25f + 0.75f * tw * tw;
 			float x = x0 + stX[i] * bw;
 			float y = y0 + stY[i] * bh;
 			int c = (i % 5 == 0) ? 0xFFBFD0FF : ((i % 7 == 0) ? 0xFFFFD9F0 : 0xFFFFFFFF);
-			quad(ctx, x, y, stS[i], stS[i], 0.0f, ca(c, a * al));
+			quad(x, y, stS[i], stS[i], 0.0f, ca(c, a * al));
 			if (stS[i] > 1.5f && tw > 0.8f) {
-				quad(ctx, x, y, 7.0f, 1.0f, 0.0f, ca(c, a * 0.35f * tw));
-				quad(ctx, x, y, 1.0f, 7.0f, 0.0f, ca(c, a * 0.35f * tw));
+				quad(x, y, 7.0f, 1.0f, 0.0f, ca(c, a * 0.35f * tw));
+				quad(x, y, 1.0f, 7.0f, 0.0f, ca(c, a * 0.35f * tw));
 			}
 		}
 	}
@@ -671,62 +850,66 @@ public final class MenuStyles {
 	// ---------- Декор внутри панели (вызывать с обрезкой по панели) ----------
 
 	static void drawPanelDecor(DrawContext ctx, int l, int top, int r, int b, float a) {
+		G.begin(ctx);
 		for (int i = 1; i < COUNT; i++) {
 			float aw = a * w[i];
 			if (aw < 0.01f) continue;
+			G.setTint(TM[i]);
 			int pw = r - l;
 			int ph = b - top;
 			switch (i) {
 				case BLOOD -> {
-					ctx.fillGradient(l, top, r, top + 40, ca(0x50B00014, aw), 0x00000000);
-					ctx.fillGradient(l, b - 34, r, b, 0x00000000, ca(0x60600008, aw));
-					veins(ctx, l, top, r, b, aw);
-					drips(ctx, l, top, pw, aw);
+					G.gradV(l, top, r, top + 40, ca(0x50B00014, aw), 0x00000000);
+					G.gradV(l, b - 34, r, b, 0x00000000, ca(0x60600008, aw));
+					veins(l, top, r, b, aw);
+					drips(l, top, pw, aw);
 				}
 				case SAKURA -> {
-					ctx.fillGradient(l, top, r, top + 46, ca(0x34FFB4D2, aw), 0x00000000);
-					ctx.fillGradient(l, b - 34, r, b, 0x00000000, ca(0x30FF8FB8, aw));
+					G.gradV(l, top, r, top + 46, ca(0x34FFB4D2, aw), 0x00000000);
+					G.gradV(l, b - 34, r, b, 0x00000000, ca(0x30FF8FB8, aw));
 				}
 				case ABYSS -> {
 					for (int k = 0; k < 4; k++) {
 						float x = l + pw * (0.12f + 0.27f * k) + (float) Math.sin(t * 0.35f + k * 1.9f) * 18.0f;
 						float al = 0.03f + 0.025f * (float) Math.sin(t * 0.8f + k * 2.3f);
-						quad(ctx, x, top + ph * 0.5f, 22.0f, ph * 1.6f, 0.28f, ca(0xFFAEEFFF, aw * Math.max(0.0f, al)));
+						quad(x, top + ph * 0.5f, 22.0f, ph * 1.6f, 0.28f, ca(0xFFAEEFFF, aw * Math.max(0.0f, al)));
 					}
-					bubbles(ctx, l, top, pw, ph, aw * 0.8f, 18);
-					ctx.fillGradient(l, b - 40, r, b, 0x00000000, ca(0x4000A0B0, aw));
+					bubbles(l, top, pw, ph, aw * 0.8f, liteN(18));
+					G.gradV(l, b - 40, r, b, 0x00000000, ca(0x4000A0B0, aw));
 				}
 				case MATRIX -> {
-					matrixRain(ctx, l, pw, ph + top, aw * 0.22f);
+					if (!lite) matrixRain(l, pw, ph + top, aw * 0.22f);
 					float sc = (t * 0.22f) % 1.3f - 0.15f;
 					int sy = top + Math.round(ph * sc);
-					ctx.fillGradient(l, sy - 14, r, sy, 0x00000000, ca(0xFF2BFF6A, aw * 0.10f));
-					ctx.fill(l, sy, r, sy + 1, ca(0xFF2BFF6A, aw * 0.22f));
+					G.gradV(l, sy - 14, r, sy, 0x00000000, ca(0xFF2BFF6A, aw * 0.10f));
+					G.rect(l, sy, r, sy + 1, ca(0xFF2BFF6A, aw * 0.22f));
 					for (int y = top; y < b; y += 3) {
-						ctx.fill(l, y, r, y + 1, ca(0xFF000000, aw * 0.10f));
+						G.rect(l, y, r, y + 1, ca(0xFF000000, aw * 0.10f));
 					}
 				}
 				case NEON -> {
 					int hz = top + Math.round(ph * 0.72f);
-					neonGrid(ctx, l, r, hz, b, aw * 0.42f);
+					neonGrid(l, r, hz, b, aw * 0.42f);
 					float sc = (t * 0.3f) % 1.4f - 0.2f;
 					int sy = top + Math.round(ph * sc);
-					ctx.fillGradient(l, sy - 12, r, sy, 0x00000000, ca(0xFF2DE2FF, aw * 0.07f));
-					ctx.fillGradient(l, top, r, top + 36, ca(0x30FF3DDC, aw), 0x00000000);
+					G.gradV(l, sy - 12, r, sy, 0x00000000, ca(0xFF2DE2FF, aw * 0.07f));
+					G.gradV(l, top, r, top + 36, ca(0x30FF3DDC, aw), 0x00000000);
 				}
 				case GALAXY -> {
-					disc(ctx, l + pw * 0.8f, top + ph * 0.3f, ph * 0.45f, ca(0xFF6A5CFF, aw * 0.06f));
-					disc(ctx, l + pw * 0.2f, top + ph * 0.85f, ph * 0.4f, ca(0xFFC03CFF, aw * 0.05f));
-					stars(ctx, l, top, pw, ph, aw * 0.8f, 55);
+					disc(l + pw * 0.8f, top + ph * 0.3f, ph * 0.45f, ca(0xFF6A5CFF, aw * 0.06f));
+					disc(l + pw * 0.2f, top + ph * 0.85f, ph * 0.4f, ca(0xFFC03CFF, aw * 0.05f));
+					stars(l, top, pw, ph, aw * 0.8f, liteN(55));
 				}
 				default -> {
 				}
 			}
 		}
+		G.setTint(null);
+		G.flush();
 	}
 
 	/** Жилки в углах панели: короткие ломаные линии, которые пульсируют вместе с сердцем. */
-	private static void veins(DrawContext ctx, int l, int top, int r, int b, float a) {
+	private static void veins(int l, int top, int r, int b, float a) {
 		float al = a * (0.28f + 0.5f * beatV);
 		int c = ca(0xFF8E0A12, al);
 		int c2 = ca(0xFFC0121C, al * 0.8f);
@@ -756,7 +939,7 @@ public final class MenuStyles {
 					int fx2 = Math.max(x1, x2) + 1;
 					int fy1 = Math.min(y1, y2);
 					int fy2 = Math.max(y1, y2) + 1;
-					ctx.fill(fx1, fy1, fx2, fy2, s < 4 ? c : c2);
+					G.rect(fx1, fy1, fx2, fy2, s < 4 ? c : c2);
 					x = nx;
 					y = ny;
 				}
@@ -765,7 +948,7 @@ public final class MenuStyles {
 	}
 
 	/** Капли крови, медленно стекающие с верхнего края панели. */
-	private static void drips(DrawContext ctx, int l, int top, int pw, float a) {
+	private static void drips(int l, int top, int pw, float a) {
 		for (int k = 0; k < 7; k++) {
 			float period = 6.0f + (k % 3) * 1.7f;
 			float ph = (t / period + k * 0.37f) % 1.0f;
@@ -786,57 +969,59 @@ public final class MenuStyles {
 				dropA = 1.0f - e;
 			}
 			if (len > 0.5f) {
-				quad(ctx, x, top + len * 0.5f, 2.0f, len, 0.0f, ca(0xFFA0101A, a * 0.9f));
-				disc(ctx, x, top + len, 2.2f, ca(0xFFC0141E, a));
-				quad(ctx, x - 0.6f, top + len - 0.8f, 1.0f, 1.0f, 0.0f, ca(0xFFFFB0B0, a * 0.7f));
+				quad(x, top + len * 0.5f, 2.0f, len, 0.0f, ca(0xFFA0101A, a * 0.9f));
+				disc(x, top + len, 2.2f, ca(0xFFC0141E, a));
+				quad(x - 0.6f, top + len - 0.8f, 1.0f, 1.0f, 0.0f, ca(0xFFFFB0B0, a * 0.7f));
 			}
-			if (dropY > 0.0f) disc(ctx, x, dropY, 2.0f, ca(0xFFB0121C, a * dropA));
+			if (dropY > 0.0f) disc(x, dropY, 2.0f, ca(0xFFB0121C, a * dropA));
 		}
 	}
 
 	// ---------- Рамка вокруг панели ----------
 
 	static void drawBorder(DrawContext ctx, int l, int top, int r, int b, float a) {
+		G.begin(ctx);
 		for (int i = 1; i < COUNT; i++) {
 			float aw = a * w[i];
 			if (aw < 0.01f) continue;
+			G.setTint(TM[i]);
 			switch (i) {
 				case BLOOD -> {
 					float p = 0.30f + 0.55f * beatV;
-					outline(ctx, l - 1, top - 1, r + 1, b + 1, ca(0xFFE0242B, aw * p * 0.35f));
-					outline(ctx, l, top, r, b, ca(0xFFC0141E, aw * p));
+					outline(l - 1, top - 1, r + 1, b + 1, ca(0xFFE0242B, aw * p * 0.35f));
+					outline(l, top, r, b, ca(0xFFC0141E, aw * p));
 				}
 				case SAKURA -> {
-					outline(ctx, l, top, r, b, ca(0xFFFFA8C8, aw * 0.55f));
+					outline(l, top, r, b, ca(0xFFFFA8C8, aw * 0.55f));
 					float hx = l + ((t * 0.12f) % 1.0f) * (r - l);
-					ctx.fillGradient(Math.round(hx) - 30, top, Math.round(hx), top + 2, 0x00FFFFFF, ca(0xFFFFE4EE, aw * 0.9f));
-					ctx.fillGradient(Math.round(hx), top, Math.round(hx) + 8, top + 2, ca(0xFFFFE4EE, aw * 0.9f), 0x00FFFFFF);
+					G.gradV(Math.round(hx) - 30, top, Math.round(hx), top + 2, 0x00FFFFFF, ca(0xFFFFE4EE, aw * 0.9f));
+					G.gradV(Math.round(hx), top, Math.round(hx) + 8, top + 2, ca(0xFFFFE4EE, aw * 0.9f), 0x00FFFFFF);
 				}
 				case ABYSS -> {
 					float p = 0.5f + 0.5f * (float) Math.sin(t * 1.1f);
-					outline(ctx, l, top, r, b, ca(0xFF2EE6D6, aw * (0.30f + 0.3f * p)));
+					outline(l, top, r, b, ca(0xFF2EE6D6, aw * (0.30f + 0.3f * p)));
 				}
 				case MATRIX -> {
-					outline(ctx, l, top, r, b, ca(0xFF2BFF6A, aw * 0.5f));
+					outline(l, top, r, b, ca(0xFF2BFF6A, aw * 0.5f));
 					int c = ca(0xFFA8FFC4, aw * 0.9f);
 					int s = 8;
-					ctx.fill(l - 2, top - 2, l + s, top - 1, c);
-					ctx.fill(l - 2, top - 2, l - 1, top + s, c);
-					ctx.fill(r - s, top - 2, r + 2, top - 1, c);
-					ctx.fill(r + 1, top - 2, r + 2, top + s, c);
-					ctx.fill(l - 2, b + 1, l + s, b + 2, c);
-					ctx.fill(l - 2, b - s, l - 1, b + 2, c);
-					ctx.fill(r - s, b + 1, r + 2, b + 2, c);
-					ctx.fill(r + 1, b - s, r + 2, b + 2, c);
+					G.rect(l - 2, top - 2, l + s, top - 1, c);
+					G.rect(l - 2, top - 2, l - 1, top + s, c);
+					G.rect(r - s, top - 2, r + 2, top - 1, c);
+					G.rect(r + 1, top - 2, r + 2, top + s, c);
+					G.rect(l - 2, b + 1, l + s, b + 2, c);
+					G.rect(l - 2, b - s, l - 1, b + 2, c);
+					G.rect(r - s, b + 1, r + 2, b + 2, c);
+					G.rect(r + 1, b - s, r + 2, b + 2, c);
 				}
 				case NEON -> {
 					float p = 0.65f + 0.35f * (float) Math.sin(t * 2.2f);
-					outline(ctx, l - 2, top - 2, r + 2, b + 2, ca(0xFF2DE2FF, aw * 0.30f * p));
-					outline(ctx, l - 1, top - 1, r + 1, b + 1, ca(0xFF2DE2FF, aw * 0.9f * p));
-					outline(ctx, l + 1, top + 1, r - 1, b - 1, ca(0xFFFF3DDC, aw * 0.55f));
+					outline(l - 2, top - 2, r + 2, b + 2, ca(0xFF2DE2FF, aw * 0.30f * p));
+					outline(l - 1, top - 1, r + 1, b + 1, ca(0xFF2DE2FF, aw * 0.9f * p));
+					outline(l + 1, top + 1, r - 1, b - 1, ca(0xFFFF3DDC, aw * 0.55f));
 				}
 				case GALAXY -> {
-					outline(ctx, l, top, r, b, ca(0xFF8E9BFF, aw * 0.35f));
+					outline(l, top, r, b, ca(0xFF8E9BFF, aw * 0.35f));
 					float per = 2.0f * ((r - l) + (b - top));
 					float pos = ((t * 0.05f) % 1.0f) * per;
 					float px;
@@ -856,28 +1041,35 @@ public final class MenuStyles {
 						px = l;
 						py = b - d;
 					}
-					glow(ctx, px, py, 5.0f, 0xFFBFD0FF, aw);
-					disc(ctx, px, py, 1.6f, ca(0xFFFFFFFF, aw));
+					glow(px, py, 5.0f, 0xFFBFD0FF, aw);
+					disc(px, py, 1.6f, ca(0xFFFFFFFF, aw));
 				}
 				default -> {
 				}
 			}
 		}
+		G.setTint(null);
+		G.flush();
 	}
 
 	// ---------- Передний план: глаз, ветка, лепестки ----------
 
 	static void drawFront(DrawContext ctx, int l, int top, int r, int b, float a, float mouseX, float mouseY) {
+		G.begin(ctx);
 		float aw = a * w[BLOOD];
 		if (aw >= 0.01f) {
 			float s = clamp01((top + 5.0f) / 19.5f);
-			if (s >= 0.45f) drawEye(ctx, r - 34.0f, top - 5.0f, s, mouseX, mouseY, aw);
+			G.setTint(TM[BLOOD]);
+			if (s >= 0.45f) drawEye(r - 34.0f, top - 5.0f, s, mouseX, mouseY, aw);
 		}
 		aw = a * w[SAKURA];
 		if (aw >= 0.01f) {
-			drawBranch(ctx, r, top, aw);
-			petals(ctx, (int) (screenWidth()), (int) screenH, aw, PET - 8, PET);
+			G.setTint(TM[SAKURA]);
+			drawBranch(r, top, aw);
+			petals((int) (screenWidth()), (int) screenH, aw, PET - 8, PET);
 		}
+		G.setTint(null);
+		G.flush();
 	}
 
 	private static float screenWidthV = 480.0f;
@@ -887,7 +1079,7 @@ public final class MenuStyles {
 	}
 
 	/** Ветка сакуры вдоль верхнего правого края панели. */
-	private static void drawBranch(DrawContext ctx, int r, int top, float a) {
+	private static void drawBranch(int r, int top, float a) {
 		float[] bx = {r + 16, r - 22, r - 64, r - 104, r - 148};
 		float[] by = {top - 3, top - 8, top - 4, top - 10, top - 5};
 		for (int i = 0; i < 4; i++) {
@@ -898,39 +1090,36 @@ public final class MenuStyles {
 			float dx = x2 - x1;
 			float dy = y2 - y1;
 			float len = (float) Math.sqrt(dx * dx + dy * dy);
-			quad(ctx, (x1 + x2) * 0.5f, (y1 + y2) * 0.5f, len + 1.0f, 2.4f - i * 0.3f, (float) Math.atan2(dy, dx), ca(0xFF4A2A22, a));
+			quad((x1 + x2) * 0.5f, (y1 + y2) * 0.5f, len + 1.0f, 2.4f - i * 0.3f, (float) Math.atan2(dy, dx), ca(0xFF4A2A22, a));
 		}
 		for (int i = 0; i < 5; i++) {
 			float sway = (float) Math.sin(t * 0.8f + i * 1.3f) * 1.6f;
-			blossom(ctx, bx[i] + sway * 0.4f, by[i] + 2.0f + sway * 0.3f, 4.6f - (i % 2) * 0.8f, t * 0.15f + i, a);
+			blossom(bx[i] + sway * 0.4f, by[i] + 2.0f + sway * 0.3f, 4.6f - (i % 2) * 0.8f, t * 0.15f + i, a);
 			if (i % 2 == 0) {
-				blossom(ctx, bx[i] + 9.0f, by[i] - 3.0f + sway * 0.2f, 3.2f, i * 0.9f + t * 0.12f, a * 0.9f);
+				blossom(bx[i] + 9.0f, by[i] - 3.0f + sway * 0.2f, 3.2f, i * 0.9f + t * 0.12f, a * 0.9f);
 			}
 		}
 	}
 
-	private static void blossom(DrawContext ctx, float x, float y, float rad, float rot, float a) {
+	private static void blossom(float x, float y, float rad, float rot, float a) {
 		for (int p = 0; p < 5; p++) {
 			float ang = rot + p * 1.2566f;
-			quad(ctx, x + (float) Math.cos(ang) * rad * 0.62f, y + (float) Math.sin(ang) * rad * 0.62f,
+			quad(x + (float) Math.cos(ang) * rad * 0.62f, y + (float) Math.sin(ang) * rad * 0.62f,
 					rad * 1.05f, rad * 0.78f, ang, ca(p % 2 == 0 ? 0xFFFFB9D2 : 0xFFFFA2C2, a));
 		}
-		disc(ctx, x, y, rad * 0.32f, ca(0xFFE0568A, a));
+		disc(x, y, rad * 0.32f, ca(0xFFE0568A, a));
 	}
 
 	/** Глаз в правом верхнем углу: моргает, следит за курсором, зрачок дышит в такт пульсу. */
-	private static void drawEye(DrawContext ctx, float cx, float cy, float s, float mx, float my, float a) {
-		MatrixStack ms = ctx.getMatrices();
-		ms.push();
-		ms.translate(cx, cy, 0.0f);
-		ms.scale(s, s, 1.0f);
+	private static void drawEye(float cx, float cy, float s, float mx, float my, float a) {
+		G.setXform(cx, cy, s);
 
 		float open = blinkT < 0.0f ? 1.0f : 1.0f - (float) Math.sin(Math.PI * blinkT);
 		open = clamp01(open) * (0.96f + 0.04f * beatV);
 		final int rx = 18;
 		final int ry = 9;
 
-		disc(ctx, 0.0f, 0.0f, 21.0f, ca(0xFFFF1010, a * (0.05f + 0.07f * beatV)));
+		disc(0.0f, 0.0f, 21.0f, ca(0xFFFF1010, a * (0.05f + 0.07f * beatV)));
 
 		float ndx = Math.max(-1.0f, Math.min(1.0f, (mx - cx) / 220.0f));
 		float ndy = Math.max(-1.0f, Math.min(1.0f, (my - cy) / 150.0f));
@@ -946,12 +1135,12 @@ public final class MenuStyles {
 			int topY = Math.round(-hh);
 			int botY = Math.round(hh);
 			// веко
-			ctx.fill(x, topY - 3, x + 1, topY, ca(0xFF4C0B11, a));
-			ctx.fill(x, botY, x + 1, botY + 2, ca(0xFF3A080D, a));
+			G.rect(x, topY - 3, x + 1, topY, ca(0xFF4C0B11, a));
+			G.rect(x, botY, x + 1, botY + 2, ca(0xFF3A080D, a));
 			if (botY > topY) {
 				float edge = (float) Math.pow(Math.abs(u), 2.2f);
-				ctx.fill(x, topY, x + 1, botY, ca(mix(0xFFF3E8E0, 0xFFD27C7C, edge), a));
-				ctx.fill(x, topY, x + 1, topY + Math.max(1, (botY - topY) / 3), ca(0x55000000, a));
+				G.rect(x, topY, x + 1, botY, ca(mix(0xFFF3E8E0, 0xFFD27C7C, edge), a));
+				G.rect(x, topY, x + 1, topY + Math.max(1, (botY - topY) / 3), ca(0x55000000, a));
 				float dx = x - ix;
 				if (Math.abs(dx) < ri) {
 					float half = (float) Math.sqrt(ri * ri - dx * dx);
@@ -962,22 +1151,22 @@ public final class MenuStyles {
 						float fib = h01(x * 13 + 7);
 						int ic = mix(0xFFE63C2C, 0xFF6E0808, clamp01(rr * rr * 0.9f + (1.0f - fib) * 0.28f));
 						if (rr > 0.86f) ic = 0xFF3A0505;
-						ctx.fill(x, it, x + 1, ib, ca(ic, a));
+						G.rect(x, it, x + 1, ib, ca(ic, a));
 						if (Math.abs(dx) < rp) {
 							float pr = (float) Math.sqrt(rp * rp - dx * dx);
 							int pt = Math.max(it, Math.round(iy - pr));
 							int pb = Math.min(ib, Math.round(iy + pr));
-							if (pb > pt) ctx.fill(x, pt, x + 1, pb, ca(0xFF050000, a));
+							if (pb > pt) G.rect(x, pt, x + 1, pb, ca(0xFF050000, a));
 						}
 					}
 				}
 			}
 			// линия века и ресницы
-			ctx.fill(x, topY - 1, x + 1, topY, ca(0xFF0A0102, a));
-			ctx.fill(x, botY, x + 1, botY + 1, ca(0xFF0A0102, a));
+			G.rect(x, topY - 1, x + 1, topY, ca(0xFF0A0102, a));
+			G.rect(x, botY, x + 1, botY + 1, ca(0xFF0A0102, a));
 			if ((x & 3) == 0 && open > 0.12f) {
 				int lash = 2 + (h01(x * 5 + 1) < 0.5f ? 1 : 0);
-				ctx.fill(x, topY - 3 - lash, x + 1, topY - 3, ca(0xFF120204, a));
+				G.rect(x, topY - 3 - lash, x + 1, topY - 3, ca(0xFF120204, a));
 			}
 		}
 		// красные прожилки у уголков
@@ -992,7 +1181,7 @@ public final class MenuStyles {
 						int len = 5 + k * 2;
 						int x1 = side < 0 ? vx : vx - len;
 						int x2 = side < 0 ? vx + len : vx;
-						ctx.fill(x1, vy, x2, vy + 1, ca(0xFFB02020, a * 0.55f));
+						G.rect(x1, vy, x2, vy + 1, ca(0xFFB02020, a * 0.55f));
 					}
 				}
 			}
@@ -1001,9 +1190,9 @@ public final class MenuStyles {
 			float uh = hx / rx;
 			float hhh = ry * (float) Math.pow(Math.max(0.0f, 1.0f - uh * uh), 0.8f) * open;
 			if (Math.abs(hy) < hhh - 1.0f) {
-				ctx.fill(Math.round(hx), Math.round(hy), Math.round(hx) + 2, Math.round(hy) + 2, ca(0xFFFFFFFF, a * 0.85f));
+				G.rect(Math.round(hx), Math.round(hy), Math.round(hx) + 2, Math.round(hy) + 2, ca(0xFFFFFFFF, a * 0.85f));
 			}
 		}
-		ms.pop();
+		G.clearXform();
 	}
 }
